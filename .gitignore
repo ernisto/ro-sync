@@ -1,0 +1,9 @@
+# pesde
+**/*_packages/**
+**/.pesde/**
+
+# local claude settings
+.claude/settings.local.json
+
+# local secrets
+.env
