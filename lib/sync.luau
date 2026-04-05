@@ -30,7 +30,6 @@ export type cloud_api = {
 export type sync_opts = {
 	universe_id: number,
 	force_fresh_state: boolean?,
-	read_icon: (path: string) -> buffer?,
 }
 
 -- helpers

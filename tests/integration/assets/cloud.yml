@@ -1,0 +1,17 @@
+"owner":
+  "user": 414
+
+"places":
+  "start":
+    "file": "game.rbxl"
+
+"products":
+  "money_pack1":
+    "description": "Gain 100 money"
+    "discount": 0
+    "discount_end": "06/06/2026"
+    "icon": "placeholder.png"
+    "name": "1000 money"
+    "price": 1499
+    "random_reward": true
+    "regional_pricing": false

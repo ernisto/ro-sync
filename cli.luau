@@ -74,9 +74,6 @@ local api: sync.cloud_api = {
 local opts: sync.sync_opts = {
 	universe_id = lock.universe_id,
 	force_fresh_state = force_fresh_state,
-	read_icon = function(path)
-		return if fs.isFile(path) then buffer.fromstring(fs.readFile(path)) else warn(`file '{path}' not exist`)
-	end,
 }
 
 local remaining = 0
