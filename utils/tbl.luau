@@ -1,4 +1,12 @@
 -- functions
+local function count(tab)
+	local count = 0
+	for _ in tab do
+		count += 1
+	end
+	return count
+end
+
 local function clone_intersect<T>(base: { [string]: any }, mask: T): T
 	assert(type(mask) == 'table')
 	local out = {}
@@ -54,4 +62,5 @@ return table.freeze {
 	intersection = clone_intersect,
 	filtered = clone_filter,
 	changes = clone_changes,
+	count = count,
 }
