@@ -97,43 +97,22 @@ local api: sync.cloud_api = {
 	end,
 }
 
--- main
 sync_logger.print_header()
 
-local counts = { creates = 0, updates = 0, noops = 0, errors = 0, conflicts = 0 }
+-- main
+local summary = { creates = 0, updates = 0, noops = 0, errors = 0, conflicts = 0 }
+local sync_opts = { universe_id = lock.universe_id, force_fresh_state = force_fresh_state, summary = summary }
+
 local remaining = 0
-
-local opts: sync.sync_opts = {
-	universe_id = lock.universe_id,
-	force_fresh_state = force_fresh_state,
-}
-
 for key, item in inputs.products do
 	remaining += 1
 	task.spawn(function()
-		ctx_log.init(key)
-
-		local ok, err = xpcall(function()
-			lock.products[key] = sync.sync_product(key, item, lock.products[key], api, opts)
-		end, debug.traceback)
-
-		if ok then
-			local action = ctx_log.get_action()
-			if action == 'create' then
-				counts.creates += 1
-			elseif action == 'update' then
-				counts.updates += 1
-			else
-				counts.noops += 1
-			end
-			counts.conflicts += ctx_log.get_conflicts()
-		else
-			local err_msg = tostring(err)
-			ctx_log.error(err_msg:match '^(.-)\n' or err_msg, err_msg)
-			ctx_log.done(false)
-			counts.errors += 1
+		local ok = ctx_log.try_result(function()
+			lock.products[key] = sync.sync_product(key, item, lock.products[key], api, sync_opts)
+		end)
+		if not ok then
+			summary.errors += 1
 		end
-
 		remaining -= 1
 	end)
 end
@@ -145,4 +124,4 @@ end
 fs.writeFile(LOCK_PATH, serde.encode('yaml', lock, true))
 fs.writeFile(INPUTS_PATH, serde.encode('yaml', inputs, true))
 
-sync_logger.print_summary(counts.creates, counts.updates, counts.noops, counts.errors, counts.conflicts)
+sync_logger.print_summary(summary)

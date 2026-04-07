@@ -1,12 +1,12 @@
 local cloud = require '@pkg/ro_cloud'
 local ctx_log = require '@utils/ctx_log'
-local sync_logger = require '@lib/sync_logger'
 local tbl = require '@utils/tbl'
 
 local fs = require '@lune/fs'
 local serde = require '@lune/serde'
 
 local state = require './state'
+local sync_logger = require './sync_logger'
 
 -- types
 export type product_lock = state.product_lock
@@ -32,6 +32,7 @@ export type cloud_api = {
 export type sync_opts = {
 	universe_id: number,
 	force_fresh_state: boolean?,
+	summary: sync_logger.summary,
 }
 
 -- helpers
@@ -51,12 +52,13 @@ local function sync_product(
 	local icon_hash = icon_content and serde.hash('sha256', icon_content)
 
 	if not prev then
-		ctx_log.start 'create'
+		sync_logger.push_create(key)
 		if not icon_content then ctx_log.warn(`icon '{input.icon}' not found, uploading without icon`) end
 
-		local product = api.create(opts, tbl.applied(input, { icon_bytes = icon_content }))
-		ctx_log.done(true)
+		local success, product = ctx_log.try_result(api.create, opts, tbl.applied(input, { icon_bytes = icon_content }))
+		opts.summary.creates += 1
 
+		sync_logger.pop_create(success)
 		return {
 			universe_id = product.universe_id,
 			product_id = product.product_id,
@@ -78,13 +80,14 @@ local function sync_product(
 
 	local is_same_input = next(sending) == nil and not is_sending_icon
 	if is_same_input and not opts.force_fresh_state then
-		ctx_log.start 'noop'
-		ctx_log.done(true)
+		sync_logger.print_noop(key)
+		opts.summary.noops += 1
 		return prev
 	end
 
-	ctx_log.start 'update'
-	sync_logger.local_changes(sync_logger.make_diffs(prev_input, sending), is_sending_icon)
+	local local_diffs = sync_logger.diff_by_local(prev_input, sending, prev.icon_hash, icon_hash)
+	sync_logger.push_update(key)
+	sync_logger.print_local_changes(local_diffs)
 
 	-- pull
 	local current = api.get(prev)
@@ -93,18 +96,18 @@ local function sync_product(
 	local receiving = tbl.changes(prev_input, cloud_input)
 	local is_receiving_icon = prev.icon_id and prev.icon_id ~= state.UNAVAILABLE_ID and prev.icon_id ~= current.icon_id
 
-	-- remove changes already received
-	local original_sending = table.clone(sending)
 	sending = tbl.changes(receiving, sending)
 
 	-- find conflicts
-	local conflicts = tbl.intersection(receiving, sending)
-	if input.conflicts then tbl.apply(conflicts, input.conflicts) end
+	local conflicts: any = input.conflicts or {}
+	tbl.apply(conflicts, tbl.intersection(receiving, sending))
 
 	if is_receiving_icon and is_sending_icon then conflicts.icon = is_receiving_icon end
 	input.conflicts = if next(conflicts) then conflicts else nil
 
-	sync_logger.cloud_changes(sync_logger.make_diffs(prev_input, receiving), not not is_receiving_icon, conflicts)
+	local receiving_icon = if is_receiving_icon then current.icon_id else nil
+	local external_diffs = sync_logger.diff_by_cloud(prev_input, receiving, prev.icon_id, receiving_icon)
+	sync_logger.print_external_changes(external_diffs, conflicts)
 
 	-- resolve
 	local is_free_sending_icon = is_sending_icon and not conflicts.icon
@@ -117,24 +120,23 @@ local function sync_product(
 	-- push
 	local push_success = true
 	local patch = tbl.applied(sending, { icon_bytes = if is_free_sending_icon then current.icon_id else nil })
+
 	if next(patch) then
-		push_success = xpcall(api.update, function(err)
-			ctx_log.traceback(debug.traceback(tostring(err), 2))
-		end, prev, patch)
-		if push_success then tbl.apply(prev.input, free_sending) end
+		push_success = ctx_log.try_result(api.update, prev, patch)
+		if push_success then
+			sync_logger.print_pushed_changes(patch)
+			tbl.apply(prev.input, free_sending)
+		end
+	else
+		sync_logger.print_pushed_changes(free_sending)
 	end
 	tbl.apply(prev.input, receiving)
 
-	sync_logger.pushed_changes {
-		prev_input = prev_input,
-		receiving = receiving,
-		original_sending = original_sending,
-		conflicts = conflicts,
-		is_sending_icon = is_sending_icon,
-		is_receiving_icon = is_receiving_icon,
-		icon_hash = prev.icon_hash,
-	}
-	ctx_log.done(push_success, tbl.count(conflicts))
+	local n = tbl.count(conflicts)
+	sync_logger.pop_update(push_success, n)
+
+	opts.summary.conflicts += n
+	opts.summary.updates += 1
 
 	-- save
 	local latest_icon_id = if is_free_sending_icon then state.UNAVAILABLE_ID else current.icon_id

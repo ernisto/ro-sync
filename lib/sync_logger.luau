@@ -1,157 +1,130 @@
 local ctx_log = require '@utils/ctx_log'
 
-local c = ctx_log.c
+local c = ctx_log.colors
 local val_str = ctx_log.val_str
-local sorted_keys = ctx_log.sorted_keys
 
 -- types
 export type field_change = { old: any, new: any }
 export type push_state = { lock: any, cloud: any?, local_val: any?, conflict: boolean? }
+export type summary = { creates: number, updates: number, noops: number, errors: number, conflicts: number }
+
+type diff = { [string]: field_change }
+type set<T = any> = { [string]: T }
 
 -- helpers
-local function make_diffs(from: { [string]: any }, changes: { [string]: any }): { [string]: field_change }
+local function short_hash(h: string): string
+	return h:sub(1, 8)
+end
+local function diff_by_local(prev: set, sending: set, old_hash: string?, new_hash: string?): diff
 	local out = {}
-	for k, new_v in changes do
-		out[k] = { old = from[k], new = new_v }
+	for k, v in sending do
+		out[k] = { old = prev[k], new = v }
+	end
+	if new_hash and old_hash ~= new_hash then
+		out.icon = { new = `(hash: {short_hash(new_hash)})`, old = old_hash and `(hash: {short_hash(old_hash)})` }
 	end
 	return out
 end
-
-type sync_data = {
-	prev_input: { [string]: any },
-	receiving: { [string]: any },
-	original_sending: { [string]: any },
-	conflicts: { [string]: any },
-	is_sending_icon: boolean,
-	is_receiving_icon: any,
-	icon_hash: string?,
-}
-
-local function make_push_state(data: sync_data): { [string]: push_state }
-	local pushed: { [string]: push_state } = {}
-	for k, cloud_v in data.receiving do
-		pushed[k] = { lock = data.prev_input[k], cloud = cloud_v }
+local function diff_by_cloud(prev: set, receiving: set, old_id: number?, new_id: number?): diff
+	local out = {}
+	for k, v in receiving do
+		out[k] = { old = prev[k], new = v }
 	end
-	for k, local_v in data.original_sending do
-		local p: push_state = pushed[k] or { lock = data.prev_input[k] }
-		p.local_val = local_v
-		p.conflict = data.conflicts[k] ~= nil
-		pushed[k] = p
+	-- stylua: ignore
+	if new_id and old_id ~= new_id then
+		out.icon = { new = `(id: {new_id})`, old = old_id and `(id: {old_id})` }
 	end
-	if data.is_sending_icon or data.is_receiving_icon then
-		pushed['icon'] = {
-			lock = data.icon_hash,
-			cloud = if data.is_receiving_icon then '(changed)' else nil,
-			local_val = if data.is_sending_icon then '(changed)' else nil,
-			conflict = not not data.conflicts.icon,
-		}
-	end
-	return pushed
+	return out
 end
-
-local function simple_diff_lines(keys: { string }, diffs: { [string]: field_change })
-	local prefix = ctx_log.pc()
-	for _, k in keys do
-		local d = diffs[k]
-		ctx_log.push(`{prefix}{c.dim}{c.red}-   {k}: {val_str(d.old)}{c.reset}`)
-		ctx_log.push(`{prefix}{c.green}+   {k}: {val_str(d.new)}{c.reset}`)
+local function print_diff(diffs: diff, conflicts: set?)
+	for key, field in diffs do
+		ctx_log.str(`{c.dim}{c.red}- {key}: {val_str(field.old)}{c.reset}`)
+		ctx_log.str(
+			if conflicts and conflicts[key] ~= nil
+				then `{c.yellow}∙ {key}: {val_str(field.new)} {c.dim}(conflict){c.reset}`
+				else `{c.green}+ {key}: {val_str(field.new)}{c.reset}`
+		)
 	end
 end
 
--- sync-specific log functions
+-- helpers
+local function print_local_changes(diffs: diff)
+	if next(diffs) == nil then return ctx_log.str(`{c.dim}no local changes{c.reset}\n`) end
 
-local function local_changes(diffs: { [string]: field_change }, with_icon: boolean)
-	local prefix = ctx_log.pc()
-	ctx_log.push(`{prefix}{c.dim}local changes:{c.reset}`)
-	if next(diffs) == nil and not with_icon then
-		ctx_log.push(`{prefix}{c.dim}(no field changes){c.reset}`)
-	else
-		simple_diff_lines(sorted_keys(diffs), diffs)
-		if with_icon then ctx_log.push(`{prefix}{c.dim}~   icon: (changed){c.reset}`) end
-	end
-	ctx_log.push(prefix)
+	ctx_log.str(`{c.dim}local changes:{c.reset}`)
+	print_diff(diffs)
+	ctx_log.str ''
+end
+local function print_external_changes(diffs: diff, conflicts: set?)
+	if next(diffs) == nil then return ctx_log.str(`{c.dim}no external changes{c.reset}\n`) end
+
+	ctx_log.str(`{c.dim}external changes:{c.reset}`)
+	print_diff(diffs, conflicts)
+	ctx_log.str ''
+end
+local function print_pushed_changes(pushed: set)
+	if next(pushed) == nil then return ctx_log.str(`{c.dim}no changes to push{c.reset}`) end
+
+	ctx_log.str(`{c.dim}pushed changes:{c.reset}`)
+	print_diff(diff_by_local(pushed, pushed))
 end
 
-local function cloud_changes(diffs: { [string]: field_change }, with_icon: boolean, conflicts: { [string]: any }?)
-	local prefix = ctx_log.pc()
-	ctx_log.push(`{prefix}{c.dim}external changes:{c.reset}`)
-	if next(diffs) == nil and not with_icon then
-		ctx_log.push(`{prefix}{c.dim}(no external changes){c.reset}`)
-		ctx_log.push(prefix)
-		return
-	end
-	for _, k in sorted_keys(diffs) do
-		local d = diffs[k]
-		if conflicts and conflicts[k] ~= nil then
-			ctx_log.push(`{prefix}{c.dim}{c.red}-   {k}: {val_str(d.old)}{c.reset}`)
-			ctx_log.push(`{prefix}{c.yellow}+   {k}: {val_str(d.new)} {c.dim}(conflict){c.reset}`)
-		else
-			ctx_log.push(`{prefix}{c.dim}{c.red}-   {k}: {val_str(d.old)}{c.reset}`)
-			ctx_log.push(`{prefix}{c.green}+   {k}: {val_str(d.new)}{c.reset}`)
-		end
-	end
-	if with_icon then
-		if conflicts and conflicts.icon ~= nil then
-			ctx_log.push(`{prefix}{c.yellow}~   icon: (changed) {c.dim}(conflict){c.reset}`)
-		else
-			ctx_log.push(`{prefix}{c.dim}~   icon: (changed){c.reset}`)
-		end
-	end
-	ctx_log.push(prefix)
+-- operations
+local function print_noop(key)
+	ctx_log.str(`{c.dim}= Skipping: {c.bold}{key}{c.reset}`)
+end
+local function push_create_ctx(key)
+	ctx_log.push_ctx(`{c.green}+ Creating: {c.bold}{key}{c.reset}`)
+end
+local function push_update_ctx(key)
+	ctx_log.push_ctx(`{c.blue}~ Updating: {c.bold}{key}{c.reset}`)
 end
 
-local function pushed_changes(data: sync_data)
-	local fields: { [string]: push_state } = make_push_state(data)
-	local prefix = ctx_log.pc()
-
-	ctx_log.push(`{prefix}{c.dim}pushed changes:{c.reset}`)
-	local keys = {}
-	for k, f in fields do
-		if f.local_val ~= nil then table.insert(keys, k) end
-	end
-	table.sort(keys)
-	if #keys == 0 then
-		ctx_log.push(`{prefix}{c.dim}(no local changes to push){c.reset}`)
-		ctx_log.push(prefix)
-		return
-	end
-	for _, k in keys do
-		local f = fields[k]
-		if f.conflict then
-			ctx_log.push(`{prefix}{c.yellow}!   {k}: {val_str(f.local_val)} {c.dim}(conflict){c.reset}`)
-		else
-			ctx_log.push(`{prefix}{c.green}+   {k}: {val_str(f.local_val)}{c.reset}`)
-		end
-	end
-	ctx_log.push(prefix)
+local function pop_create(success: boolean)
+	ctx_log.pop_ctx(if not success then `{c.red}Failed to publish{c.reset}` else `{c.green}Created{c.reset}`)
+end
+local function pop_update(success: boolean, conflict_count: number)
+	ctx_log.pop_ctx(
+		if not success
+			then `{c.red}Failed to push changes{c.reset}`
+			elseif conflict_count > 0 then `{c.green}Pushed {c.dim}(aborted {conflict_count} conflict(s)){c.reset}`
+			else `{c.green}Successfully pushed{c.reset}`
+	)
 end
 
--- module-level print functions
-local outer = ctx_log.build_prefix(0)
-
+-- module level
 local function print_header()
-	print(`{c.bold}Syncing products:{c.reset}`)
-	print(outer .. '╷')
+	ctx_log.push_ctx(`{c.bold}Syncing products:{c.reset}`)
 end
-
-local function print_summary(creates: number, updates: number, noops: number, errors: number, conflicts: number)
+local function print_summary(summary: summary)
 	local parts = {
-		`{c.dim}{noops} noop(s){c.reset}`,
-		`{c.yellow}{conflicts} conflict(s){c.reset}`,
-		`{c.green}{creates} create(s){c.reset}`,
-		`{c.cyan}{updates} update(s){c.reset}`,
-		`{c.red}{errors} error(s){c.reset}`,
+		`{c.dim}{summary.noops} noop(s){c.reset}`,
+		`{c.yellow}{summary.conflicts} conflict(s){c.reset}`,
+		`{c.green}{summary.creates} create(s){c.reset}`,
+		`{c.blue}{summary.updates} update(s){c.reset}`,
+		`{c.red}{summary.errors} error(s){c.reset}`,
 	}
-	local overall = if errors > 0 then `{c.red}Finished with errors{c.reset}` else `{c.green}Succeeded{c.reset}`
-	print(outer .. `╰── {overall}: {table.concat(parts, ', ')}`)
+	local overall = if summary.errors > 0 then `{c.red}Finished with errors{c.reset}` else `{c.green}Succeeded{c.reset}`
+	ctx_log.pop_ctx(`{overall}: {table.concat(parts, ', ')}`)
 end
 
+-- module
 return table.freeze {
-	local_changes = local_changes,
-	cloud_changes = cloud_changes,
-	pushed_changes = pushed_changes,
-	make_diffs = make_diffs,
-	make_push_state = make_push_state,
 	print_header = print_header,
 	print_summary = print_summary,
+
+	-- ctx
+	push_update = push_update_ctx,
+	push_create = push_create_ctx,
+	print_noop = print_noop,
+	pop_update = pop_update,
+	pop_create = pop_create,
+
+	-- diffs
+	print_local_changes = print_local_changes,
+	print_external_changes = print_external_changes,
+	print_pushed_changes = print_pushed_changes,
+
+	diff_by_local = diff_by_local,
+	diff_by_cloud = diff_by_cloud,
 }
