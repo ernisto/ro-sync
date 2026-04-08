@@ -7,21 +7,13 @@ local serde = require '@lune/serde'
 
 local state = require './state'
 local sync_logger = require './sync_logger'
+local types = require './types'
 
 -- types
 export type product_lock = state.product_lock
 export type product_patch = product_lock & { icon_bytes: buffer? }
 
--- we do flat, so we can easily diff inputs
-type flat_product = cloud.product_identity & {
-	name: string,
-	icon_id: number,
-	price: number?,
-	description: string?,
-	is_for_sale: boolean?,
-	regional_pricing: boolean?,
-	store_page_enabled: boolean?,
-}
+type flat_product = types.flat_product
 
 export type cloud_api = {
 	create: (cloud.universe_identity, state.product_input & { icon_bytes: buffer? }) -> flat_product,

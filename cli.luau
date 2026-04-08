@@ -10,6 +10,7 @@ local sync_logger = require '@lib/sync_logger'
 
 local state = require '@lib/state'
 local sync = require '@lib/sync'
+local types = require '@lib/types'
 
 -- cli
 local API_KEY = cli.str 'api-key' or env.str 'API_KEY' or error 'missing api key'
@@ -39,59 +40,20 @@ end
 local api: sync.cloud_api = {
 	get = function(product)
 		local path = `developer-product/{product.product_id}`
-		local data = log_http_call('GET', path, function()
-			return cloud.product.get(session, product)
+		return log_http_call('GET', path, function()
+			return types.from_api_result(cloud.product.get(session, product))
 		end)
-		local price_info = data.priceInformation
-		return {
-			universe_id = data.universeId,
-			product_id = data.productId,
-			icon_id = data.iconImageAssetId,
-			name = data.name,
-			price = price_info and price_info.defaultPriceInRobux,
-			description = data.description,
-			is_for_sale = data.isForSale,
-			regional_pricing = price_info and table.find(price_info.enabledFeatures, 'RegionalPricing') ~= nil,
-			store_page_enabled = data.storePageEnabled,
-		}
 	end,
 	create = function(universe, data)
 		local path = `universes/{universe.universe_id}/developer-products`
-		local result = log_http_call('POST', path, function()
-			return cloud.product.create(session, universe, {
-				name = data.name,
-				price = data.price,
-				description = data.description,
-				imageFile = data.icon_bytes,
-				isForSale = data.is_for_sale,
-				isRegionalPricingEnabled = data.regional_pricing,
-			})
+		return log_http_call('POST', path, function()
+			return types.from_api_result(cloud.product.create(session, universe, types.to_api_params(data)))
 		end)
-		local price_info = result.priceInformation
-		return {
-			universe_id = result.universeId,
-			product_id = result.productId,
-			icon_id = result.iconImageAssetId,
-			name = result.name,
-			price = price_info and price_info.defaultPriceInRobux,
-			description = result.description,
-			is_for_sale = result.isForSale,
-			regional_pricing = price_info and table.find(price_info.enabledFeatures, 'RegionalPricing') ~= nil,
-			store_page_enabled = result.storePageEnabled,
-		}
 	end,
 	update = function(product, patch)
 		local path = `developer-product/{product.product_id}`
 		log_http_call('PATCH', path, function()
-			cloud.product.update(session, product, {
-				name = patch.name,
-				price = patch.price,
-				description = patch.description,
-				imageFile = patch.icon_bytes,
-				isForSale = patch.is_for_sale,
-				isRegionalPricingEnabled = patch.regional_pricing,
-				store_page_enabled = patch.store_page_enabled,
-			})
+			cloud.product.update(session, product, types.to_api_params(patch))
 			return nil
 		end)
 	end,
