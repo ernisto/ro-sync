@@ -7,6 +7,7 @@ local COLORS = {
 	green = '\27[32m',
 	yellow = '\27[33m',
 	blue = '\27[34m',
+	purple = '\27[35m',
 }
 
 -- helpers

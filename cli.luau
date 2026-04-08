@@ -6,10 +6,10 @@ local cli = require '@utils/cli'
 local cloud = require '@pkg/ro_cloud'
 local ctx_log = require '@utils/ctx_log'
 local env = require '@utils/env'
-local sync_logger = require '@lib/sync_logger'
 
 local state = require '@lib/state'
 local sync = require '@lib/sync'
+local sync_logger = require '@lib/sync_logger'
 local types = require '@lib/types'
 
 -- cli
@@ -17,6 +17,7 @@ local API_KEY = cli.str 'api-key' or env.str 'API_KEY' or error 'missing api key
 local INPUTS_PATH = cli.str 'manifest' or 'cloud.yml'
 local LOCK_PATH = cli.str 'state' or 'cloud-state.yml'
 local force_fresh_state = cli.bool 'fresh-state'
+local detect_new = cli.bool 'detect-new'
 
 local inputs = state.read_inputs(INPUTS_PATH)
 local lock = state.read_lock(LOCK_PATH)
@@ -52,7 +53,7 @@ local api: sync.cloud_api = {
 	end,
 	update = function(product, patch)
 		local path = `developer-product/{product.product_id}`
-		log_http_call('PATCH', path, function()
+		return log_http_call('PATCH', path, function()
 			cloud.product.update(session, product, types.to_api_params(patch))
 			return nil
 		end)
@@ -62,7 +63,7 @@ local api: sync.cloud_api = {
 sync_logger.print_header()
 
 -- main
-local summary = { creates = 0, updates = 0, noops = 0, errors = 0, conflicts = 0 }
+local summary = { creates = 0, updates = 0, noops = 0, errors = 0, conflicts = 0, imported = 0 }
 local sync_opts = { universe_id = lock.universe_id, force_fresh_state = force_fresh_state, summary = summary }
 
 local remaining = 0
@@ -81,6 +82,52 @@ end
 
 while remaining > 0 do
 	task.wait()
+end
+
+if detect_new then
+	local universe_id = lock.universe_id
+	if universe_id == state.UNAVAILABLE_ID then
+		for _, product_lock in lock.products do
+			universe_id = product_lock.universe_id
+			break
+		end
+	end
+	if universe_id == state.UNAVAILABLE_ID then
+		ctx_log.warn 'cannot detect new products: universe_id unknown (run a sync with at least one tracked product first)'
+	end
+
+	if universe_id ~= state.UNAVAILABLE_ID then
+		local known_ids: { [number]: boolean } = {}
+		for _, product_lock in lock.products do
+			known_ids[product_lock.product_id] = true
+		end
+
+		local token: string? = nil
+		repeat
+			local path = `universes/{universe_id}/developer-products/creator`
+			local page = log_http_call('GET', path, function()
+				return cloud.product.list(session, { universe_id = universe_id }, { pageToken = token })
+			end)
+			for _, product in page.developerProducts do
+				if known_ids[product.productId] then continue end
+				local key = product.name
+				if inputs.products[key] then key = `{product.name}_{product.productId}` end
+
+				local input = { name = product.name }
+				inputs.products[key] = input
+				lock.products[key] = {
+					universe_id = product.universeId,
+					product_id = product.productId,
+					icon_id = product.iconImageAssetId,
+					icon_hash = nil,
+					input = input,
+				}
+				sync_logger.print_imported(key, product.productId)
+				summary.imported += 1
+			end
+			token = if page.nextPageToken ~= '' then page.nextPageToken else nil
+		until token == nil
+	end
 end
 
 fs.writeFile(LOCK_PATH, serde.encode('yaml', lock, true))

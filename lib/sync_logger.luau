@@ -6,7 +6,14 @@ local val_str = ctx_log.val_str
 -- types
 export type field_change = { old: any, new: any }
 export type push_state = { lock: any, cloud: any?, local_val: any?, conflict: boolean? }
-export type summary = { creates: number, updates: number, noops: number, errors: number, conflicts: number }
+export type summary = {
+	creates: number,
+	updates: number,
+	noops: number,
+	errors: number,
+	conflicts: number,
+	imported: number,
+}
 
 type diff = { [string]: field_change }
 type set<T = any> = { [string]: T }
@@ -73,6 +80,9 @@ end
 local function print_noop(key)
 	ctx_log.str(`{c.dim}= Skipping: {c.bold}{key}{c.reset}`)
 end
+local function print_imported(key: string, product_id: number)
+	ctx_log.str(`{c.purple}↓ Imported: {c.bold}{key}{c.reset} {c.dim}(id: {product_id}){c.reset}`)
+end
 local function push_create_ctx(key)
 	ctx_log.push_ctx(`{c.green}+ Creating: {c.bold}{key}{c.reset}`)
 end
@@ -103,6 +113,7 @@ local function print_summary(summary: summary)
 		`{c.green}{summary.creates} create(s){c.reset}`,
 		`{c.blue}{summary.updates} update(s){c.reset}`,
 		`{c.red}{summary.errors} error(s){c.reset}`,
+		`{c.purple}{summary.imported} imported{c.reset}`,
 	}
 	local overall = if summary.errors > 0 then `{c.red}Finished with errors{c.reset}` else `{c.green}Succeeded{c.reset}`
 	ctx_log.pop_ctx(`{overall}: {table.concat(parts, ', ')}`)
@@ -117,6 +128,7 @@ return table.freeze {
 	push_update = push_update_ctx,
 	push_create = push_create_ctx,
 	print_noop = print_noop,
+	print_imported = print_imported,
 	pop_update = pop_update,
 	pop_create = pop_create,
 

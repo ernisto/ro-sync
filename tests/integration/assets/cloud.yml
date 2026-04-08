@@ -6,6 +6,15 @@
     "file": "game.rbxl"
 
 "products":
+  "100 money":
+    "name": "100 money"
+
+  "500 money":
+    "name": "500 money"
+
+  "5000 money":
+    "name": "5000 money"
+
   "money_pack1":
     "description": "Gain 100 money"
     "discount": 0

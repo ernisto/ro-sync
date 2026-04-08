@@ -3,6 +3,30 @@
     "id": 102181929056899
 
 "products":
+  "100 money":
+    "icon_id": 83375467994666
+    "input":
+      "name": "100 money"
+
+    "product_id": 3568215083
+    "universe_id": 7176734135
+
+  "500 money":
+    "icon_id": 117029747582261
+    "input":
+      "name": "500 money"
+
+    "product_id": 3568233440
+    "universe_id": 7176734135
+
+  "5000 money":
+    "icon_id": 118905157997024
+    "input":
+      "name": "5000 money"
+
+    "product_id": 3568237244
+    "universe_id": 7176734135
+
   "money_pack1":
     "icon_hash": "4bc000d53840508ad0a87221b84112deef3d9bf9f84ced132048eedc89526980"
     "icon_id": 121730156784602
