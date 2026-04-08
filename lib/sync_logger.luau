@@ -40,56 +40,56 @@ local function diff_by_cloud(prev: set, receiving: set, old_id: number?, new_id:
 end
 local function print_diff(diffs: diff, conflicts: set?)
 	for key, field in diffs do
-		ctx_log.str(`{c.dim}{c.red}- {key}: {val_str(field.old)}{c.reset}`)
+		ctx_log.str(`{c.dim}{c.red}- {key}: {val_str(field.old)}`)
 		ctx_log.str(
 			if conflicts and conflicts[key] ~= nil
-				then `{c.yellow}∙ {key}: {val_str(field.new)} {c.dim}(conflict){c.reset}`
-				else `{c.green}+ {key}: {val_str(field.new)}{c.reset}`
+				then `{c.yellow}∙ {key}: {val_str(field.new)} {c.dim}(conflict)`
+				else `{c.green}+ {key}: {val_str(field.new)}`
 		)
 	end
 end
 
 -- helpers
 local function print_local_changes(diffs: diff)
-	if next(diffs) == nil then return ctx_log.str(`{c.dim}no local changes{c.reset}\n`) end
+	if next(diffs) == nil then return ctx_log.str(`{c.dim}no local changes\n`) end
 
-	ctx_log.str(`{c.dim}local changes:{c.reset}`)
+	ctx_log.str(`{c.dim}local changes:`)
 	print_diff(diffs)
 	ctx_log.str ''
 end
 local function print_external_changes(diffs: diff, conflicts: set?)
-	if next(diffs) == nil then return ctx_log.str(`{c.dim}no external changes{c.reset}\n`) end
+	if next(diffs) == nil then return ctx_log.str(`{c.dim}no external changes\n`) end
 
-	ctx_log.str(`{c.dim}external changes:{c.reset}`)
+	ctx_log.str(`{c.dim}external changes:`)
 	print_diff(diffs, conflicts)
 	ctx_log.str ''
 end
 local function print_pushed_changes(pushed: set)
-	if next(pushed) == nil then return ctx_log.str(`{c.dim}no changes to push{c.reset}`) end
+	if next(pushed) == nil then return ctx_log.str(`{c.dim}no changes to push`) end
 
-	ctx_log.str(`{c.dim}pushed changes:{c.reset}`)
+	ctx_log.str(`{c.dim}pushed changes:`)
 	print_diff(diff_by_local(pushed, pushed))
 end
 
 -- operations
 local function log_noop(key)
-	ctx_log.str(`{c.dim}= Skipping: {c.bold}{key}{c.reset}`)
+	ctx_log.str(`{c.dim}= Skipping: {c.bold}{key}`)
 	summary.noops += 1
 end
 local function log_imported(key: string, product_id: number)
-	ctx_log.str(`{c.purple}↓ Imported: {c.bold}{key}{c.reset} {c.dim}(id: {product_id}){c.reset}`)
+	ctx_log.str(`{c.purple}↓ Imported: {c.bold}{key}{c.reset} {c.dim}(id: {product_id})`)
 	summary.importeds += 1
 end
 local function log_creation(key)
-	ctx_log.push_ctx(`{c.green}+ Creating: {c.bold}{key}{c.reset}`)
+	ctx_log.push_ctx(`{c.green}+ Creating: {c.bold}{key}`)
 end
 local function log_update(key, diffs)
-	ctx_log.push_ctx(`{c.blue}~ Updating: {c.bold}{key}{c.reset}`)
+	ctx_log.push_ctx(`{c.blue}~ Updating: {c.bold}{key}`)
 	print_local_changes(diffs)
 end
 
 local function log_creation_result(success: boolean)
-	ctx_log.pop_ctx(if not success then `{c.red}Failed to publish{c.reset}` else `{c.green}Created{c.reset}`)
+	ctx_log.pop_ctx(if not success then `{c.red}Failed to publish` else `{c.green}Created`)
 	if success then
 		summary.creates += 1
 	else
@@ -100,9 +100,9 @@ local function log_update_result(success: boolean, conflicts: set)
 	local conflicts_amount = tbl.count(conflicts)
 	ctx_log.pop_ctx(
 		if not success
-			then `{c.red}Failed to push changes{c.reset}`
-			elseif conflicts_amount > 0 then `{c.green}Pushed {c.dim}(aborted {conflicts_amount} conflicts){c.reset}`
-			else `{c.green}Successfully pushed{c.reset}`
+			then `{c.red}Failed to push changes`
+			elseif conflicts_amount > 0 then `{c.green}Pushed {c.dim}(aborted {conflicts_amount} conflicts)`
+			else `{c.green}Successfully pushed`
 	)
 	if success then
 		summary.updates += 1
@@ -116,7 +116,7 @@ end
 
 -- module level
 local function print_header()
-	ctx_log.push_ctx(`{c.bold}Syncing products:{c.reset}`)
+	ctx_log.push_ctx(`{c.bold}Syncing products:`)
 end
 local function print_summary()
 	local parts = {}
@@ -127,8 +127,8 @@ local function print_summary()
 	if summary.conflicts > 0 then table.insert(parts, `{c.yellow}{summary.conflicts} conflict(s)`) end
 	if summary.errors > 0 then table.insert(parts, `{c.red}{summary.errors} error(s)`) end
 
-	local overall = if summary.errors > 0 then `{c.red}Finished with errors{c.reset}` else `{c.green}Succeeded{c.reset}`
-	ctx_log.pop_ctx(`{overall}: {table.concat(parts, `{c.reset}, `)}{c.reset}`)
+	local overall = if summary.errors > 0 then `{c.red}Finished with errors` else `{c.green}Succeeded`
+	ctx_log.pop_ctx(`{overall}{c.reset}: {table.concat(parts, `{c.reset}, `)}`)
 end
 
 -- module

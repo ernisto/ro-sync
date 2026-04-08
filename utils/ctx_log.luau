@@ -54,7 +54,7 @@ local function current_prefix(): string
 end
 local function str(msg: string)
 	local prefix = current_prefix()
-	print(prefix .. msg:gsub('\n', '\n' .. prefix))
+	print(prefix .. msg:gsub('\n', '\n' .. prefix) .. COLORS.reset)
 end
 
 local function push_ctx(header: string)
