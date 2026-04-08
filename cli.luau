@@ -63,19 +63,13 @@ local api: sync.cloud_api = {
 sync_logger.print_header()
 
 -- main
-local summary = { creates = 0, updates = 0, noops = 0, errors = 0, conflicts = 0, imported = 0 }
-local sync_opts = { universe_id = lock.universe_id, force_fresh_state = force_fresh_state, summary = summary }
+local sync_opts = { universe_id = lock.universe_id, force_fresh_state = force_fresh_state }
 
 local remaining = 0
 for key, item in inputs.products do
 	remaining += 1
 	task.spawn(function()
-		local ok = ctx_log.try_result(function()
-			lock.products[key] = sync.sync_product(key, item, lock.products[key], api, sync_opts)
-		end)
-		if not ok then
-			summary.errors += 1
-		end
+		lock.products[key] = sync.sync_product(key, item, lock.products[key], api, sync_opts)
 		remaining -= 1
 	end)
 end
@@ -122,8 +116,7 @@ if detect_new then
 					icon_hash = nil,
 					input = input,
 				}
-				sync_logger.print_imported(key, product.productId)
-				summary.imported += 1
+				sync_logger.imported(key, product.productId)
 			end
 			token = if page.nextPageToken ~= '' then page.nextPageToken else nil
 		until token == nil
@@ -133,4 +126,4 @@ end
 fs.writeFile(LOCK_PATH, serde.encode('yaml', lock, true))
 fs.writeFile(INPUTS_PATH, serde.encode('yaml', inputs, true))
 
-sync_logger.print_summary(summary)
+sync_logger.print_summary()

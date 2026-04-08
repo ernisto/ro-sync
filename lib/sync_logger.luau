@@ -1,4 +1,5 @@
 local ctx_log = require '@utils/ctx_log'
+local tbl = require '@utils/tbl'
 
 local c = ctx_log.colors
 local val_str = ctx_log.val_str
@@ -6,17 +7,11 @@ local val_str = ctx_log.val_str
 -- types
 export type field_change = { old: any, new: any }
 export type push_state = { lock: any, cloud: any?, local_val: any?, conflict: boolean? }
-export type summary = {
-	creates: number,
-	updates: number,
-	noops: number,
-	errors: number,
-	conflicts: number,
-	imported: number,
-}
 
 type diff = { [string]: field_change }
 type set<T = any> = { [string]: T }
+
+local summary = { creates = 0, updates = 0, noops = 0, errors = 0, conflicts = 0, importeds = 0 }
 
 -- helpers
 local function short_hash(h: string): string
@@ -77,46 +72,63 @@ local function print_pushed_changes(pushed: set)
 end
 
 -- operations
-local function print_noop(key)
+local function log_noop(key)
 	ctx_log.str(`{c.dim}= Skipping: {c.bold}{key}{c.reset}`)
+	summary.noops += 1
 end
-local function print_imported(key: string, product_id: number)
+local function log_imported(key: string, product_id: number)
 	ctx_log.str(`{c.purple}↓ Imported: {c.bold}{key}{c.reset} {c.dim}(id: {product_id}){c.reset}`)
+	summary.importeds += 1
 end
-local function push_create_ctx(key)
+local function log_creation(key)
 	ctx_log.push_ctx(`{c.green}+ Creating: {c.bold}{key}{c.reset}`)
 end
-local function push_update_ctx(key)
+local function log_update(key, diffs)
 	ctx_log.push_ctx(`{c.blue}~ Updating: {c.bold}{key}{c.reset}`)
+	print_local_changes(diffs)
 end
 
-local function pop_create(success: boolean)
+local function log_creation_result(success: boolean)
 	ctx_log.pop_ctx(if not success then `{c.red}Failed to publish{c.reset}` else `{c.green}Created{c.reset}`)
+	if success then
+		summary.creates += 1
+	else
+		summary.errors += 1
+	end
 end
-local function pop_update(success: boolean, conflict_count: number)
+local function log_update_result(success: boolean, conflicts: set)
+	local conflicts_amount = tbl.count(conflicts)
 	ctx_log.pop_ctx(
 		if not success
 			then `{c.red}Failed to push changes{c.reset}`
-			elseif conflict_count > 0 then `{c.green}Pushed {c.dim}(aborted {conflict_count} conflict(s)){c.reset}`
+			elseif conflicts_amount > 0 then `{c.green}Pushed {c.dim}(aborted {conflicts_amount} conflicts){c.reset}`
 			else `{c.green}Successfully pushed{c.reset}`
 	)
+	if success then
+		summary.updates += 1
+		if conflicts_amount > 0 then
+			summary.conflicts += 1
+		end
+	else
+		summary.errors += 1
+	end
 end
 
 -- module level
 local function print_header()
 	ctx_log.push_ctx(`{c.bold}Syncing products:{c.reset}`)
 end
-local function print_summary(summary: summary)
-	local parts = {
-		`{c.dim}{summary.noops} noop(s){c.reset}`,
-		`{c.yellow}{summary.conflicts} conflict(s){c.reset}`,
-		`{c.green}{summary.creates} create(s){c.reset}`,
-		`{c.blue}{summary.updates} update(s){c.reset}`,
-		`{c.red}{summary.errors} error(s){c.reset}`,
-		`{c.purple}{summary.imported} imported{c.reset}`,
-	}
+local function print_summary()
+	local parts = {}
+	if summary.noops > 0 then table.insert(parts, `{c.dim}{summary.noops} noop(s)`) end
+	if summary.importeds > 0 then table.insert(parts, `{c.purple}{summary.importeds} imported`) end
+	if summary.updates > 0 then table.insert(parts, `{c.blue}{summary.updates} update(s)`) end
+	if summary.creates > 0 then table.insert(parts, `{c.green}{summary.creates} create(s)`) end
+	if summary.conflicts > 0 then table.insert(parts, `{c.yellow}{summary.conflicts} conflict(s)`) end
+	if summary.errors > 0 then table.insert(parts, `{c.red}{summary.errors} error(s)`) end
+
 	local overall = if summary.errors > 0 then `{c.red}Finished with errors{c.reset}` else `{c.green}Succeeded{c.reset}`
-	ctx_log.pop_ctx(`{overall}: {table.concat(parts, ', ')}`)
+	ctx_log.pop_ctx(`{overall}: {table.concat(parts, `{c.reset}, `)}{c.reset}`)
 end
 
 -- module
@@ -125,12 +137,12 @@ return table.freeze {
 	print_summary = print_summary,
 
 	-- ctx
-	push_update = push_update_ctx,
-	push_create = push_create_ctx,
-	print_noop = print_noop,
-	print_imported = print_imported,
-	pop_update = pop_update,
-	pop_create = pop_create,
+	update = log_update,
+	creation = log_creation,
+	noop = log_noop,
+	imported = log_imported,
+	update_result = log_update_result,
+	creation_result = log_creation_result,
 
 	-- diffs
 	print_local_changes = print_local_changes,

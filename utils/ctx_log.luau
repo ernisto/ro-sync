@@ -114,7 +114,7 @@ return table.freeze {
 	error = push_err,
 	backtrace = push_backtrace,
 	http = push_http,
-	try_result = try_result,
+	pcall = try_result,
 
 	colors = COLORS,
 	val_str = val_str,

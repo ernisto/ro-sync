@@ -24,7 +24,6 @@ export type cloud_api = {
 export type sync_opts = {
 	universe_id: number,
 	force_fresh_state: boolean?,
-	summary: sync_logger.summary,
 }
 
 -- helpers
@@ -44,13 +43,12 @@ local function sync_product(
 	local icon_hash = icon_content and serde.hash('sha256', icon_content)
 
 	if not prev then
-		sync_logger.push_create(key)
+		sync_logger.creation(key)
+
 		if not icon_content then ctx_log.warn(`icon '{input.icon}' not found, uploading without icon`) end
+		local success, product = ctx_log.pcall(api.create, opts, tbl.applied(input, { icon_bytes = icon_content }))
 
-		local success, product = ctx_log.try_result(api.create, opts, tbl.applied(input, { icon_bytes = icon_content }))
-		opts.summary.creates += 1
-
-		sync_logger.pop_create(success)
+		sync_logger.creation_result(success)
 		return {
 			universe_id = product.universe_id,
 			product_id = product.product_id,
@@ -72,14 +70,12 @@ local function sync_product(
 
 	local is_same_input = next(sending) == nil and not is_sending_icon
 	if is_same_input and not opts.force_fresh_state then
-		sync_logger.print_noop(key)
-		opts.summary.noops += 1
+		sync_logger.noop(key)
 		return prev
 	end
 
 	local local_diffs = sync_logger.diff_by_local(prev_input, sending, prev.icon_hash, icon_hash)
-	sync_logger.push_update(key)
-	sync_logger.print_local_changes(local_diffs)
+	sync_logger.update(key, local_diffs)
 
 	-- pull
 	local current = api.get(prev)
@@ -114,7 +110,7 @@ local function sync_product(
 	local patch = tbl.applied(sending, { icon_bytes = if is_free_sending_icon then current.icon_id else nil })
 
 	if next(patch) then
-		push_success = ctx_log.try_result(api.update, prev, patch)
+		push_success = ctx_log.pcall(api.update, prev, patch)
 		if push_success then
 			sync_logger.print_pushed_changes(patch)
 			tbl.apply(prev.input, free_sending)
@@ -124,11 +120,7 @@ local function sync_product(
 	end
 	tbl.apply(prev.input, receiving)
 
-	local n = tbl.count(conflicts)
-	sync_logger.pop_update(push_success, n)
-
-	opts.summary.conflicts += n
-	opts.summary.updates += 1
+	sync_logger.update_result(push_success, conflicts)
 
 	-- save
 	local latest_icon_id = if is_free_sending_icon then state.UNAVAILABLE_ID else current.icon_id
