@@ -69,7 +69,7 @@ function run.should_create_product_when_no_prev_lock()
 		update = expect.never_called 'update should not be called on create',
 	}
 
-	local lock = sync.sync_product('key', input, nil, api, opts)
+	local lock = sync.sync_product(api, 'key', input, nil, opts)
 
 	expect.truthy(created, 'api.create was not called')
 	expect.eq(lock.product_id, PRODUCT_ID)

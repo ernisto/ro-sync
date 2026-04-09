@@ -1,5 +1,3 @@
-local fs = require '@lune/fs'
-local serde = require '@lune/serde'
 local task = require '@lune/task'
 
 local cli = require '@utils/cli'
@@ -18,9 +16,6 @@ local INPUTS_PATH = cli.str 'manifest' or 'cloud.yml'
 local LOCK_PATH = cli.str 'state' or 'cloud-state.yml'
 local force_fresh_state = cli.bool 'fresh-state'
 local detect_new = cli.bool 'detect-new'
-
-local inputs = state.read_inputs(INPUTS_PATH)
-local lock = state.read_lock(LOCK_PATH)
 
 local session = cloud.auth.apikey.login(API_KEY)
 
@@ -63,25 +58,24 @@ local api: sync.cloud_api = {
 sync_logger.print_header()
 
 -- main
-local sync_opts = { universe_id = lock.universe_id, force_fresh_state = force_fresh_state }
+local resources = state.read_resources(INPUTS_PATH, LOCK_PATH)
+local sync_opts = { universe_id = resources.lock.universe_id, force_fresh_state = force_fresh_state }
 
 local remaining = 0
-for key, item in inputs.products do
+for _, resource in resources.products do
 	remaining += 1
 	task.spawn(function()
-		lock.products[key] = sync.sync_product(key, item, lock.products[key], api, sync_opts)
-		remaining -= 1
+		resource.lock = sync.sync_product(api, resource, sync_opts)
 	end)
 end
-
 while remaining > 0 do
 	task.wait()
 end
 
 if detect_new then
-	local universe_id = lock.universe_id
+	local universe_id = resources.lock.universe_id
 	if universe_id == state.UNAVAILABLE_ID then
-		for _, product_lock in lock.products do
+		for _, product_lock in resources.lock.products do
 			universe_id = product_lock.universe_id
 			break
 		end
@@ -92,7 +86,7 @@ if detect_new then
 
 	if universe_id ~= state.UNAVAILABLE_ID then
 		local known_ids: { [number]: boolean } = {}
-		for _, product_lock in lock.products do
+		for _, product_lock in resources.lock.products do
 			known_ids[product_lock.product_id] = true
 		end
 
@@ -105,16 +99,18 @@ if detect_new then
 			for _, product in page.developerProducts do
 				if known_ids[product.productId] then continue end
 				local key = product.name
-				if inputs.products[key] then key = `{product.name}_{product.productId}` end
+				if resources.manifest.products[key] then key = `{product.name}_{product.productId}` end
 
-				local input = { name = product.name }
-				inputs.products[key] = input
-				lock.products[key] = {
+				local manifest_input = { name = product.name }
+				local lock_input = {
+					name = product.name,
+					icon = product.iconImageAssetId and { assetid = product.iconImageAssetId } or nil,
+				}
+				resources.manifest.products[key] = manifest_input
+				resources.lock.products[key] = {
 					universe_id = product.universeId,
 					product_id = product.productId,
-					icon_id = product.iconImageAssetId,
-					icon_hash = nil,
-					input = input,
+					input = lock_input,
 				}
 				sync_logger.imported(key, product.productId)
 			end
@@ -123,7 +119,5 @@ if detect_new then
 	end
 end
 
-fs.writeFile(LOCK_PATH, serde.encode('yaml', lock, true))
-fs.writeFile(INPUTS_PATH, serde.encode('yaml', inputs, true))
-
 sync_logger.print_summary()
+state.save_resources(resources)

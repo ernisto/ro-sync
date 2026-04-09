@@ -91,7 +91,7 @@ function run.should_return_prev_unchanged_when_no_local_changes()
 	guarded_api.update = expect.never_called 'update should not be reached for a no-op'
 
 	local opts = { universe_id = prev.universe_id, force_fresh_state = true }
-	local result = sync.sync_product('money_pack1', input, prev, guarded_api, opts)
+	local result = sync.sync_product(guarded_api, 'money_pack1', input, prev, opts)
 
 	expect.eq(result, prev)
 end

@@ -5,7 +5,7 @@ local state = require '@lib/state'
 export type flat_product = {
 	universe_id: number,
 	product_id: number,
-	icon_id: number,
+	icon: state.file_lock?,
 	name: string,
 	price: number?,
 	description: string?,
@@ -20,7 +20,7 @@ local function from_api(data: cloud.product): flat_product
 	return {
 		universe_id = data.universeId,
 		product_id = data.productId,
-		icon_id = data.iconImageAssetId,
+		icon = data.iconImageAssetId and { assetid = data.iconImageAssetId } or nil,
 		name = data.name,
 		price = price_info and price_info.defaultPriceInRobux,
 		description = data.description,
@@ -30,12 +30,13 @@ local function from_api(data: cloud.product): flat_product
 	}
 end
 
-local function to_api_params(data: state.product_input & { icon_bytes: buffer? })
+local function to_api_params(data: state.product_input)
+	local icon = data.icon :: any
 	return {
 		name = data.name,
 		price = data.price,
 		description = data.description,
-		imageFile = data.icon_bytes,
+		imageFile = icon and icon.content,
 		isForSale = data.is_for_sale,
 		isRegionalPricingEnabled = data.regional_pricing,
 		storePageEnabled = data.store_page_enabled,
