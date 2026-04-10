@@ -1,6 +1,8 @@
 local cloud = require '@pkg/ro_cloud'
 local env = require '@utils/env'
 local expect = require '@test/expect'
+local mock = require '@test/mock'
+local sm = require '@test/sync_mock'
 local state = require '@lib/state'
 local sync = require '@lib/sync'
 local types = require '@lib/types'
@@ -17,10 +19,6 @@ end
 
 local session = cloud.auth.apikey.login(API_KEY)
 local resources = state.read_resources(MANIFEST_PATH, LOCK_PATH)
-
-local function make_product(input: any, lock: any?): any
-	return { key = 'key', input = input, lock = lock }
-end
 
 -- real API adapter — mirrors cli.luau exactly
 local api: sync.cloud_api = {
@@ -67,11 +65,11 @@ function run.should_return_prev_unchanged_when_no_local_changes()
 	input.icon = nil -- suppress icon change detection
 
 	local guarded_api = table.clone(api) :: sync.cloud_api
-	guarded_api.get = expect.never_called 'get should not be reached for a no-op'
-	guarded_api.update = expect.never_called 'update should not be reached for a no-op'
+	guarded_api.get = mock.never_called 'get should not be reached for a no-op'
+	guarded_api.update = mock.never_called 'update should not be reached for a no-op'
 
 	local opts: sync.sync_opts = { universe_id = prev.universe_id, force_fresh_state = false }
-	local result = sync.sync_product(guarded_api, make_product(input, prev), opts)
+	local result = sync.sync_product(guarded_api, sm.make_product(input, prev), opts)
 
 	expect.eq(result, prev)
 end
@@ -90,7 +88,7 @@ function run.should_push_description_change_and_revert()
 	patched_prev.input = table.clone(prev.input)
 
 	local opts: sync.sync_opts = { universe_id = prev.universe_id, force_fresh_state = false }
-	sync.sync_product(api, make_product(input, patched_prev), opts)
+	sync.sync_product(api, sm.make_product(input, patched_prev), opts)
 
 	local ok, err = pcall(function()
 		local after = get_product()
@@ -114,9 +112,9 @@ function run.should_push_icon_change_and_revert()
 	patched_prev.input.icon = { assetid = prev.input.icon and prev.input.icon.assetid, hash = 'stale' }
 
 	local opts: sync.sync_opts = { universe_id = prev.universe_id, force_fresh_state = false }
-	sync.sync_product(api, make_product(input, patched_prev), opts)
+	sync.sync_product(api, sm.make_product(input, patched_prev), opts)
 
-	local after_lock = sync.sync_product(api, make_product(input, patched_prev), opts)
+	local after_lock = sync.sync_product(api, sm.make_product(input, patched_prev), opts)
 	expect.truthy(after_lock.product_id)
 end
 
