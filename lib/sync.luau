@@ -15,22 +15,24 @@ export type cloud_api = {
 }
 
 -- functions
-local function sync_product(api: cloud_api, product: state.product, opts: sync_opts): state.product_lock
+local function await_create_product(api: cloud_api, product: state.product, opts: sync_opts)
+	local key, input = product.key, product.input
+	sync_logger.creation(key)
+
+	local success, result = ctx_log.pcall(api.create, opts, input)
+	sync_logger.print_pushed_changes(input)
+	sync_logger.creation_result(success)
+
+	local saved_icon = { assetid = result.icon and result.icon.assetid, hash = input.icon and input.icon.hash }
+	local saved_input = tbl.applied(input, { icon = saved_icon })
+
+	return { universe_id = result.universe_id, product_id = result.product_id, input = saved_input }
+end
+local function await_reconcile_product(api: cloud_api, product: state.product, opts: sync_opts): state.product_lock
 	local key, input, prev = product.key, product.input, product.lock
+	if not prev then return await_create_product(api, product, opts) end
+
 	local conflicts = input.conflicts or {}
-
-	if not prev then
-		sync_logger.creation(key)
-
-		local success, result = ctx_log.pcall(api.create, opts, input)
-		sync_logger.print_pushed_changes(input)
-		sync_logger.creation_result(success)
-
-		local saved_icon = { assetid = result.icon and result.icon.assetid, hash = input.icon and input.icon.hash }
-		local saved_input = tbl.applied(input, { icon = saved_icon })
-
-		return { universe_id = result.universe_id, product_id = result.product_id, input = saved_input }
-	end
 
 	local local_changes = state.diff_product(prev.input, input)
 	tbl.subtract(local_changes, conflicts)
@@ -69,4 +71,4 @@ local function sync_product(api: cloud_api, product: state.product, opts: sync_o
 end
 
 -- module
-return table.freeze { sync_product = sync_product }
+return table.freeze { await_reconcile_product = await_reconcile_product }

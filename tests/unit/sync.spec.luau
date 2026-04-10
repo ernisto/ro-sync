@@ -33,7 +33,7 @@ function run.should_create_product_when_no_prev_lock()
 		update = mock.never_called 'update should not be called on create',
 	}
 
-	local lock = sync.sync_product(api, make_product(input), opts)
+	local lock = sync.await_reconcile_product(api, make_product(input), opts)
 
 	expect.truthy(created, 'api.create was not called')
 	expect.eq(lock.product_id, PRODUCT_ID)
@@ -50,7 +50,7 @@ function run.should_skip_api_when_input_unchanged()
 		update = mock.never_called 'update',
 	}
 
-	local result = sync.sync_product(api, make_product(input, prev), opts)
+	local result = sync.await_reconcile_product(api, make_product(input, prev), opts)
 	expect.eq(result, prev)
 end
 
@@ -68,7 +68,7 @@ function run.should_push_local_changes_to_cloud()
 		update = update,
 	}
 
-	sync.sync_product(api, make_product(new_input, prev), opts)
+	sync.await_reconcile_product(api, make_product(new_input, prev), opts)
 
 	expect.eq(update.call_count, 1)
 	local patch = update.calls[1][2]
@@ -91,7 +91,7 @@ function run.should_pull_cloud_changes_into_input()
 	local force_opts = table.clone(opts) :: sync.sync_opts
 	force_opts.force_fresh_state = true
 
-	sync.sync_product(api, make_product(input, prev), force_opts)
+	sync.await_reconcile_product(api, make_product(input, prev), force_opts)
 
 	expect.eq(input.description, 'Dashboard edit')
 end
@@ -109,7 +109,7 @@ function run.should_record_conflict_when_both_sides_change_same_field()
 		update = function() end,
 	}
 
-	sync.sync_product(api, make_product(new_input, prev), opts)
+	sync.await_reconcile_product(api, make_product(new_input, prev), opts)
 
 	expect.truthy(new_input.conflicts, 'conflicts should be recorded')
 	expect.truthy(new_input.conflicts.name, 'name conflict should be recorded')
@@ -129,7 +129,7 @@ function run.should_not_push_fields_listed_in_conflicts()
 		update = update,
 	}
 
-	sync.sync_product(api, make_product(new_input, prev), opts)
+	sync.await_reconcile_product(api, make_product(new_input, prev), opts)
 
 	local patch = update.calls[1] and update.calls[1][2]
 	expect.falsy(patch and patch.name, 'conflicted field should not be pushed')
@@ -147,7 +147,7 @@ function run.icon_create_saves_assetid_from_result_and_hash_from_input()
 		update = mock.never_called 'update',
 	}
 
-	local lock = sync.sync_product(api, make_product(input), opts)
+	local lock = sync.await_reconcile_product(api, make_product(input), opts)
 
 	expect.eq(lock.input.icon.assetid, ICON_ID)
 	expect.eq(lock.input.icon.hash, ICON_HASH_A)
@@ -164,7 +164,7 @@ function run.icon_create_preserves_hash_when_result_has_no_icon()
 		update = mock.never_called 'update',
 	}
 
-	local lock = sync.sync_product(api, make_product(input), opts)
+	local lock = sync.await_reconcile_product(api, make_product(input), opts)
 
 	expect.eq(lock.input.icon.hash, ICON_HASH_A)
 end
@@ -179,7 +179,7 @@ function run.icon_not_pushed_when_hash_matches_lock()
 		update = mock.never_called 'update',
 	}
 
-	sync.sync_product(api, make_product(input, prev), opts)
+	sync.await_reconcile_product(api, make_product(input, prev), opts)
 end
 
 function run.icon_pushed_when_hash_differs_from_lock()
@@ -196,7 +196,7 @@ function run.icon_pushed_when_hash_differs_from_lock()
 		update = update,
 	}
 
-	sync.sync_product(api, make_product(input, prev), opts)
+	sync.await_reconcile_product(api, make_product(input, prev), opts)
 
 	expect.eq(update.calls[1][2].icon, new_icon)
 end
@@ -214,7 +214,7 @@ function run.icon_lock_updated_to_new_icon_after_push()
 		update = function() end,
 	}
 
-	sync.sync_product(api, make_product(input, prev), opts)
+	sync.await_reconcile_product(api, make_product(input, prev), opts)
 
 	-- lock icon updated so next run detects no hash change
 	expect.eq(prev.input.icon, new_icon)
@@ -234,7 +234,7 @@ function run.icon_pushed_when_lock_has_no_hash()
 		update = update,
 	}
 
-	sync.sync_product(api, make_product(input, prev), opts)
+	sync.await_reconcile_product(api, make_product(input, prev), opts)
 
 	-- nil hash in lock != local hash → treated as change
 	expect.eq(update.call_count, 1) -- icon should be pushed when lock has no hash baseline
