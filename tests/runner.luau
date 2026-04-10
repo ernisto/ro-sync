@@ -50,6 +50,7 @@ end
 local specs: { [string]: spec } = {
 	tbl = require './unit/tbl.spec',
 	sync = require './unit/sync.spec',
+	['integration/round_trip'] = require './integration/round_trip.spec',
 	['integration/sync'] = require './integration/sync.spec', -- requires API_KEY env var
 }
 
