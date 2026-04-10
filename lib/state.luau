@@ -117,14 +117,21 @@ local function ensure_lock(path: string): lock
 end
 
 local function save_manifest(path: string, data: manifest)
-	local out = table.clone(data)
+	local out = tbl.applied(data, { products = {} })
 	for k, product in data.products do
 		out.products[k] = tbl.applied(product, { icon = product.icon and product.icon.path })
 	end
 	fs.writeFile(path, serde.encode('yaml', out, true))
 end
 local function save_lock(path: string, data: lock)
-	fs.writeFile(path, serde.encode('yaml', data, true))
+	local out = tbl.applied(data, { products = {} })
+	for k, product in data.products do
+		local input = product.input
+		local icon = input and input.icon
+		local clean_icon = if icon and icon.content then { assetid = icon.assetid, hash = icon.hash } else icon
+		out.products[k] = tbl.applied(product, { input = tbl.applied(input, { icon = clean_icon }) })
+	end
+	fs.writeFile(path, serde.encode('yaml', out, true))
 end
 
 local function read_resources(input_path: string, lock_path: string): resources
