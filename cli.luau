@@ -1,3 +1,4 @@
+local import = require '@lib/import'
 local task = require '@lune/task'
 
 local cli = require '@utils/cli'
@@ -65,59 +66,14 @@ local remaining = 0
 for _, resource in resources.products do
 	remaining += 1
 	task.spawn(function()
-		resource.lock = sync.sync_product(api, resource, sync_opts)
+		resource.lock = sync.await_reconcile_product(api, resource, sync_opts)
 	end)
 end
 while remaining > 0 do
 	task.wait()
 end
 
-if detect_new then
-	local universe_id = resources.lock.universe_id
-	if universe_id == state.UNAVAILABLE_ID then
-		for _, product_lock in resources.lock.products do
-			universe_id = product_lock.universe_id
-			break
-		end
-	end
-	if universe_id == state.UNAVAILABLE_ID then
-		ctx_log.warn 'cannot detect new products: universe_id unknown (run a sync with at least one tracked product first)'
-	end
-
-	if universe_id ~= state.UNAVAILABLE_ID then
-		local known_ids: { [number]: boolean } = {}
-		for _, product_lock in resources.lock.products do
-			known_ids[product_lock.product_id] = true
-		end
-
-		local token: string? = nil
-		repeat
-			local path = `universes/{universe_id}/developer-products/creator`
-			local page = log_http_call('GET', path, function()
-				return cloud.product.list(session, { universe_id = universe_id }, { pageToken = token })
-			end)
-			for _, product in page.developerProducts do
-				if known_ids[product.productId] then continue end
-				local key = product.name
-				if resources.manifest.products[key] then key = `{product.name}_{product.productId}` end
-
-				local manifest_input = { name = product.name }
-				local lock_input = {
-					name = product.name,
-					icon = product.iconImageAssetId and { assetid = product.iconImageAssetId } or nil,
-				}
-				resources.manifest.products[key] = manifest_input
-				resources.lock.products[key] = {
-					universe_id = product.universeId,
-					product_id = product.productId,
-					input = lock_input,
-				}
-				sync_logger.imported(key, product.productId)
-			end
-			token = if page.nextPageToken ~= '' then page.nextPageToken else nil
-		until token == nil
-	end
-end
+if detect_new then import.import(session, resources.lock.universe_id, resources) end
 
 sync_logger.print_summary()
 state.save_resources(resources)

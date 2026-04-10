@@ -31,7 +31,7 @@ export type product_lock = {
 
 export type product = { key: string, lock: product_lock?, input: product_input }
 
-type resources = {
+export type resources = {
 	products: { product },
 	manifest: manifest,
 	lock: lock,
