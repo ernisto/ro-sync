@@ -148,6 +148,7 @@ end
 
 -- module
 return table.freeze {
+	maybe_resolve_file = maybe_resolve_file,
 	read_resources = read_resources,
 	save_resources = save_resources,
 	diff_product = diff_product,
