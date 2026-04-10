@@ -1,5 +1,5 @@
 -- ANSI escape codes
-local COLORS = {
+local c = {
 	reset = '\27[0m',
 	bold = '\27[1m',
 	dim = '\27[2m',
@@ -11,17 +11,6 @@ local COLORS = {
 }
 
 -- helpers
-local function val_str(v: any): string
-	return if v == nil then `{COLORS.dim}~{COLORS.reset}` else tostring(v)
-end
-local function ordered_keys(t: { [string]: any }): { string }
-	local keys = {}
-	for k in t do
-		table.insert(keys, k)
-	end
-	table.sort(keys)
-	return keys
-end
 local function split_backtrace(tb: string): { string }
 	local lines = {}
 	for line in tb:gmatch '[^\n]+' do
@@ -54,7 +43,7 @@ local function current_prefix(): string
 end
 local function str(msg: string)
 	local prefix = current_prefix()
-	print(prefix .. msg:gsub('\n', '\n' .. prefix) .. COLORS.reset)
+	print(prefix .. msg:gsub('\n', `{c.reset}\n{prefix}`) .. c.reset)
 end
 
 local function push_ctx(header: string)
@@ -73,7 +62,7 @@ end
 
 -- shorthands
 local function warn(msg: string)
-	str(`{COLORS.yellow}⚠  {msg}{COLORS.reset}`)
+	str(`{c.yellow}⚠  {msg}{c.reset}`)
 end
 
 local function push_backtrace(tb: string)
@@ -83,7 +72,7 @@ local function push_backtrace(tb: string)
 end
 
 local function push_err(msg: string, backtrace: string?)
-	str(`{COLORS.red}✗  {COLORS.bold}{msg}{COLORS.reset}`)
+	str(`{c.red}✗  {c.bold}{msg}{c.reset}`)
 	if backtrace then push_backtrace(backtrace) end
 end
 
@@ -96,13 +85,13 @@ end
 local function push_http(method: string, url: string, ok: boolean, code: number?, err_msg: string?)
 	local status
 	if ok then
-		status = `{COLORS.green}OK {code or 200}{COLORS.reset}`
+		status = `{c.green}OK {code or 200}{c.reset}`
 	else
 		local code_str = if code then tostring(code) else '???'
 		local detail = if err_msg then `: {err_msg}` else ''
-		status = `{COLORS.red}FAIL {code_str}{detail}{COLORS.reset}`
+		status = `{c.red}FAIL {code_str}{detail}{c.reset}`
 	end
-	str(`{COLORS.dim}({method}) {url}{COLORS.reset} {status}`)
+	str(`{c.dim}({method}) {url}{c.reset} {status}`)
 end
 
 -- module
@@ -116,7 +105,5 @@ return table.freeze {
 	http = push_http,
 	pcall = try_result,
 
-	colors = COLORS,
-	val_str = val_str,
-	sorted_keys = ordered_keys,
+	colors = c,
 }

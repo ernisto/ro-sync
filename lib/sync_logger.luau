@@ -2,7 +2,6 @@ local ctx_log = require '@utils/ctx_log'
 local tbl = require '@utils/tbl'
 
 local c = ctx_log.colors
-local val_str = ctx_log.val_str
 
 local summary = { creates = 0, updates = 0, noops = 0, errors = 0, conflicts = 0, importeds = 0 }
 type set<T = any> = { [string]: T }
@@ -13,7 +12,7 @@ local function short_hash(h: string): string
 end
 local function fmt_val(value: any): string
 	return if type(value) ~= 'table'
-		then val_str(value)
+		then tostring(value)
 		elseif value.hash then `(hash: {short_hash(value.hash)})`
 		elseif value.assetid then `(id: {value.assetid})`
 		else '(file)'
@@ -35,23 +34,23 @@ end
 
 -- operation body
 local function print_local_changes(prev: set, diffs: set, conflicts: set?)
-	if next(diffs) == nil then return ctx_log.str(`{c.dim}no local changes\n`) end
-	ctx_log.str(`{c.dim}local changes:`)
+	if next(diffs) == nil then return ctx_log.str(`{c.dim}no local changes`) end
 
+	ctx_log.str(`{c.dim}local changes:`)
 	print_diff(prev, diffs, conflicts)
-	ctx_log.str ''
 end
 local function print_external_changes(prev: set, diffs: set, conflicts: set?)
-	if next(diffs) == nil then return ctx_log.str(`{c.dim}no external changes\n`) end
-	ctx_log.str(`{c.dim}external changes:`)
-
-	print_diff(prev, diffs, conflicts)
 	ctx_log.str ''
+	if next(diffs) == nil then return ctx_log.str(`{c.dim}no external changes`) end
+
+	ctx_log.str(`{c.dim}external changes:`)
+	print_diff(prev, diffs, conflicts)
 end
 local function print_pushed_changes(pushed: set)
+	ctx_log.str ''
 	if next(pushed) == nil then return ctx_log.str(`{c.dim}no changes to push`) end
-	ctx_log.str(`{c.dim}pushed changes:`)
 
+	ctx_log.str(`{c.dim}pushed changes:`)
 	print_diff({}, pushed)
 end
 
@@ -80,19 +79,23 @@ local function log_creation_result(success: boolean)
 		summary.errors += 1
 	end
 end
-local function log_update_result(success: boolean, conflicts: set)
+local function log_update_result(success: boolean, sending: set, conflicts: set)
 	local conflicts_amount = tbl.count(conflicts)
+	local sending_amount = tbl.count(sending)
+
 	ctx_log.pop_ctx(
-		if not success
-			then `{c.red}Failed to push changes`
-			elseif conflicts_amount > 0 then `{c.green}Pushed {c.dim}(aborted {conflicts_amount} conflicts)`
+		if conflicts_amount > 0 and conflicts_amount >= sending_amount
+			then `{c.yellow}Aborted due all conflicted`
+			elseif sending_amount == 0 then `{c.green}Successfully rebased`
+			elseif not success then `{c.red}Failed to push changes`
+			elseif conflicts_amount > 0 then `{c.green}Pushed {c.dim}(aborted {conflicts_amount} conflicted fields)`
 			else `{c.green}Successfully pushed`
 	)
+	if conflicts_amount > 0 then
+		summary.conflicts += 1
+	end
 	if success then
 		summary.updates += 1
-		if conflicts_amount > 0 then
-			summary.conflicts += 1
-		end
 	else
 		summary.errors += 1
 	end
@@ -121,9 +124,9 @@ return table.freeze {
 	print_summary = print_summary,
 
 	-- ctx
+	noop = log_noop,
 	update = log_update,
 	creation = log_creation,
-	noop = log_noop,
 	imported = log_imported,
 	update_result = log_update_result,
 	creation_result = log_creation_result,

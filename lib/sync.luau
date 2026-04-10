@@ -23,6 +23,7 @@ local function sync_product(api: cloud_api, product: state.product, opts: sync_o
 		sync_logger.creation(key)
 
 		local success, result = ctx_log.pcall(api.create, opts, input)
+		sync_logger.print_pushed_changes(input)
 		sync_logger.creation_result(success)
 
 		local saved_icon = { assetid = result.icon and result.icon.assetid, hash = input.icon and input.icon.hash }
@@ -58,13 +59,11 @@ local function sync_product(api: cloud_api, product: state.product, opts: sync_o
 
 	-- push
 	local successfully_pushed = next(free_sending) == nil or ctx_log.pcall(api.update, prev, free_sending)
-	if successfully_pushed then
-		tbl.apply(prev.input, free_sending)
-		sync_logger.print_pushed_changes(free_sending)
-	end
+	if successfully_pushed then tbl.apply(prev.input, free_sending) end
 
 	tbl.apply(prev.input, receiving_changes)
-	sync_logger.update_result(successfully_pushed, conflicts)
+	sync_logger.print_pushed_changes(free_sending)
+	sync_logger.update_result(successfully_pushed, free_sending, conflicts)
 
 	return prev
 end
