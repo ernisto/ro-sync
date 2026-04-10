@@ -1,9 +1,9 @@
-local task = require '@lune/task'
-
 local cli = require '@utils/cli'
 local cloud = require '@pkg/ro_cloud'
+local ctx_log = require '@utils/ctx_log'
 local env = require '@utils/env'
 local http_log = require '@utils/http_log'
+local c = ctx_log.colors
 
 local import = require '@lib/import'
 local state = require '@lib/state'
@@ -42,21 +42,18 @@ local api: sync.cloud_api = {
 	end,
 }
 
-sync_logger.print_header()
-
 -- main
 local resources = state.read_resources(INPUTS_PATH, LOCK_PATH)
 local sync_opts = { universe_id = resources.lock.universe_id, force_fresh_state = force_fresh_state }
+local universe = cloud.universe.get(session, { universe_id = resources.lock.universe_id })
 
-local remaining = 0
+sync_logger.print_header()
+ctx_log.str(`Logged in API Key: {c.green}"{string.sub(API_KEY, 1, 10)}..."`)
+ctx_log.str(`Target universe: {c.bold}{universe.displayName}{c.reset} {c.dim}({resources.lock.universe_id})`)
+ctx_log.str ''
+
 for _, resource in resources.products do
-	remaining += 1
-	task.spawn(function()
-		resource.lock = sync.await_reconcile_product(api, resource, sync_opts)
-	end)
-end
-while remaining > 0 do
-	task.wait()
+	resource.lock = sync.await_reconcile_product(api, resource, sync_opts)
 end
 
 if detect_new then import.import(session, resources.lock.universe_id, resources) end
