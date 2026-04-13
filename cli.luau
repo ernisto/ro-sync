@@ -23,21 +23,20 @@ local session = cloud.auth.apikey.login(API_KEY)
 local api: sync.cloud_api = {
 	get = function(product)
 		local path = `developer-product/{product.product_id}`
-		return http_log.log_http_call('GET', path, function()
-			return types.from_api_result(cloud.product.get(session, product))
-		end)
+		return types.from_api_result(http_log.log_http_call('GET', path, function()
+			return cloud.product.get(session, product)
+		end))
 	end,
 	create = function(universe, data)
 		local path = `universes/{universe.universe_id}/developer-products`
-		return http_log.log_http_call('POST', path, function()
-			return types.from_api_result(cloud.product.create(session, universe, types.to_api_params(data)))
-		end)
+		return types.from_api_result(http_log.log_http_call('POST', path, function()
+			return cloud.product.create(session, universe, types.to_api_params(data))
+		end))
 	end,
 	update = function(product, patch)
 		local path = `developer-product/{product.product_id}`
 		return http_log.log_http_call('PATCH', path, function()
-			cloud.product.update(session, product, types.to_api_params(patch))
-			return nil
+			return cloud.product.update(session, product, types.to_api_params(patch))
 		end)
 	end,
 }
@@ -45,7 +44,9 @@ local api: sync.cloud_api = {
 -- main
 local resources = state.read_resources(INPUTS_PATH, LOCK_PATH)
 local sync_opts = { universe_id = resources.lock.universe_id, force_fresh_state = force_fresh_state }
-local universe = cloud.universe.get(session, { universe_id = resources.lock.universe_id })
+local universe = http_log.log_http_call('GET', `universe/{resources.lock.universe_id}`, function()
+	return cloud.universe.get(session, { universe_id = resources.lock.universe_id })
+end)
 
 sync_logger.print_header()
 ctx_log.str(`Logged in API Key: {c.green}"{string.sub(API_KEY, 1, 10)}..."`)

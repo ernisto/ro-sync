@@ -7,7 +7,8 @@ local function await_all_products(session: cloud.apikey_session, universe_id: nu
 	local products = {}
 	local token: string? = nil
 	repeat
-		local page = cloud.product.list(session, { universe_id = universe_id }, { pageToken = token })
+		local page_res = cloud.product.list(session, { universe_id = universe_id }, { pageToken = token })
+		local page = assert(page_res.ok and page_res.body, page_res.message)
 
 		for _, product in page.developerProducts do
 			table.insert(products, product)

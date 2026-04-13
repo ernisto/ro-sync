@@ -23,7 +23,9 @@ local resources = state.read_resources(MANIFEST_PATH, LOCK_PATH)
 -- real API adapter — mirrors cli.luau exactly
 local api: sync.cloud_api = {
 	get = function(product)
-		return types.from_api_result(cloud.product.get(session, product))
+		local res = cloud.product.get(session, product)
+		assert(res.ok, res.message)
+		return types.from_api_result(res.body)
 	end,
 	create = function()
 		error 'create should not be called in integration tests'
