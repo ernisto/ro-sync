@@ -28,19 +28,17 @@ local function import(session: cloud.apikey_session, universe_id: number, resour
 	for _, product in await_all_products(session, universe_id) do
 		if known_ids[product.productId] then continue end
 		local key = product.name
-		if resources.manifest.products[key] then key = `{product.name}_{product.productId}` end
 
-		local manifest_input = { name = product.name }
-		local lock_input = {
-			name = product.name,
-			icon = product.iconImageAssetId and { assetid = product.iconImageAssetId } or nil,
-		}
-		resources.manifest.products[key] = manifest_input
+		if resources.manifest.products[key] then key = `{product.name}_{product.productId}` end
+		local saved_icon_file = if product.iconImageAssetId then { assetid = product.iconImageAssetId } else nil
+
+		resources.manifest.products[key] = { name = product.name, conflicts = {} }
 		resources.lock.products[key] = {
 			universe_id = product.universeId,
 			product_id = product.productId,
-			input = lock_input,
+			input = { name = product.name, icon_file = saved_icon_file, conflicts = {} },
 		}
+
 		sync_logger.imported(key, product.productId)
 	end
 end

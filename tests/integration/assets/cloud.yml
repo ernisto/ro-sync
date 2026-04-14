@@ -16,11 +16,15 @@
     "name": "5000 money"
 
   "money_pack1":
+    "addons":
+      "discount": 0
+      "discount_end": "06/06/2026"
+      "random_reward": true
+      "regional_pricing": false
+
     "description": "Gain 100 money"
-    "discount": 0
-    "discount_end": "06/06/2026"
     "icon": "placeholder.png"
     "name": "1000 money"
     "price": 1499
-    "random_reward": true
-    "regional_pricing": false
+
+"version": 1

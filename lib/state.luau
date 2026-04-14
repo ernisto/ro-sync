@@ -13,15 +13,16 @@ export type manifest = { owner: owner, products: { [string]: product_input } }
 export type lock = { universe_id: number, products: { [string]: product_lock } }
 
 export type product_input = {
-	icon: file?, -- saved as `icon: path`
 	name: string,
+	icon: string?, -- saved as `icon: path`
+	icon_file: file?, -- not readed from input
 	price: number?,
 	description: string?,
 	is_for_sale: boolean?,
 	regional_pricing: boolean?,
 	store_page_enabled: boolean?,
-	conflicts: { [string]: any }?,
-	[string]: any,
+	conflicts: { [string]: any },
+	addons: { [string]: any }?,
 }
 export type product_lock = {
 	universe_id: number,
@@ -30,7 +31,6 @@ export type product_lock = {
 }
 
 export type product = { key: string, lock: product_lock?, input: product_input }
-
 export type resources = {
 	products: { product },
 	manifest: manifest,
@@ -41,9 +41,9 @@ export type resources = {
 
 -- constants
 local UNAVAILABLE_ID = -1
-local PRODUCT_MASK = {
+local DIFF_PRODUCT_MASK = {
 	name = '',
-	icon = {} :: file,
+	icon_file = {} :: file,
 	price = 0,
 	description = '',
 	is_for_sale = true,
@@ -56,13 +56,13 @@ local PRODUCT_MASK = {
 -- Diffs two products over the tracked fields.
 -- Icons are compared by hash but the diff value is the original file object.
 local function normalize(source: { [string]: any }): { [string]: any }
-	local result = tbl.intersection(source, PRODUCT_MASK)
-	if type(result.icon) == 'table' then result.icon = (result.icon :: any).hash end
+	local result = tbl.intersection(source, DIFF_PRODUCT_MASK)
+	if type(result.icon_file) == 'table' then result.icon_file = result.icon_file.hash :: any end
 	return result
 end
 local function diff_product(from: { [string]: any }, to: { [string]: any }): { [string]: any }
 	local changes = tbl.changes(normalize(from), normalize(to))
-	if changes.icon ~= nil then changes.icon = to.icon end
+	if changes.icon_file ~= nil then changes.icon_file = to.icon_file end
 	return changes
 end
 
@@ -83,53 +83,50 @@ local function ensure_manifest(path: string): manifest
 	if not content then return { owner = { group = UNAVAILABLE_ID }, products = {} } end
 
 	local manifest = serde.decode('yaml', content)
+	assert(manifest.version == 1, `unsupported version {manifest.version}`)
 	assert(type(manifest.products) == 'table')
 
 	for key, product in manifest.products do
 		assert(type(product) == 'table')
 		assert(type(key) == 'string')
-		product.icon = product.icon and maybe_resolve_file(product.icon)
+		product.icon_file = product.icon and maybe_resolve_file(product.icon)
 	end
 
 	return manifest
 end
 local function ensure_lock(path: string): lock
 	local content = maybe_read(path)
-	if not content then return { universe_id = UNAVAILABLE_ID, products = {} } end
+	if not content then return { version = 1, universe_id = UNAVAILABLE_ID, products = {} } end
 
 	local lock = serde.decode('yaml', content)
+	assert(lock.version == 1, `unsupported version {lock.version}`)
 	assert(type(lock.products) == 'table')
 
 	for key, product in lock.products do
 		assert(type(key) == 'string')
 		assert(type(product) == 'table')
-		-- migrate old flat icon_id/icon_hash to nested input.icon
-		if product.icon_id ~= nil then
-			if product.input then product.input.icon = { assetid = product.icon_id, hash = product.icon_hash } end
-			product.icon_id = nil
-			product.icon_hash = nil
-		elseif product.input and type(product.input.icon) == 'string' then
-			product.input.icon = nil -- old path string with no hash info; treat as unknown
-		end
 	end
 
 	return lock
 end
 
 local function save_manifest(path: string, data: manifest)
-	local out = tbl.applied(data, { products = {} })
+	local out: any = tbl.applied(data, { version = 1, products = {} })
 	for k, product in data.products do
-		out.products[k] = tbl.applied(product, { icon = product.icon and product.icon.path })
+		out.products[k] = table.clone(product)
+		out.products[k].icon_file = nil
+		if product.conflicts and next(product.conflicts) == nil then out.products[k].conflicts = nil end
 	end
 	fs.writeFile(path, serde.encode('yaml', out, true))
 end
 local function save_lock(path: string, data: lock)
-	local out = tbl.applied(data, { products = {} })
+	local out = tbl.applied(data, { version = 1, products = {} })
 	for k, product in data.products do
 		local input = product.input
-		local icon = input and input.icon
-		local clean_icon = if icon and icon.content then { assetid = icon.assetid, hash = icon.hash } else icon
-		out.products[k] = tbl.applied(product, { input = tbl.applied(input, { icon = clean_icon }) })
+		local icon_file = input and input.icon_file
+
+		local clean_icon = icon_file and tbl.intersection(icon_file, { assetid = 0, hash = '' })
+		out.products[k] = tbl.applied(product, { input = tbl.applied(input, { icon_file = clean_icon }) })
 	end
 	fs.writeFile(path, serde.encode('yaml', out, true))
 end
@@ -161,5 +158,5 @@ return table.freeze {
 	diff_product = diff_product,
 
 	UNAVAILABLE_ID = UNAVAILABLE_ID,
-	PRODUCT_FIELDS = PRODUCT_MASK,
+	PRODUCT_FIELDS = DIFF_PRODUCT_MASK,
 }

@@ -66,6 +66,8 @@ function run.should_return_prev_unchanged_when_no_local_changes()
 	local input = table.clone(resources.manifest.products.money_pack1) :: any
 	input.icon = nil -- suppress icon change detection
 
+	input.icon_file = nil -- suppress icon change detection
+
 	local guarded_api = table.clone(api) :: sync.cloud_api
 	guarded_api.get = mock.never_called 'get should not be reached for a no-op'
 	guarded_api.update = mock.never_called 'update should not be reached for a no-op'
@@ -107,11 +109,11 @@ function run.should_push_icon_change_and_revert()
 	local icon = state.maybe_resolve_file(ICON_PATH)
 
 	local input = table.clone(resources.manifest.products.money_pack1) :: any
-	input.icon = icon
+	input.icon_file = icon
 
 	local patched_prev = table.clone(prev) :: any
 	patched_prev.input = table.clone(prev.input)
-	patched_prev.input.icon = { assetid = prev.input.icon and prev.input.icon.assetid, hash = 'stale' }
+	patched_prev.input.icon_file = { assetid = prev.input.icon_file and prev.input.icon_file.assetid, hash = 'stale' }
 
 	local opts: sync.sync_opts = { universe_id = prev.universe_id, force_fresh_state = false }
 	sync.await_reconcile_product(api, sm.make_product(input, patched_prev), opts)

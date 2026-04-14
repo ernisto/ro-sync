@@ -137,7 +137,7 @@ end
 
 -- icon tests
 function run.icon_create_saves_assetid_from_result_and_hash_from_input()
-	local input = make_input { icon = make_icon_input(ICON_HASH_A) }
+	local input = make_input { icon_file = make_icon_input(ICON_HASH_A) }
 
 	local api: sync.cloud_api = {
 		create = function(_, data)
@@ -149,12 +149,12 @@ function run.icon_create_saves_assetid_from_result_and_hash_from_input()
 
 	local lock = sync.await_reconcile_product(api, make_product(input), opts)
 
-	expect.eq(lock.input.icon.assetid, ICON_ID)
-	expect.eq(lock.input.icon.hash, ICON_HASH_A)
+	expect.eq(lock.input.icon_file.assetid, ICON_ID)
+	expect.eq(lock.input.icon_file.hash, ICON_HASH_A)
 end
 
 function run.icon_create_preserves_hash_when_result_has_no_icon()
-	local input = make_input { icon = make_icon_input(ICON_HASH_A) }
+	local input = make_input { icon_file = make_icon_input(ICON_HASH_A) }
 
 	local api: sync.cloud_api = {
 		create = function(_, data)
@@ -166,12 +166,12 @@ function run.icon_create_preserves_hash_when_result_has_no_icon()
 
 	local lock = sync.await_reconcile_product(api, make_product(input), opts)
 
-	expect.eq(lock.input.icon.hash, ICON_HASH_A)
+	expect.eq(lock.input.icon_file.hash, ICON_HASH_A)
 end
 
 function run.icon_not_pushed_when_hash_matches_lock()
-	local input = make_input { icon = make_icon_input(ICON_HASH_A) }
-	local prev = make_lock(make_input { icon = make_icon_lock(ICON_ID, ICON_HASH_A) })
+	local input = make_input { icon_file = make_icon_input(ICON_HASH_A) }
+	local prev = make_lock(make_input { icon_file = make_icon_lock(ICON_ID, ICON_HASH_A) })
 
 	local api: sync.cloud_api = {
 		create = mock.never_called 'create',
@@ -184,8 +184,8 @@ end
 
 function run.icon_pushed_when_hash_differs_from_lock()
 	local new_icon = make_icon_input(ICON_HASH_B)
-	local input = make_input { icon = new_icon }
-	local prev = make_lock(make_input { icon = make_icon_lock(ICON_ID, ICON_HASH_A) })
+	local input = make_input { icon_file = new_icon }
+	local prev = make_lock(make_input { icon_file = make_icon_lock(ICON_ID, ICON_HASH_A) })
 	local update = mock.fn()
 
 	local api: sync.cloud_api = {
@@ -198,13 +198,13 @@ function run.icon_pushed_when_hash_differs_from_lock()
 
 	sync.await_reconcile_product(api, make_product(input, prev), opts)
 
-	expect.eq(update.calls[1][2].icon, new_icon)
+	expect.eq(update.calls[1][2].icon_file, new_icon)
 end
 
 function run.icon_lock_updated_to_new_icon_after_push()
 	local new_icon = make_icon_input(ICON_HASH_B)
-	local input = make_input { icon = new_icon }
-	local prev = make_lock(make_input { icon = make_icon_lock(ICON_ID, ICON_HASH_A) })
+	local input = make_input { icon_file = new_icon }
+	local prev = make_lock(make_input { icon_file = make_icon_lock(ICON_ID, ICON_HASH_A) })
 
 	local api: sync.cloud_api = {
 		create = mock.never_called 'create',
@@ -217,13 +217,13 @@ function run.icon_lock_updated_to_new_icon_after_push()
 	sync.await_reconcile_product(api, make_product(input, prev), opts)
 
 	-- lock icon updated so next run detects no hash change
-	expect.eq(prev.input.icon, new_icon)
+	expect.eq(prev.input.icon_file, new_icon)
 end
 
 function run.icon_pushed_when_lock_has_no_hash()
 	-- lock has only assetid (e.g. imported via detect-new), no hash baseline
-	local input = make_input { icon = make_icon_input(ICON_HASH_A) }
-	local prev = make_lock(make_input { icon = make_icon_lock(ICON_ID, nil) })
+	local input = make_input { icon_file = make_icon_input(ICON_HASH_A) }
+	local prev = make_lock(make_input { icon_file = make_icon_lock(ICON_ID, nil) })
 	local update = mock.fn()
 
 	local api: sync.cloud_api = {

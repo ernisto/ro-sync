@@ -37,7 +37,8 @@ local OPTS: sync.sync_opts = { universe_id = sm.UNIVERSE_ID, force_fresh_state =
 function run.field_change_is_noop_on_second_sync()
 	cleanup()
 
-	write_files({ owner = { group = 1 }, products = { test_pack = { name = 'New Name', price = 100 } } }, {
+	write_files({ version = 1, owner = { group = 1 }, products = { test_pack = { name = 'New Name', price = 100 } } }, {
+		version = 1,
 		universe_id = sm.UNIVERSE_ID,
 		products = {
 			test_pack = {
@@ -74,16 +75,20 @@ function run.icon_hash_is_noop_on_second_sync()
 	cleanup()
 
 	-- manifest references a real icon file; lock has a stale hash
-	write_files({ owner = { group = 1 }, products = { test_pack = { name = 'Pack', icon = ICON_PATH } } }, {
-		universe_id = sm.UNIVERSE_ID,
-		products = {
-			test_pack = {
-				universe_id = sm.UNIVERSE_ID,
-				product_id = sm.PRODUCT_ID,
-				input = { name = 'Pack', icon = { assetid = sm.ICON_ID, hash = 'stale' } },
+	write_files(
+		{ version = 1, owner = { group = 1 }, products = { test_pack = { name = 'Pack', icon = ICON_PATH } } },
+		{
+			version = 1,
+			universe_id = sm.UNIVERSE_ID,
+			products = {
+				test_pack = {
+					universe_id = sm.UNIVERSE_ID,
+					product_id = sm.PRODUCT_ID,
+					input = { name = 'Pack', icon = { assetid = sm.ICON_ID, hash = 'stale' } },
+				},
 			},
-		},
-	})
+		}
+	)
 
 	local cloud_state = sm.make_input { icon = sm.make_icon_lock(sm.ICON_ID, nil) }
 
@@ -113,7 +118,14 @@ function run.create_writes_product_id_to_lock()
 	cleanup()
 
 	-- write only manifest; no lock file → ensure_lock returns empty default
-	fs.writeFile(TMP_MANIFEST, serde.encode('yaml', { owner = { group = 1 }, products = { test_pack = { name = 'Pack', price = 100 } } }, true))
+	fs.writeFile(
+		TMP_MANIFEST,
+		serde.encode(
+			'yaml',
+			{ version = 1, owner = { group = 1 }, products = { test_pack = { name = 'Pack', price = 100 } } },
+			true
+		)
+	)
 
 	run_sync({
 		create = function()
@@ -134,7 +146,14 @@ end
 function run.create_with_icon_writes_assetid_and_hash_to_lock()
 	cleanup()
 
-	fs.writeFile(TMP_MANIFEST, serde.encode('yaml', { owner = { group = 1 }, products = { test_pack = { name = 'Pack', icon = ICON_PATH } } }, true))
+	fs.writeFile(
+		TMP_MANIFEST,
+		serde.encode(
+			'yaml',
+			{ version = 1, owner = { group = 1 }, products = { test_pack = { name = 'Pack', icon = ICON_PATH } } },
+			true
+		)
+	)
 
 	run_sync({
 		create = function()
@@ -150,7 +169,8 @@ function run.create_with_icon_writes_assetid_and_hash_to_lock()
 	}, OPTS)
 
 	local after = state.read_resources(TMP_MANIFEST, TMP_LOCK)
-	local icon = after.lock.products.test_pack.input.icon
+	local icon = after.lock.products.test_pack.input.icon_file
+	assert(icon)
 	expect.eq(icon.assetid, sm.ICON_ID)
 	expect.truthy(icon.hash, 'hash should be saved alongside assetid')
 
@@ -160,16 +180,20 @@ end
 function run.conflict_is_written_to_manifest()
 	cleanup()
 
-	write_files({ owner = { group = 1 }, products = { test_pack = { name = 'Local Name', price = 100 } } }, {
-		universe_id = sm.UNIVERSE_ID,
-		products = {
-			test_pack = {
-				universe_id = sm.UNIVERSE_ID,
-				product_id = sm.PRODUCT_ID,
-				input = { name = 'Old Name', price = 100 },
+	write_files(
+		{ version = 1, owner = { group = 1 }, products = { test_pack = { name = 'Local Name', price = 100 } } },
+		{
+			version = 1,
+			universe_id = sm.UNIVERSE_ID,
+			products = {
+				test_pack = {
+					universe_id = sm.UNIVERSE_ID,
+					product_id = sm.PRODUCT_ID,
+					input = { name = 'Old Name', price = 100 },
+				},
 			},
-		},
-	})
+		}
+	)
 
 	run_sync({
 		create = mock.never_called 'create',
@@ -191,19 +215,21 @@ function run.cloud_pull_is_written_to_manifest()
 	cleanup()
 
 	-- local changed name; cloud changed description (no overlap)
-	write_files(
-		{ owner = { group = 1 }, products = { test_pack = { name = 'New Name', price = 100, description = 'Old' } } },
-		{
-			universe_id = sm.UNIVERSE_ID,
-			products = {
-				test_pack = {
-					universe_id = sm.UNIVERSE_ID,
-					product_id = sm.PRODUCT_ID,
-					input = { name = 'Old Name', price = 100, description = 'Old' },
-				},
+	write_files({
+		version = 1,
+		owner = { group = 1 },
+		products = { test_pack = { name = 'New Name', price = 100, description = 'Old' } },
+	}, {
+		version = 1,
+		universe_id = sm.UNIVERSE_ID,
+		products = {
+			test_pack = {
+				universe_id = sm.UNIVERSE_ID,
+				product_id = sm.PRODUCT_ID,
+				input = { name = 'Old Name', price = 100, description = 'Old' },
 			},
-		}
-	)
+		},
+	})
 
 	run_sync({
 		create = mock.never_called 'create',
