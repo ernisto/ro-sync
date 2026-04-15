@@ -12,10 +12,10 @@ local function short_hash(h: string): string
 end
 local function fmt_val(value: any): string
 	return if type(value) ~= 'table'
-		then tostring(value)
-		elseif value.hash then `(hash: {short_hash(value.hash)})`
-		elseif value.assetid then `(id: {value.assetid})`
-		else '(file)'
+		then `{c.bold}{value}`
+		elseif value.hash then `{c.dim}(hash: {c.unbold}{c.bold}{short_hash(value.hash)}{c.unbold}{c.dim})`
+		elseif value.assetid then `{c.dim}(id: {c.unbold}{c.bold}{value.assetid}{c.unbold}{c.dim})`
+		else `{c.dim}({c.unbold}{c.bold}file{c.unbold}{c.dim})`
 end
 
 local function print_diff(prev: set, diffs: set, conflicts: set?)

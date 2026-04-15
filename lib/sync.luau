@@ -33,7 +33,8 @@ local function await_reconcile_product(api: cloud_api, product: state.product, o
 	local key, input, prev = product.key, product.input, product.lock
 	if not prev then return await_create_product(api, product, opts) end
 
-	local conflicts = input.conflicts or {}
+	local conflicts = input.conflicts
+	if input.icon and not input.icon_file then ctx_log.warn(`couldnt find icon '{input.icon}'`) end
 
 	local local_changes = state.diff_product(prev.input, input)
 	tbl.subtract(local_changes, conflicts)

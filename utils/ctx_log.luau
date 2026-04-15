@@ -2,6 +2,7 @@
 local c = {
 	reset = '\27[0m',
 	bold = '\27[1m',
+	unbold = '\027[22m',
 	dim = '\27[2m',
 	red = '\27[31m',
 	green = '\27[32m',
