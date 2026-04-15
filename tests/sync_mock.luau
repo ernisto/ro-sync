@@ -9,7 +9,7 @@ local DEFAULT_OPTS: sync.sync_opts = { universe_id = UNIVERSE_ID, force_fresh_st
 
 -- product builders
 local function make_input(overrides: { [string]: any }?): any
-	local base = { name = 'Pack', price = 100, description = 'A pack', is_for_sale = true }
+	local base = { name = 'Pack', price = 100, description = 'A pack', is_for_sale = true, conflicts = {} }
 	if overrides then
 		for k, v in overrides do
 			base[k] = v

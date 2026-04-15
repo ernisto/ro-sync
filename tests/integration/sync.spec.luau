@@ -3,7 +3,7 @@ local env = require '@utils/env'
 local expect = require '@test/expect'
 local mock = require '@test/mock'
 local sm = require '@test/sync_mock'
-local state = require '@lib/state'
+local state_fs = require '@lib/state_fs'
 local sync = require '@lib/sync'
 local types = require '@lib/types'
 
@@ -18,7 +18,7 @@ if not API_KEY then
 end
 
 local session = cloud.auth.apikey.login(API_KEY)
-local resources = state.read_resources(MANIFEST_PATH, LOCK_PATH)
+local resources = state_fs.load_resources(MANIFEST_PATH, LOCK_PATH)
 
 -- real API adapter — mirrors cli.luau exactly
 local api: sync.cloud_api = {
@@ -64,9 +64,8 @@ end
 function run.should_return_prev_unchanged_when_no_local_changes()
 	local prev = resources.lock.products.money_pack1
 	local input = table.clone(resources.manifest.products.money_pack1) :: any
-	input.icon = nil -- suppress icon change detection
-
-	input.icon_file = nil -- suppress icon change detection
+	input.icon = nil
+	input.icon_file = nil
 
 	local guarded_api = table.clone(api) :: sync.cloud_api
 	guarded_api.get = mock.never_called 'get should not be reached for a no-op'
@@ -106,7 +105,7 @@ end
 
 function run.should_push_icon_change_and_revert()
 	local prev = resources.lock.products.money_pack1
-	local icon = state.maybe_resolve_file(ICON_PATH)
+	local icon = state_fs.resolve_icon(ICON_PATH)
 
 	local input = table.clone(resources.manifest.products.money_pack1) :: any
 	input.icon_file = icon

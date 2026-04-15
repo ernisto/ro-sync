@@ -3,7 +3,7 @@ local fs = require '@lune/fs'
 local mock = require '@test/mock'
 local serde = require '@lune/serde'
 local sm = require '@test/sync_mock'
-local state = require '@lib/state'
+local state_fs = require '@lib/state_fs'
 local sync = require '@lib/sync'
 
 local ICON_PATH = 'tests/integration/assets/placeholder.png'
@@ -23,11 +23,11 @@ local function write_files(manifest: any, lock: any)
 end
 
 local function run_sync(api: sync.cloud_api, opts: sync.sync_opts)
-	local resources = state.read_resources(TMP_MANIFEST, TMP_LOCK)
+	local resources = state_fs.load_resources(TMP_MANIFEST, TMP_LOCK)
 	for _, product in resources.products do
 		product.lock = sync.await_reconcile_product(api, product, opts)
 	end
-	state.save_resources(resources)
+	state_fs.save_resources(resources, TMP_MANIFEST, TMP_LOCK)
 end
 
 local OPTS: sync.sync_opts = { universe_id = sm.UNIVERSE_ID, force_fresh_state = false }
@@ -103,7 +103,7 @@ function run.icon_hash_is_noop_on_second_sync()
 	}, OPTS)
 	expect.eq(first_update.call_count, 1)
 
-	print(state.read_resources(TMP_MANIFEST, TMP_LOCK))
+	print(state_fs.load_resources(TMP_MANIFEST, TMP_LOCK))
 
 	-- second sync: lock now has real hash → noop, no API calls
 	run_sync(
@@ -117,7 +117,7 @@ end
 function run.create_writes_product_id_to_lock()
 	cleanup()
 
-	-- write only manifest; no lock file → ensure_lock returns empty default
+	-- lock has no entry for test_pack → product gets created
 	fs.writeFile(
 		TMP_MANIFEST,
 		serde.encode(
@@ -126,6 +126,7 @@ function run.create_writes_product_id_to_lock()
 			true
 		)
 	)
+	fs.writeFile(TMP_LOCK, `version: 1\nuniverse_id: {sm.UNIVERSE_ID}\nproducts: \{\{}}\n`)
 
 	run_sync({
 		create = function()
@@ -135,7 +136,7 @@ function run.create_writes_product_id_to_lock()
 		update = mock.never_called 'update',
 	}, OPTS)
 
-	local after = state.read_resources(TMP_MANIFEST, TMP_LOCK)
+	local after = state_fs.load_resources(TMP_MANIFEST, TMP_LOCK)
 	local lock = after.lock.products.test_pack
 	expect.eq(lock.product_id, sm.PRODUCT_ID)
 	expect.eq(lock.universe_id, sm.UNIVERSE_ID)
@@ -146,6 +147,7 @@ end
 function run.create_with_icon_writes_assetid_and_hash_to_lock()
 	cleanup()
 
+	-- lock has no entry for test_pack → product gets created with icon
 	fs.writeFile(
 		TMP_MANIFEST,
 		serde.encode(
@@ -154,6 +156,7 @@ function run.create_with_icon_writes_assetid_and_hash_to_lock()
 			true
 		)
 	)
+	fs.writeFile(TMP_LOCK, `version: 1\nuniverse_id: {sm.UNIVERSE_ID}\nproducts: \{\{}}\n`)
 
 	run_sync({
 		create = function()
@@ -168,7 +171,7 @@ function run.create_with_icon_writes_assetid_and_hash_to_lock()
 		update = mock.never_called 'update',
 	}, OPTS)
 
-	local after = state.read_resources(TMP_MANIFEST, TMP_LOCK)
+	local after = state_fs.load_resources(TMP_MANIFEST, TMP_LOCK)
 	local icon = after.lock.products.test_pack.input.icon_file
 	assert(icon)
 	expect.eq(icon.assetid, sm.ICON_ID)
@@ -203,7 +206,7 @@ function run.conflict_is_written_to_manifest()
 		update = function() end,
 	}, OPTS)
 
-	local after = state.read_resources(TMP_MANIFEST, TMP_LOCK)
+	local after = state_fs.load_resources(TMP_MANIFEST, TMP_LOCK)
 	local conflicts = after.products[1].input.conflicts
 	expect.truthy(conflicts, 'conflicts not written to manifest')
 	expect.truthy(conflicts.name, 'name conflict not written')
@@ -239,7 +242,7 @@ function run.cloud_pull_is_written_to_manifest()
 		update = function() end,
 	}, OPTS)
 
-	local after = state.read_resources(TMP_MANIFEST, TMP_LOCK)
+	local after = state_fs.load_resources(TMP_MANIFEST, TMP_LOCK)
 	expect.eq(after.products[1].input.description, 'From Cloud')
 
 	cleanup()

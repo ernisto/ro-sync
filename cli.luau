@@ -6,7 +6,7 @@ local http_log = require '@utils/http_log'
 local c = ctx_log.colors
 
 local import = require '@lib/import'
-local state = require '@lib/state'
+local state_fs = require '@lib/state_fs'
 local sync = require '@lib/sync'
 local sync_logger = require '@lib/sync_logger'
 local types = require '@lib/types'
@@ -41,8 +41,10 @@ local api: sync.cloud_api = {
 	end,
 }
 
--- main
-local resources = state.read_resources(INPUTS_PATH, LOCK_PATH)
+-- load resources
+local resources = state_fs.load_resources(INPUTS_PATH, LOCK_PATH)
+assert(resources.lock.universe_id)
+
 local sync_opts = { universe_id = resources.lock.universe_id, force_fresh_state = force_fresh_state }
 local universe = http_log.log_http_call('GET', `universe/{resources.lock.universe_id}`, function()
 	return cloud.universe.get(session, { universe_id = resources.lock.universe_id })
@@ -60,4 +62,4 @@ end
 if detect_new then import.import(session, resources.lock.universe_id, resources) end
 
 sync_logger.print_summary()
-state.save_resources(resources)
+state_fs.save_resources(resources, INPUTS_PATH, LOCK_PATH)

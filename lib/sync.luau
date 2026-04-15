@@ -57,8 +57,7 @@ local function await_reconcile_product(api: cloud_api, product: state.product, o
 	local free_sending = tbl.subtraction(sending_changes, conflicts)
 	local free_receiving = tbl.subtraction(receiving_changes, conflicts)
 
-	tbl.apply(input, tbl.intersection(free_receiving, input))
-	input.conflicts = if next(conflicts) then conflicts else nil
+	tbl.apply(input, free_receiving)
 
 	-- push
 	local successfully_pushed = next(free_sending) == nil or ctx_log.pcall(api.update, prev, free_sending)
