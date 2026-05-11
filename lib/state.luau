@@ -2,7 +2,7 @@ local serde = require '@lune/serde'
 local tbl = require '@utils/tbl'
 
 -- types
-type owner = { user: nil, group: number } | { user: number, group: nil }
+export type owner = { user: nil, group: number } | { user: number, group: nil }
 export type file_input = { hash: string, content: buffer, assetid: nil }
 export type file_lock = { hash: string?, content: nil, assetid: number }
 export type file = file_input | file_lock
@@ -61,24 +61,32 @@ end
 local function parse_manifest(content: buffer): manifest
 	local data = serde.decode('yaml', content)
 	assert(data.version == 1, `unsupported version {data.version}`)
-	assert(type(data.products) == 'table')
 
-	for key, product in data.products do
+	local products = data.products or {}
+	assert(type(products) == 'table')
+
+	for key, product in products do
 		assert(type(product) == 'table')
 		assert(type(key) == 'string')
 		product.conflicts = product.conflicts or {}
 	end
+
+	data.products = products
 	return data
 end
 local function parse_lock(content: buffer): lock
 	local data = serde.decode('yaml', content)
 	assert(data.version == 1, `unsupported version {data.version}`)
-	assert(type(data.products) == 'table')
 
-	for key, product in data.products do
+	local products = data.products or {}
+	assert(type(products) == 'table')
+
+	for key, product in products do
 		assert(type(key) == 'string')
 		assert(type(product) == 'table')
 	end
+
+	data.products = products
 	return data
 end
 

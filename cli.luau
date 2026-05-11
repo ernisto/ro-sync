@@ -3,10 +3,10 @@ local cloud = require '@pkg/ro_cloud'
 local ctx_log = require '@utils/ctx_log'
 local env = require '@utils/env'
 local http_log = require '@utils/http_log'
-local stdio = require '@lune/stdio'
 local c = ctx_log.colors
 
 local import = require '@lib/import'
+local prompt = require '@lib/prompt'
 local state_fs = require '@lib/state_fs'
 local sync = require '@lib/sync'
 local sync_logger = require '@lib/sync_logger'
@@ -42,66 +42,24 @@ local api: sync.cloud_api = {
 	end,
 }
 
--- functions
-local function prompt_creator(session: cloud.cookie_session): cloud.dev_group?
-	local groups_res = cloud.develop.get_groups(session)
-	assert(groups_res.ok, groups_res.message)
+-- bootstrap manifest + lock if missing
+if not state_fs.files_exist(INPUTS_PATH) then
+	ctx_log.warn(`No manifest/lock found, logging in cookie to bootstrap`)
 
-	local user_res = cloud.auth.get_user_info(session)
-	local user = assert(user_res.ok and user_res.body, user_res.message)
+	local user_session = cloud.auth.cookie.login()
+	local subject = prompt.prompt_subject(user_session)
 
-	local groups = groups_res.body.data
-	local options = { `@{user.name} ({user.id})` }
+	local resources = state_fs.create_resources(subject.owner, subject.universe and subject.universe.id)
+	state_fs.save_resources(resources, INPUTS_PATH, LOCK_PATH)
 
-	for _, group in groups do
-		table.insert(options, `{group.name} ({group.id})`)
-	end
-
-	local option = stdio.prompt('select', 'Select a creator', options)
-	return option and option > 1 and groups[option - 1]
-end
-local function prompt_universe(session: cloud.cookie_session, universes: { cloud.dev_universe }): cloud.dev_universe
-	local options = { 'Create a new universe' }
-	for _, universe in universes do
-		table.insert(options, `{universe.name} ({universe.id})`)
-	end
-
-	local option = stdio.prompt('select', 'Select a place to import', options)
-	return option and option > 1 and universes[option - 1]
+	ctx_log.str(`Wrote {c.bold}{INPUTS_PATH}{c.reset} and {c.bold}{LOCK_PATH}`)
+	return
 end
 
 -- load resources
 local resources = state_fs.load_resources(INPUTS_PATH, LOCK_PATH)
-assert(resources.lock.universe_id)
-
 if not resources.lock.universe_id or resources.lock.universe_id < 0 then
-	ctx_log.warn(`Couldnt find a target universe, logging in local cookie to help our prompt`)
-
-	local user_session = cloud.auth.cookie.login()
-	local group = prompt_creator(user_session)
-
-	local query = { group_id = group and group.id, cursor = nil } :: any
-	local universes: { cloud.dev_universe } = {}
-
-	repeat
-		local universes_res = if group
-			then cloud.develop.get_group_universes(user_session, query)
-			else cloud.develop.get_user_universes(user_session, query)
-
-		assert(universes_res.ok, universes_res.message)
-		for _, universe in universes_res.body.data :: any do
-			table.insert(universes, universe)
-		end
-
-		query.cursor = if universes_res.body.nextPageCursor == query.cursor
-			then nil
-			else universes_res.body.nextPageCursor
-	until query.cursor == nil
-
-	local universe = prompt_universe(user_session, universes)
-	if universe then resources.lock.universe_id = universe.id end
-
-	return
+	error(`Lock file missing universe_id, delete {LOCK_PATH} to re-bootstrap`)
 end
 
 -- start

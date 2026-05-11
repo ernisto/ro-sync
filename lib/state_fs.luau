@@ -12,6 +12,16 @@ local function resolve_icon(path: string): state.file_input?
 	return content and table.freeze { content = content, hash = serde.hash('sha256', content) }
 end
 
+local function files_exist(manifest_path: string): boolean
+	return fs.isFile(manifest_path)
+end
+
+local function create_resources(owner: state.owner, universe_id: number?): state.resources
+	local manifest: state.manifest = { owner = owner, products = {} }
+	local lock: state.lock = { universe_id = universe_id, products = {} }
+	return state.build_resources(manifest, lock)
+end
+
 local function load_resources(manifest_path: string, lock_path: string): state.resources
 	local raw_manifest = maybe_read(manifest_path) or error(`couldnt load manifest '{manifest_path}'`)
 	local raw_lock = maybe_read(lock_path) or error(`couldnt load lock '{lock_path}'`)
@@ -35,6 +45,8 @@ end
 
 -- module
 return table.freeze {
+	files_exist = files_exist,
+	create_resources = create_resources,
 	load_resources = load_resources,
 	save_resources = save_resources,
 	resolve_icon = resolve_icon,
