@@ -8,6 +8,7 @@
     "pkg": "./lune_packages",
     "utils": "./utils",
     "test": "./tests",
+    "cli": "./cli",
     "lib": "./lib"
   }
 }
