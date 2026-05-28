@@ -2,36 +2,15 @@ local cloud = require '@pkg/ro_cloud'
 local state = require '@lib/state'
 local stdio = require '@lune/stdio'
 
--- types
-export type creator = {
-	user: { id: number, name: string }?,
-	group: cloud.dev_group?,
-}
+-- defs
+local BASEPLATE_PLACE_ID = 95206881
 
--- functions
-local function prompt_creator(session: cloud.cookie_session): creator?
-	local groups_res = cloud.develop.get_groups(session)
-	assert(groups_res.ok, groups_res.message)
+export type creator = { user: { id: number, name: string }, group: nil } | { user: nil, group: cloud.dev_group? }
 
-	local user_res = cloud.auth.get_user_info(session)
-	local user = assert(user_res.ok and user_res.body, user_res.message)
-
-	local groups = groups_res.body.data
-	local options = { `@{user.name} ({user.id})` }
-
-	for _, group in groups do
-		table.insert(options, `{group.name} ({group.id})`)
-	end
-
-	local option = stdio.prompt('select', 'Select a creator', options)
-	if not option then return nil end
-	if option == 1 then return { user = { id = user.id, name = user.name } } end
-	return { group = groups[option - 1] }
-end
-
+-- helpers
 local function fetch_universes(session: cloud.cookie_session, group: cloud.dev_group?): { cloud.dev_universe }
-	local cursor: string? = nil
 	local universes: { cloud.dev_universe } = {}
+	local cursor: string?
 
 	repeat
 		local query = { cursor = cursor }
@@ -50,31 +29,67 @@ local function fetch_universes(session: cloud.cookie_session, group: cloud.dev_g
 
 	return universes
 end
+local function create_universe(session: cloud.cookie_session, creator: creator): cloud.universe_identity?
+	local res = cloud.universe.create(session, {
+		templatePlaceId = BASEPLATE_PLACE_ID,
+		groupId = creator.group and creator.group.id,
+	})
+	assert(res.ok, res.message)
+	return { universe_id = res.body.universeId }
+end
 
-local function prompt_universe(universes: { cloud.dev_universe }): cloud.dev_universe?
-	local options = { 'Skip (set universe_id manually later)' }
+-- functions
+local function prompt_creator(session: cloud.cookie_session): creator?
+	local groups_res = cloud.develop.get_groups(session)
+	assert(groups_res.ok, groups_res.message)
+
+	local user_res = cloud.auth.get_user_info(session)
+	local user = assert(user_res.ok and user_res.body, user_res.message)
+
+	local groups = groups_res.body.data
+	local options = { `@{user.name} ({user.id})` }
+
+	for _, group in groups do
+		table.insert(options, `{group.name} ({group.id})`)
+	end
+
+	local option = stdio.prompt('select', 'Select a creator', options)
+	if not option then return nil end
+
+	return if option == 1 then { user = { id = user.id, name = user.name } } else { group = groups[option - 1] }
+end
+local function prompt_universe(
+	session: cloud.cookie_session,
+	creator: creator,
+	universes: { cloud.dev_universe }
+): cloud.universe_identity?
+	local CREATE = 'Create a new universe'
+	local SKIP = 'Skip (set universe_id manually later)'
+
+	local options = { CREATE, SKIP }
 	for _, universe in universes do
 		table.insert(options, `{universe.name} ({universe.id})`)
 	end
 
 	local option = stdio.prompt('select', 'Select a universe to import', options)
-	return option and option > 1 and universes[option - 1] or nil
-end
+	if not option then return nil end
 
+	return if option == 1
+		then create_universe(session, creator)
+		elseif option == 2 then nil
+		else { universe_id = universes[option - 2].id }
+end
 local function prompt_subject(session: cloud.cookie_session)
 	local creator = prompt_creator(session) or error 'creator required'
 
 	local universes = fetch_universes(session, creator.group)
-	local universe = prompt_universe(universes)
+	local universe = prompt_universe(session, creator, universes)
 
 	local owner: state.owner = if creator.group
 		then { group = creator.group.id } :: any
 		else { user = (creator.user :: any).id }
 
-	return {
-		owner = owner,
-		universe = universe,
-	}
+	return { owner = owner, universe = universe }
 end
 
 -- module

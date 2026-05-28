@@ -50,7 +50,7 @@ if not state_fs.files_exist(INPUTS_PATH) then
 	local user_session = cloud.auth.cookie.login()
 	local subject = prompt.prompt_subject(user_session)
 
-	local resources = state_fs.create_resources(subject.owner, subject.universe and subject.universe.id)
+	local resources = state_fs.create_resources(subject.owner, subject.universe and subject.universe.universe_id)
 	state_fs.save_resources(resources, INPUTS_PATH, LOCK_PATH)
 
 	ctx_log.str(`Wrote {c.bold}{INPUTS_PATH}{c.reset} and {c.bold}{LOCK_PATH}`)
