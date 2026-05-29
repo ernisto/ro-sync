@@ -20,7 +20,7 @@ local LOCK_PATH = cli.str 'state' or 'cloud-state.yml'
 local force_fresh_state = cli.bool 'fresh-state'
 local detect_new = cli.bool 'detect-new'
 
--- defs
+-- login
 local session = cloud.auth.apikey.login(API_KEY)
 local api: sync.cloud_api = {
 	get = function(product)
@@ -43,7 +43,10 @@ local api: sync.cloud_api = {
 	end,
 }
 
--- bootstrap manifest + lock if missing
+sync_logger.print_header()
+ctx_log.str(`Logged in API Key: {c.green}"{string.sub(API_KEY, 1, 10)}..."`)
+
+-- ensure workspace
 if not state_fs.files_exist(INPUTS_PATH) then
 	ctx_log.warn(`No manifest/lock found, logging in cookie to bootstrap`)
 
@@ -51,8 +54,9 @@ if not state_fs.files_exist(INPUTS_PATH) then
 	local subject = prompt.prompt_subject(user_session)
 
 	local resources = state_fs.create_resources(subject.owner, subject.universe and subject.universe.universe_id)
-	state_fs.save_resources(resources, INPUTS_PATH, LOCK_PATH)
+	if subject.universe then import.import(session, subject.universe.universe_id, resources) end
 
+	state_fs.save_resources(resources, INPUTS_PATH, LOCK_PATH)
 	ctx_log.str(`Wrote {c.bold}{INPUTS_PATH}{c.reset} and {c.bold}{LOCK_PATH}`)
 	return
 end
@@ -60,20 +64,17 @@ end
 -- load resources
 local resources = state_fs.load_resources(INPUTS_PATH, LOCK_PATH)
 if not resources.lock.universe_id or resources.lock.universe_id < 0 then
-	error(`Lock file missing universe_id, delete {LOCK_PATH} to re-bootstrap`)
+	return ctx_log.error(`Lock file missing universe_id, delete {LOCK_PATH} to re-bootstrap`)
 end
 
--- start
-local sync_opts = { universe_id = resources.lock.universe_id, force_fresh_state = force_fresh_state }
 local universe = http_log.log_http_call('GET', `universe/{resources.lock.universe_id}`, function()
 	return cloud.universe.get(session, { universe_id = resources.lock.universe_id })
 end)
-
-sync_logger.print_header()
-ctx_log.str(`Logged in API Key: {c.green}"{string.sub(API_KEY, 1, 10)}..."`)
 ctx_log.str(`Target universe: {c.bold}{universe.displayName}{c.reset} {c.dim}({resources.lock.universe_id})`)
 ctx_log.str ''
 
+-- reconcile
+local sync_opts = { universe_id = resources.lock.universe_id, force_fresh_state = force_fresh_state }
 for _, resource in resources.products do
 	resource.lock = sync.await_reconcile_product(api, resource, sync_opts)
 end
