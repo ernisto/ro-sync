@@ -3,7 +3,7 @@ local env = require '@utils/env'
 local expect = require '@test/expect'
 local mock = require '@test/mock'
 local sm = require '@test/sync_mock'
-local state_fs = require '@lib/state_fs'
+local state_fs = require '@cli/state_fs'
 local sync = require '@lib/sync'
 local types = require '@lib/types'
 

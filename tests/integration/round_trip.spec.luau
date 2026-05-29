@@ -3,7 +3,7 @@ local fs = require '@lune/fs'
 local mock = require '@test/mock'
 local serde = require '@lune/serde'
 local sm = require '@test/sync_mock'
-local state_fs = require '@lib/state_fs'
+local state_fs = require '@cli/state_fs'
 local sync = require '@lib/sync'
 
 local ICON_PATH = 'tests/integration/assets/placeholder.png'
