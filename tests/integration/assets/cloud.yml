@@ -4,6 +4,11 @@
 "places":
   "start":
     "file": "game.rbxl"
+    "display_name": "start"
+
+"universe":
+  "desktop": true
+  "mobile": true
 
 "products":
   "100 money":

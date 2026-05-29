@@ -103,7 +103,7 @@ end
 
 -- module level
 local function print_header()
-	ctx_log.push_ctx(`{c.bold}Syncing products:`)
+	ctx_log.push_ctx(`{c.bold}Syncing cloud:`)
 end
 local function print_summary()
 	local parts = {}

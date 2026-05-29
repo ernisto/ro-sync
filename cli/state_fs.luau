@@ -32,6 +32,10 @@ local function load_resources(manifest_path: string, lock_path: string): state.r
 	for _, product in manifest.products do
 		if product.icon then product.icon_file = resolve_icon(product.icon) end
 	end
+	local manifest_places: { [string]: state.place_input } = manifest.places or {}
+	for _, place in manifest_places do
+		if place.file then place.file_asset = resolve_icon(place.file) end
+	end
 	return state.build_resources(manifest, lock)
 end
 
@@ -39,6 +43,14 @@ local function save_resources(resources: state.resources, manifest_path: string,
 	for _, product in resources.products do
 		if product.lock then resources.lock.products[product.key] = product.lock end
 	end
+	if next(resources.places) ~= nil then
+		local lock_places: { [string]: state.place_lock } = resources.lock.places or {}
+		resources.lock.places = lock_places
+		for _, place in resources.places do
+			if place.lock then lock_places[place.key] = place.lock end
+		end
+	end
+	if resources.universe and resources.universe.lock then resources.lock.universe = resources.universe.lock end
 	fs.writeFile(lock_path, state.encode_lock(resources.lock))
 	fs.writeFile(manifest_path, state.encode_manifest(resources.manifest))
 end

@@ -1,6 +1,9 @@
 "places":
   "start":
-    "id": 102181929056899
+    "place_id": 102181929056899
+    "universe_id": 7176734135
+    "input":
+      "display_name": "start"
 
 "products":
   "100 money":
@@ -44,6 +47,12 @@
 
     "product_id": 3568237844
     "universe_id": 7176734135
+
+"universe":
+  "universe_id": 7176734135
+  "input":
+    "desktop": true
+    "mobile": true
 
 "universe_id": 7176734135
 "version": 1
