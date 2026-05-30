@@ -5,7 +5,7 @@ local stdio = require '@lune/stdio'
 -- defs
 local BASEPLATE_PLACE_ID = 95206881
 
-export type creator = { user: { id: number, name: string }, group: nil } | { user: nil, group: cloud.dev_group? }
+export type creator = { user: nil, group: cloud.dev_group } | { user: { id: number, name: string }, group: nil }
 
 -- helpers
 local function fetch_universes(session: cloud.cookie_session, group: cloud.dev_group?): { cloud.dev_universe }
@@ -79,16 +79,15 @@ local function prompt_universe(
 		elseif option == 2 then nil
 		else { universe_id = universes[option - 2].id }
 end
-local function prompt_subject(session: cloud.cookie_session)
+
+export type subject = { owner: state.owner, universe: cloud.universe_identity? }
+local function prompt_subject(session: cloud.cookie_session): subject
 	local creator = prompt_creator(session) or error 'creator required'
 
 	local universes = fetch_universes(session, creator.group)
 	local universe = prompt_universe(session, creator, universes)
 
-	local owner: state.owner = if creator.group
-		then { group = creator.group.id } :: any
-		else { user = (creator.user :: any).id }
-
+	local owner = if creator.user then { user = creator.user.id } else { group = assert(creator.group).id }
 	return { owner = owner, universe = universe }
 end
 

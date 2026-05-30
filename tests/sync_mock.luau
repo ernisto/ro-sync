@@ -71,7 +71,7 @@ end
 local function make_place(input: any, lock: any?): any
 	return { key = 'place', input = input, lock = lock }
 end
-local function make_file_asset(hash: string): any
+local function make_asset_file(hash: string): any
 	return { hash = hash, content = buffer.create(0) }
 end
 -- place.get_info returns settings only — never the file
@@ -112,7 +112,7 @@ return table.freeze {
 	make_place_input = make_place_input,
 	make_place_lock = make_place_lock,
 	make_place = make_place,
-	make_file_asset = make_file_asset,
+	make_asset_file = make_asset_file,
 	place_mirror = place_mirror,
 
 	make_universe_input = make_universe_input,

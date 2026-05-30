@@ -21,7 +21,7 @@ end
 local function never_called(msg: string?): () -> never
 	return fn(function()
 		error(msg or 'unexpected call', 2)
-	end) :: any
+	end)
 end
 
 -- module

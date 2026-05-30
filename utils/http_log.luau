@@ -18,7 +18,7 @@ local function log_http_call<T>(method: string, path: string, fn: () -> cloud.ht
 	local response = fn()
 	if response.ok then
 		log_http_result(method, path, true, 200)
-		return response.body :: any
+		return response.body
 	end
 
 	log_http_result(method, path, false, response.code, response.message)

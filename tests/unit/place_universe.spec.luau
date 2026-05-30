@@ -71,9 +71,9 @@ end
 -- ── places: file asset (push-only) ─────────────────────────────────────────────
 
 function run.place_file_pushed_when_hash_differs()
-	local new_file = sm.make_file_asset(HASH_B)
-	local input = sm.make_place_input { file = 'game.rbxl', file_asset = new_file }
-	local prev = sm.make_place_lock(sm.make_place_input { file_asset = sm.make_file_asset(HASH_A) })
+	local new_file = sm.make_asset_file(HASH_B)
+	local input = sm.make_place_input { file = 'game.rbxl', asset_file = new_file }
+	local prev = sm.make_place_lock(sm.make_place_input { asset_file = sm.make_asset_file(HASH_A) })
 	local update = mock.fn()
 
 	local api: sync.place_api = {
@@ -84,12 +84,12 @@ function run.place_file_pushed_when_hash_differs()
 	}
 
 	sync.await_reconcile_place(api, sm.make_place(input, prev), opts)
-	expect.eq(update.calls[1][2].file_asset, new_file)
+	expect.eq(update.calls[1][2].asset_file, new_file)
 end
 
 function run.place_file_noop_when_hash_matches()
-	local input = sm.make_place_input { file = 'game.rbxl', file_asset = sm.make_file_asset(HASH_A) }
-	local prev = sm.make_place_lock(sm.make_place_input { file_asset = sm.make_file_asset(HASH_A) })
+	local input = sm.make_place_input { file = 'game.rbxl', asset_file = sm.make_asset_file(HASH_A) }
+	local prev = sm.make_place_lock(sm.make_place_input { asset_file = sm.make_asset_file(HASH_A) })
 
 	local api: sync.place_api = {
 		get = mock.never_called 'get should not be called when file unchanged',
@@ -101,9 +101,9 @@ end
 
 -- file change never conflicts with a concurrent cloud settings change
 function run.place_file_never_conflicts()
-	local new_file = sm.make_file_asset(HASH_B)
-	local input = sm.make_place_input { file = 'game.rbxl', file_asset = new_file }
-	local prev = sm.make_place_lock(sm.make_place_input { file_asset = sm.make_file_asset(HASH_A) })
+	local new_file = sm.make_asset_file(HASH_B)
+	local input = sm.make_place_input { file = 'game.rbxl', asset_file = new_file }
+	local prev = sm.make_place_lock(sm.make_place_input { asset_file = sm.make_asset_file(HASH_A) })
 	local update = mock.fn()
 
 	local api: sync.place_api = {
@@ -116,7 +116,7 @@ function run.place_file_never_conflicts()
 	sync.await_reconcile_place(api, sm.make_place(input, prev), opts)
 
 	expect.falsy(next(input.conflicts), 'file vs settings should not conflict')
-	expect.eq(update.calls[1][2].file_asset, new_file) -- file still pushed
+	expect.eq(update.calls[1][2].asset_file, new_file) -- file still pushed
 	expect.eq(input.description, 'Cloud edit') -- cloud settings pulled in
 end
 

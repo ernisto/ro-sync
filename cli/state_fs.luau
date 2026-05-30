@@ -7,7 +7,7 @@ local function maybe_read(path: string): buffer?
 	return fs.isFile(path) and buffer.fromstring(fs.readFile(path)) or nil
 end
 
-local function resolve_icon(path: string): state.file_input?
+local function resolve_file(path: string): state.file_input?
 	local content = maybe_read(path)
 	return content and table.freeze { content = content, hash = serde.hash('sha256', content) }
 end
@@ -17,8 +17,9 @@ local function files_exist(manifest_path: string): boolean
 end
 
 local function create_resources(owner: state.owner, universe_id: number?): state.resources
-	local manifest: state.manifest = { owner = owner, products = {} }
-	local lock: state.lock = { universe_id = universe_id, products = {} }
+	local manifest: state.manifest = { owner = owner, products = {}, places = {} }
+	local lock: state.lock = { universe_id = universe_id, products = {}, places = {} }
+
 	return state.build_resources(manifest, lock)
 end
 
@@ -30,11 +31,10 @@ local function load_resources(manifest_path: string, lock_path: string): state.r
 	local lock = state.parse_lock(raw_lock)
 
 	for _, product in manifest.products do
-		if product.icon then product.icon_file = resolve_icon(product.icon) end
+		if product.icon then product.icon_file = resolve_file(product.icon) end
 	end
-	local manifest_places: { [string]: state.place_input } = manifest.places or {}
-	for _, place in manifest_places do
-		if place.file then place.file_asset = resolve_icon(place.file) end
+	for _, place in manifest.places do
+		if place.file then place.asset_file = resolve_file(place.file) end
 	end
 	return state.build_resources(manifest, lock)
 end
@@ -43,14 +43,13 @@ local function save_resources(resources: state.resources, manifest_path: string,
 	for _, product in resources.products do
 		if product.lock then resources.lock.products[product.key] = product.lock end
 	end
-	if next(resources.places) ~= nil then
-		local lock_places: { [string]: state.place_lock } = resources.lock.places or {}
-		resources.lock.places = lock_places
-		for _, place in resources.places do
-			if place.lock then lock_places[place.key] = place.lock end
-		end
+	for _, place in resources.places do
+		if place.lock then resources.lock.places[place.key] = place.lock end
 	end
-	if resources.universe and resources.universe.lock then resources.lock.universe = resources.universe.lock end
+	if resources.universe then
+		if resources.universe.lock then resources.lock.universe = resources.universe.lock end
+	end
+
 	fs.writeFile(lock_path, state.encode_lock(resources.lock))
 	fs.writeFile(manifest_path, state.encode_manifest(resources.manifest))
 end
@@ -61,5 +60,5 @@ return table.freeze {
 	create_resources = create_resources,
 	load_resources = load_resources,
 	save_resources = save_resources,
-	resolve_icon = resolve_icon,
+	resolve_file = resolve_file,
 }

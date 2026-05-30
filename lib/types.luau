@@ -2,40 +2,7 @@ local cloud = require '@pkg/ro_cloud'
 local state = require '@lib/state'
 
 -- types
-export type flat_product = {
-	universe_id: number,
-	product_id: number,
-	icon: state.file_lock?,
-	name: string,
-	price: number?,
-	description: string?,
-	is_for_sale: boolean?,
-	regional_pricing: boolean?,
-	store_page_enabled: boolean?,
-}
-export type flat_place = {
-	display_name: string?,
-	description: string?,
-	server_size: number?,
-}
-export type flat_universe = {
-	facebook: state.social_link?,
-	twitter: state.social_link?,
-	youtube: state.social_link?,
-	twitch: state.social_link?,
-	discord: state.social_link?,
-	roblox_group: state.social_link?,
-	guilded: state.social_link?,
-	voice_chat: boolean?,
-	desktop: boolean?,
-	mobile: boolean?,
-	tablet: boolean?,
-	console: boolean?,
-	vr: boolean?,
-	private_server_price: number?,
-}
-
--- snake_case (manifest) <-> camelCase (open cloud) field maps
+export type product_read = state.product_data & { universe_id: number, product_id: number }
 local SOCIAL_MAP: { [string]: string } = {
 	facebook = 'facebookSocialLink',
 	twitter = 'twitterSocialLink',
@@ -55,22 +22,22 @@ local FLAG_MAP: { [string]: string } = {
 }
 
 -- products
-local function from_api(data: cloud.product): flat_product
+local function from_product_api(data: cloud.product): product_read
 	local price_info = data.priceInformation
 	return {
 		universe_id = data.universeId,
 		product_id = data.productId,
-		icon = data.iconImageAssetId and { assetid = data.iconImageAssetId } or nil,
+		icon_file = { assetid = data.iconImageAssetId },
 		name = data.name,
-		price = price_info and price_info.defaultPriceInRobux,
+		price = price_info.defaultPriceInRobux,
 		description = data.description,
 		is_for_sale = data.isForSale,
-		regional_pricing = price_info and table.find(price_info.enabledFeatures, 'RegionalPricing') ~= nil,
+		regional_pricing = table.find(price_info.enabledFeatures, 'RegionalPricing') ~= nil,
 		store_page_enabled = data.storePageEnabled,
 	}
 end
-local function to_api_params(data: state.product_input)
-	local icon = data.icon_file :: any
+local function to_product_api_params(data: state.product_input)
+	local icon = data.icon_file
 	return {
 		name = data.name,
 		price = data.price,
@@ -83,42 +50,42 @@ local function to_api_params(data: state.product_input)
 end
 
 -- places
-local function from_place_api(info: cloud.place_info): flat_place
-	return { display_name = info.displayName, description = info.description, server_size = info.serverSize }
+local function from_place_api(info: cloud.place_info): state.place_data
+	local any_info: any = info -- TODO: check if GET place really returns optional fields
+	return { display_name = any_info.displayName, description = any_info.description, server_size = any_info.serverSize }
 end
--- nil fields drop out of the table, so the caller's updateMask covers only what changed
 local function to_place_info_params(patch: state.place_input)
 	return { displayName = patch.display_name, description = patch.description, serverSize = patch.server_size }
 end
 
 -- universe
-local function from_universe_api(data: cloud.universe): flat_universe
-	local out: { [string]: any } = {}
+local function from_universe_api(data: cloud.universe): state.universe_data
+	local out = { private_server_price = data.privateServerPriceRobux }
+
 	for snake, camel in SOCIAL_MAP do
-		out[snake] = (data :: any)[camel]
+		out[snake] = data[camel]
 	end
 	for snake, camel in FLAG_MAP do
-		out[snake] = (data :: any)[camel]
+		out[snake] = data[camel]
 	end
-	out.private_server_price = data.privateServerPriceRobux
 	return out :: any
 end
 local function to_universe_params(patch: state.universe_input)
-	local params: { [string]: any } = {}
+	local params = { privateServerPriceRobux = patch.private_server_price }
+
 	for snake, camel in SOCIAL_MAP do
-		if (patch :: any)[snake] ~= nil then params[camel] = (patch :: any)[snake] end
+		if patch[snake] ~= nil then params[camel] = patch[snake] end
 	end
 	for snake, camel in FLAG_MAP do
-		if (patch :: any)[snake] ~= nil then params[camel] = (patch :: any)[snake] end
+		if patch[snake] ~= nil then params[camel] = patch[snake] end
 	end
-	if patch.private_server_price ~= nil then params.privateServerPriceRobux = patch.private_server_price end
 	return params
 end
 
 -- module
 return table.freeze {
-	from_api_result = from_api,
-	to_api_params = to_api_params,
+	from_api_result = from_product_api,
+	to_api_params = to_product_api_params,
 	from_place_api = from_place_api,
 	to_place_info_params = to_place_info_params,
 	from_universe_api = from_universe_api,

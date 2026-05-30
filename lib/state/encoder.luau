@@ -32,7 +32,7 @@ local function encode_manifest(data: manifest): string
 
 	for k, place in data.places do
 		out.places[k] = table.clone(place)
-		out.places[k].file_asset = nil
+		out.places[k].asset_file = nil
 
 		if next(place.conflicts) == nil then out.places[k].conflicts = nil end
 	end
@@ -59,10 +59,10 @@ local function encode_lock(data: lock): string
 
 	for k, place in data.places do
 		local input = place.input
-		local file_asset = input and input.file_asset
-		local clean_file = file_asset and tbl.intersection(file_asset, { hash = '' })
+		local asset_file = input and input.asset_file
+		local clean_file = asset_file and tbl.intersection(asset_file, { hash = '' })
 
-		out.places[k] = tbl.applied(place, { input = tbl.applied(input, { file_asset = clean_file }) })
+		out.places[k] = tbl.applied(place, { input = tbl.applied(input, { asset_file = clean_file }) })
 	end
 	if next(out.places) == nil then out.places = nil end
 

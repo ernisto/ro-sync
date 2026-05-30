@@ -9,17 +9,17 @@ local types = require './types'
 -- types
 export type sync_opts = { universe_id: number, force_fresh_state: boolean? }
 export type cloud_api = {
-	create: (cloud.universe_identity, state.product_input) -> types.flat_product,
+	create: (cloud.universe_identity, state.product_input) -> types.product_read,
 	update: (cloud.product_identity, state.product_input) -> (),
-	get: (cloud.product_identity) -> types.flat_product,
+	get: (cloud.product_identity) -> types.product_read,
 }
 export type place_api = {
-	update: (state.place_lock, state.place_input) -> (),
-	get: (state.place_lock) -> types.flat_place,
+	update: (cloud.place_identity, state.place_input) -> (),
+	get: (cloud.place_identity) -> state.place_data,
 }
 export type universe_api = {
-	update: (state.universe_lock, state.universe_input) -> (),
-	get: (state.universe_lock) -> types.flat_universe,
+	update: (cloud.universe_identity, state.universe_input) -> (),
+	get: (cloud.universe_identity) -> state.universe_data,
 }
 
 type descriptor = {
@@ -71,7 +71,7 @@ local function reconcile(d: descriptor, key: string, input: any, prev: any, opts
 end
 
 -- products (the only creatable resource)
-local function await_create_product(api: cloud_api, product: state.product, opts: sync_opts)
+local function await_create_product(api: cloud_api, product: state.product, opts: sync_opts): state.product_lock
 	local key, input = product.key, product.input
 	sync_logger.creation(key)
 
@@ -80,8 +80,8 @@ local function await_create_product(api: cloud_api, product: state.product, opts
 	sync_logger.creation_result(success)
 
 	local saved_icon =
-		{ assetid = result.icon and result.icon.assetid, hash = input.icon_file and input.icon_file.hash }
-	local saved_input = tbl.applied(input, { icon_file = saved_icon })
+		{ assetid = result.icon_file and result.icon_file.assetid, hash = input.icon_file and input.icon_file.hash }
+	local saved_input = tbl.applied(input, { icon_file = saved_icon }) :: any
 
 	return { universe_id = result.universe_id, product_id = result.product_id, input = saved_input }
 end
@@ -111,7 +111,7 @@ local function await_reconcile_place(api: place_api, place: state.place, opts: s
 		get = api.get,
 		update = api.update,
 		validate = function(input)
-			if input.file and not input.file_asset then ctx_log.warn(`couldnt find place file '{input.file}'`) end
+			if input.file and not input.asset_file then ctx_log.warn(`couldnt find place file '{input.file}'`) end
 		end,
 	}, place.key, place.input, prev, opts)
 
@@ -124,9 +124,7 @@ local function await_reconcile_universe(
 	universe: state.universe,
 	opts: sync_opts
 ): state.universe_lock
-	-- no lock yet → pull the live universe as the baseline (api.get only fires in that case)
-	local prev: state.universe_lock = universe.lock
-		or { universe_id = opts.universe_id, input = api.get({ universe_id = opts.universe_id } :: any) :: any }
+	local prev = universe.lock or { universe_id = opts.universe_id, input = api.get { universe_id = opts.universe_id } }
 
 	reconcile(
 		{ diff = state.diff_universe, get = api.get, update = api.update },

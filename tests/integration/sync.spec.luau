@@ -63,7 +63,7 @@ end
 
 function run.should_return_prev_unchanged_when_no_local_changes()
 	local prev = resources.lock.products.money_pack1
-	local input = table.clone(resources.manifest.products.money_pack1) :: any
+	local input = table.clone(resources.manifest.products.money_pack1)
 	input.icon = nil
 	input.icon_file = nil
 
@@ -83,11 +83,11 @@ function run.should_push_description_change_and_revert()
 	local prev = resources.lock.products.money_pack1
 	local original = prev.input.description
 
-	local input = table.clone(resources.manifest.products.money_pack1) :: any
+	local input = table.clone(resources.manifest.products.money_pack1)
 	input.description = '__integration_test__'
 	input.icon = nil
 
-	local patched_prev = table.clone(prev) :: any
+	local patched_prev = table.clone(prev)
 	patched_prev.input = table.clone(prev.input)
 
 	local opts: sync.sync_opts = { universe_id = prev.universe_id, force_fresh_state = false }
@@ -105,12 +105,12 @@ end
 
 function run.should_push_icon_change_and_revert()
 	local prev = resources.lock.products.money_pack1
-	local icon = state_fs.resolve_icon(ICON_PATH)
+	local icon = state_fs.resolve_file(ICON_PATH)
 
-	local input = table.clone(resources.manifest.products.money_pack1) :: any
+	local input = table.clone(resources.manifest.products.money_pack1)
 	input.icon_file = icon
 
-	local patched_prev = table.clone(prev) :: any
+	local patched_prev = table.clone(prev)
 	patched_prev.input = table.clone(prev.input)
 	patched_prev.input.icon_file = { assetid = prev.input.icon_file and prev.input.icon_file.assetid, hash = 'stale' }
 

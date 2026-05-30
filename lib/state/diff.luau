@@ -1,8 +1,8 @@
 local serde = require '@lune/serde'
 local tbl = require '@utils/tbl'
 
-local parser = require '@self/parser'
-type file = parser.file
+local parser = require './parser'
+type file = parser.some_file
 type place_file = parser.place_file
 type social_link = parser.social_link
 
@@ -26,8 +26,8 @@ local PRODUCT_MASK = {
 	store_page_enabled = true,
 }
 
-local PLACE_COMPLEX = { file_asset = hash_of }
-local PLACE_MASK = { file_asset = {} :: place_file, display_name = '', description = '', server_size = 0 }
+local PLACE_COMPLEX = { asset_file = hash_of }
+local PLACE_MASK = { asset_file = {} :: place_file, display_name = '', description = '', server_size = 0 }
 
 local UNIVERSE_MASK: { [string]: any } = {
 	voice_chat = true,

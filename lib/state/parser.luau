@@ -3,7 +3,7 @@ local serde = require '@lune/serde'
 -- defs
 export type file_input = { hash: string, content: buffer, assetid: nil }
 export type file_lock = { hash: string?, content: nil, assetid: number }
-export type file = file_input | file_lock
+export type some_file = file_input | file_lock
 
 -- a content-hashed asset with no roblox assetid (e.g. an uploaded place file)
 export type place_file = { hash: string, content: buffer? }
@@ -24,15 +24,24 @@ export type lock = {
 }
 
 -- product
+export type product_data = {
+	name: string,
+	icon_file: file_lock,
+	price: number,
+	description: string,
+	is_for_sale: boolean,
+	regional_pricing: boolean,
+	store_page_enabled: boolean,
+}
 export type product_lock = {
 	universe_id: number,
 	product_id: number,
-	input: product_input,
+	input: product_data,
 }
 export type product_input = {
 	name: string,
 	icon: string?,
-	icon_file: file?,
+	icon_file: file_input?,
 	price: number?,
 	description: string?,
 	is_for_sale: boolean?,
@@ -44,14 +53,20 @@ export type product_input = {
 }
 
 -- place
+export type place_data = {
+	asset_file: place_file?,
+	display_name: string,
+	description: string,
+	server_size: number,
+}
 export type place_lock = {
 	universe_id: number,
 	place_id: number,
-	input: place_input,
+	input: place_data,
 }
 export type place_input = {
 	file: string?,
-	file_asset: place_file?,
+	asset_file: place_file?,
 	display_name: string?,
 	description: string?,
 	server_size: number?,
@@ -59,14 +74,35 @@ export type place_input = {
 }
 
 -- universe
+export type social_link = { title: string?, uri: string? }
+export type universe_data = {
+	private_server_price: number,
+	voice_chat: boolean,
+
+	-- socials
+	facebook: social_link,
+	twitter: social_link,
+	youtube: social_link,
+	twitch: social_link,
+	discord: social_link,
+	roblox_group: social_link,
+	guilded: social_link,
+
+	-- devices
+	desktop: boolean,
+	mobile: boolean,
+	tablet: boolean,
+	console: boolean,
+	vr: boolean,
+}
 export type universe_lock = {
 	universe_id: number,
-	input: universe_input,
+	input: universe_data,
 }
-export type social_link = { title: string?, uri: string? }
 export type universe_input = {
-	private_server_price: number?,
 	conflicts: { [string]: any },
+	private_server_price: number?,
+	voice_chat: boolean?,
 
 	-- socials
 	facebook: social_link?,
@@ -78,7 +114,6 @@ export type universe_input = {
 	guilded: social_link?,
 
 	-- devices
-	voice_chat: boolean?,
 	desktop: boolean?,
 	mobile: boolean?,
 	tablet: boolean?,

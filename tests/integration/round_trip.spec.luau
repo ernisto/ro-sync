@@ -84,7 +84,7 @@ function run.icon_hash_is_noop_on_second_sync()
 				test_pack = {
 					universe_id = sm.UNIVERSE_ID,
 					product_id = sm.PRODUCT_ID,
-					input = { name = 'Pack', icon = { assetid = sm.ICON_ID, hash = 'stale' } },
+					input = { name = 'Pack', icon_file = { assetid = sm.ICON_ID, hash = 'stale' } },
 				},
 			},
 		}
@@ -163,7 +163,7 @@ function run.create_with_icon_writes_assetid_and_hash_to_lock()
 			return {
 				universe_id = sm.UNIVERSE_ID,
 				product_id = sm.PRODUCT_ID,
-				icon = { assetid = sm.ICON_ID },
+				icon_file = { assetid = sm.ICON_ID },
 				name = 'Pack',
 			}
 		end,

@@ -1,6 +1,7 @@
 local cloud = require '@pkg/ro_cloud'
 local state = require '@lib/state'
 local sync_logger = require '@lib/sync_logger'
+local types = require '@lib/types'
 
 -- functions
 local function await_all_products(session: cloud.apikey_session, universe_id: number)
@@ -30,13 +31,13 @@ local function import(session: cloud.apikey_session, universe_id: number, resour
 		local key = product.name
 
 		if resources.manifest.products[key] then key = `{product.name}_{product.productId}` end
-		local saved_icon_file = if product.iconImageAssetId then { assetid = product.iconImageAssetId } else nil
+		local read = types.from_api_result(product)
 
 		resources.manifest.products[key] = { name = product.name, conflicts = {} }
 		resources.lock.products[key] = {
-			universe_id = product.universeId,
-			product_id = product.productId,
-			input = { name = product.name, icon_file = saved_icon_file, conflicts = {} },
+			universe_id = read.universe_id,
+			product_id = read.product_id,
+			input = read,
 		}
 
 		sync_logger.imported(key, product.productId)
