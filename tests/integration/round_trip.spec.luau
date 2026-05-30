@@ -103,8 +103,6 @@ function run.icon_hash_is_noop_on_second_sync()
 	}, OPTS)
 	expect.eq(first_update.call_count, 1)
 
-	print(state_fs.load_resources(TMP_MANIFEST, TMP_LOCK))
-
 	-- second sync: lock now has real hash → noop, no API calls
 	run_sync(
 		{ create = mock.never_called 'create', get = mock.never_called 'get', update = mock.never_called 'update' },
