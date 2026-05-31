@@ -53,29 +53,42 @@ export type product_input = {
 }
 
 -- place
-export type place_data = {
-	asset_file: place_file?,
-	display_name: string,
-	description: string,
-	server_size: number,
+export type place_config = {
+	display_name: string?,
+	description: string?,
+	server_size: number?,
+	social_slot_type: string?,
+	custom_social_slots_count: number?,
+	allow_copying: boolean?,
+	allowed_gear_types: { string }?,
+	is_all_genres_allowed: boolean?,
 }
+export type place_data = place_config & { asset_file: place_file? }
 export type place_lock = {
 	universe_id: number,
 	place_id: number,
 	input: place_data,
 }
-export type place_input = {
+export type place_input = place_config & {
 	file: string?,
 	asset_file: place_file?,
-	display_name: string?,
-	description: string?,
-	server_size: number?,
 	conflicts: { [string]: any },
 }
 
 -- universe
 export type social_link = { title: string?, uri: string? }
-export type universe_data = {
+-- develop `universe_configuration` fields (sit flat alongside the open-cloud universe fields)
+export type universe_config = {
+	is_for_sale: boolean?,
+	price: number?,
+	allow_private_servers: boolean?,
+	genre: 'All' | 'Restricted' | string?,
+	is_friends_only: boolean?,
+	is_archived: boolean?,
+	studio_access_to_apis_allowed: boolean?,
+	is_mesh_texture_api_access_allowed: boolean?,
+}
+export type universe_data = universe_config & {
 	private_server_price: number,
 	voice_chat: boolean,
 
@@ -99,7 +112,7 @@ export type universe_lock = {
 	universe_id: number,
 	input: universe_data,
 }
-export type universe_input = {
+export type universe_input = universe_config & {
 	conflicts: { [string]: any },
 	private_server_price: number?,
 	voice_chat: boolean?,
@@ -191,6 +204,14 @@ local function validate_place_input(p: any, label: string)
 	opt(p.display_name, 'string', `{label}.display_name`)
 	opt(p.description, 'string', `{label}.description`)
 	opt(p.server_size, 'number', `{label}.server_size`)
+
+	-- develop place_configuration fields
+	opt(p.social_slot_type, 'string', `{label}.social_slot_type`)
+	opt(p.custom_social_slots_count, 'number', `{label}.custom_social_slots_count`)
+	opt(p.allow_copying, 'boolean', `{label}.allow_copying`)
+	opt(p.allowed_gear_types, 'table', `{label}.allowed_gear_types`)
+	opt(p.is_all_genres_allowed, 'boolean', `{label}.is_all_genres_allowed`)
+
 	opt(p.conflicts, 'table', `{label}.conflicts`)
 	p.conflicts = p.conflicts or {}
 end
@@ -226,6 +247,17 @@ local function validate_universe_input(u: any, label: string)
 
 	opt(u.voice_chat, 'boolean', `{label}.voice_chat`)
 	opt(u.private_server_price, 'number', `{label}.private_server_price`)
+
+	-- develop universe_configuration fields
+	opt(u.is_for_sale, 'boolean', `{label}.is_for_sale`)
+	opt(u.price, 'number', `{label}.price`)
+	opt(u.allow_private_servers, 'boolean', `{label}.allow_private_servers`)
+	opt(u.genre, 'string', `{label}.genre`)
+	opt(u.is_friends_only, 'boolean', `{label}.is_friends_only`)
+	opt(u.is_archived, 'boolean', `{label}.is_archived`)
+	opt(u.studio_access_to_apis_allowed, 'boolean', `{label}.studio_access_to_apis_allowed`)
+	opt(u.is_mesh_texture_api_access_allowed, 'boolean', `{label}.is_mesh_texture_api_access_allowed`)
+
 	opt(u.conflicts, 'table', `{label}.conflicts`)
 	u.conflicts = u.conflicts or {}
 end

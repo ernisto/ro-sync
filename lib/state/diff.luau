@@ -26,8 +26,18 @@ local PRODUCT_MASK = {
 	store_page_enabled = true,
 }
 
-local PLACE_COMPLEX = { asset_file = hash_of }
-local PLACE_MASK = { asset_file = {} :: place_file, display_name = '', description = '', server_size = 0 }
+local PLACE_COMPLEX = { asset_file = hash_of, allowed_gear_types = json_of }
+local PLACE_MASK = {
+	asset_file = {} :: place_file,
+	display_name = '',
+	description = '',
+	server_size = 0,
+	social_slot_type = '',
+	custom_social_slots_count = 0,
+	allow_copying = true,
+	allowed_gear_types = {} :: { string },
+	is_all_genres_allowed = true,
+}
 
 local UNIVERSE_MASK: { [string]: any } = {
 	voice_chat = true,
@@ -37,6 +47,16 @@ local UNIVERSE_MASK: { [string]: any } = {
 	console = true,
 	vr = true,
 	private_server_price = 0,
+
+	-- develop universe_configuration fields
+	is_for_sale = true,
+	price = 0,
+	allow_private_servers = true,
+	genre = '',
+	is_friends_only = true,
+	is_archived = true,
+	studio_access_to_apis_allowed = true,
+	is_mesh_texture_api_access_allowed = true,
 }
 local UNIVERSE_COMPLEX: { [string]: (any) -> any } = {}
 

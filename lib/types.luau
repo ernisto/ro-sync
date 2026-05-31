@@ -22,6 +22,27 @@ local FLAG_MAP: { [string]: string } = {
 	console = 'consoleEnabled',
 	vr = 'vrEnabled',
 }
+-- develop `universe_configuration` fields whose snake/camel names align both directions
+local UNIVERSE_CONFIG_MAP: { [string]: string } = {
+	is_for_sale = 'isForSale',
+	price = 'price',
+	allow_private_servers = 'allowPrivateServers',
+	genre = 'genre',
+	is_friends_only = 'isFriendsOnly',
+	is_archived = 'isArchived',
+	is_mesh_texture_api_access_allowed = 'isMeshTextureApiAccessAllowed',
+}
+-- develop `place_configuration` fields (snake/camel aligned both directions)
+local PLACE_CONFIG_MAP: { [string]: string } = {
+	display_name = 'name',
+	description = 'description',
+	server_size = 'maxPlayerCount',
+	social_slot_type = 'socialSlotType',
+	custom_social_slots_count = 'customSocialSlotsCount',
+	allow_copying = 'allowCopying',
+	allowed_gear_types = 'allowedGearTypes',
+	is_all_genres_allowed = 'isAllGenresAllowed',
+}
 
 -- products
 local function from_product_api(data: cloud.product): product_read
@@ -51,13 +72,20 @@ local function to_product_api_params(data: state.product_input)
 	}
 end
 
--- places
-local function from_place_api(info: cloud.place_info): state.place_data
-	local any_info: any = info -- TODO: check if GET place really returns optional fields
-	return { display_name = any_info.displayName, description = any_info.description, server_size = any_info.serverSize }
+-- places (develop place_configuration: get returns place_data, patch is place_patch)
+local function from_place_config(data: cloud.place_data): state.place_data
+	local out: any = {}
+	for snake, camel in PLACE_CONFIG_MAP do
+		out[snake] = (data :: any)[camel]
+	end
+	return out
 end
-local function to_place_info_params(patch: state.place_input)
-	return { displayName = patch.display_name, description = patch.description, serverSize = patch.server_size }
+local function to_place_config_params(patch: state.place_input): cloud.place_patch
+	local params: any = {}
+	for snake, camel in PLACE_CONFIG_MAP do
+		if patch[snake] ~= nil then params[camel] = patch[snake] end
+	end
+	return params
 end
 -- develop.list_universe_places returns the legacy place shape (name/maxPlayerCount)
 local function from_develop_place(data: cloud.place_data): state.place_data
@@ -88,13 +116,36 @@ local function to_universe_params(patch: state.universe_input)
 	return params
 end
 
+-- universe configuration (develop endpoint; complements the open-cloud universe fields above)
+local function from_universe_config(data: cloud.universe_configuration_data): state.universe_data
+	local out: any = {}
+	for snake, camel in UNIVERSE_CONFIG_MAP do
+		out[snake] = (data :: any)[camel]
+	end
+	-- get exposes studio access as `isStudioAccessToApisAllowed`, but the patch field drops the `is`
+	out.studio_access_to_apis_allowed = data.isStudioAccessToApisAllowed
+	return out
+end
+local function to_universe_config_params(patch: state.universe_input): cloud.universe_settings_patch
+	local params: any = {}
+	for snake, camel in UNIVERSE_CONFIG_MAP do
+		if patch[snake] ~= nil then params[camel] = patch[snake] end
+	end
+	if patch.studio_access_to_apis_allowed ~= nil then
+		params.studioAccessToApisAllowed = patch.studio_access_to_apis_allowed
+	end
+	return params
+end
+
 -- module
 return table.freeze {
 	from_api_result = from_product_api,
 	to_api_params = to_product_api_params,
-	from_place_api = from_place_api,
+	from_place_config = from_place_config,
+	to_place_config_params = to_place_config_params,
 	from_develop_place = from_develop_place,
-	to_place_info_params = to_place_info_params,
 	from_universe_api = from_universe_api,
 	to_universe_params = to_universe_params,
+	from_universe_config = from_universe_config,
+	to_universe_config_params = to_universe_config_params,
 }

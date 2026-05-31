@@ -4,6 +4,7 @@ local ctx_log = require '@utils/ctx_log'
 local env = require '@utils/env'
 local http_log = require '@utils/http_log'
 local task = require '@lune/task'
+local tbl = require '@utils/tbl'
 local c = ctx_log.colors
 
 local prompt = require '@cli/prompt'
@@ -58,20 +59,6 @@ local product_api: sync.cloud_api = {
 		end)
 	end,
 }
-local universe_api: sync.universe_api = {
-	get = function(universe)
-		return types.from_universe_api(http_log.log_http_call('GET', `universe/{universe.universe_id}`, function()
-			return cloud.universe.get(session, universe)
-		end))
-	end,
-	update = function(universe, patch)
-		local params = types.to_universe_params(patch)
-		return http_log.log_http_call('PATCH', `universe/{universe.universe_id}`, function()
-			return cloud.universe.update(session, universe, params)
-		end)
-	end,
-}
-
 sync_logger.print_header()
 ctx_log.str(`Logged in API Key: {c.green}"{string.sub(API_KEY, 1, 10)}..."`)
 
@@ -105,6 +92,39 @@ end)
 ctx_log.str(`Target universe: {c.bold}{universe.displayName}{c.reset} {c.dim}({resources.lock.universe_id})`)
 ctx_log.str ''
 
+-- the develop configuration endpoints (place/universe) are cookie-authenticated, not API-key
+local user_session = cloud.auth.cookie.login()
+
+-- universe spans two endpoints: open-cloud (socials/devices/voice/private price) + develop configuration
+local universe_api: sync.universe_api = {
+	get = function(u)
+		local open = types.from_universe_api(http_log.log_http_call('GET', `universe/{u.universe_id}`, function()
+			return cloud.universe.get(session, u)
+		end))
+		local config = types.from_universe_config(
+			http_log.log_http_call('GET', `universes/{u.universe_id}/configuration`, function()
+				return cloud.universe_configuration.get(user_session, u)
+			end)
+		)
+		return tbl.applied(open, config)
+	end,
+	update = function(u, patch)
+		local open_params = types.to_universe_params(patch)
+		if next(open_params) ~= nil then
+			http_log.log_http_call('PATCH', `universe/{u.universe_id}`, function()
+				return cloud.universe.update(session, u, open_params)
+			end)
+		end
+
+		local config_params = types.to_universe_config_params(patch)
+		if next(config_params) ~= nil then
+			http_log.log_http_call('PATCH', `universes/{u.universe_id}/configuration`, function()
+				return cloud.universe_configuration.update(user_session, u, config_params)
+			end)
+		end
+	end,
+}
+
 -- creator drives the creationContext required when creating new place assets
 local owner = resources.manifest.owner
 local creator = if owner.user then { userId = owner.user } else { groupId = owner.group }
@@ -136,9 +156,8 @@ local place_api: sync.place_api = {
 		} :: any
 	end,
 	get = function(place)
-		local path = `universes/{place.universe_id}/places/{place.place_id}`
-		return types.from_place_api(http_log.log_http_call('GET', path, function()
-			return cloud.place.get_info(session, place)
+		return types.from_place_config(http_log.log_http_call('GET', `places/{place.place_id}`, function()
+			return cloud.place_configuration.get(user_session, { place_id = place.place_id })
 		end))
 	end,
 	update = function(place, patch)
@@ -147,10 +166,10 @@ local place_api: sync.place_api = {
 				return cloud.place.upload(session, place, patch.asset_file.content, true)
 			end)
 		end
-		local info = types.to_place_info_params(patch)
-		if next(info) ~= nil then
-			http_log.log_http_call('PATCH', `universes/{place.universe_id}/places/{place.place_id}`, function()
-				return cloud.place.update_info(session, place, info)
+		local config = types.to_place_config_params(patch)
+		if next(config) ~= nil then
+			http_log.log_http_call('PATCH', `places/{place.place_id}`, function()
+				return cloud.place_configuration.update(user_session, { place_id = place.place_id }, config)
 			end)
 		end
 	end,
