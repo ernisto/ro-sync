@@ -73,6 +73,7 @@ if not state_fs.files_exist(INPUTS_PATH) then
 	if subject.universe then
 		import.import_products(session, subject.universe.universe_id, resources)
 		import.import_places(user_session, subject.universe.universe_id, resources)
+		import.import_universe(session, user_session, subject.universe.universe_id, resources)
 	end
 
 	state_fs.save_resources(resources, INPUTS_PATH, LOCK_PATH)

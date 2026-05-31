@@ -22,7 +22,6 @@ local FLAG_MAP: { [string]: string } = {
 	console = 'consoleEnabled',
 	vr = 'vrEnabled',
 }
--- develop `universe_configuration` fields whose snake/camel names align both directions
 local UNIVERSE_CONFIG_MAP: { [string]: string } = {
 	is_for_sale = 'isForSale',
 	price = 'price',
@@ -32,7 +31,6 @@ local UNIVERSE_CONFIG_MAP: { [string]: string } = {
 	is_archived = 'isArchived',
 	is_mesh_texture_api_access_allowed = 'isMeshTextureApiAccessAllowed',
 }
--- develop `place_configuration` fields (snake/camel aligned both directions)
 local PLACE_CONFIG_MAP: { [string]: string } = {
 	display_name = 'name',
 	description = 'description',
@@ -72,7 +70,6 @@ local function to_product_api_params(data: state.product_input)
 	}
 end
 
--- places (develop place_configuration: get returns place_data, patch is place_patch)
 local function from_place_config(data: cloud.place_data): state.place_data
 	local out: any = {}
 	for snake, camel in PLACE_CONFIG_MAP do
@@ -86,10 +83,6 @@ local function to_place_config_params(patch: state.place_input): cloud.place_pat
 		if patch[snake] ~= nil then params[camel] = patch[snake] end
 	end
 	return params
-end
--- develop.list_universe_places returns the legacy place shape (name/maxPlayerCount)
-local function from_develop_place(data: cloud.place_data): state.place_data
-	return { display_name = data.name, description = data.description, server_size = data.maxPlayerCount } :: any
 end
 
 -- universe
@@ -116,7 +109,6 @@ local function to_universe_params(patch: state.universe_input)
 	return params
 end
 
--- universe configuration (develop endpoint; complements the open-cloud universe fields above)
 local function from_universe_config(data: cloud.universe_configuration_data): state.universe_data
 	local out: any = {}
 	for snake, camel in UNIVERSE_CONFIG_MAP do
@@ -146,7 +138,6 @@ return table.freeze {
 	to_api_params = to_product_api_params,
 	from_place_config = from_place_config,
 	to_place_config_params = to_place_config_params,
-	from_develop_place = from_develop_place,
 	from_universe_api = from_universe_api,
 	to_universe_params = to_universe_params,
 	from_universe_config = from_universe_config,

@@ -1,6 +1,7 @@
 local cloud = require '@pkg/ro_cloud'
 local state = require '@lib/state'
 local sync_logger = require '@lib/sync_logger'
+local tbl = require '@utils/tbl'
 local types = require '@lib/types'
 
 -- functions
@@ -61,7 +62,6 @@ local function import_products(session: cloud.apikey_session, universe_id: numbe
 	end
 end
 
--- places live behind the legacy develop API, so a cookie session is required to list them
 local function import_places(cookie: cloud.cookie_session, universe_id: number, resources: state.resources)
 	local known_ids: { [number]: boolean } = {}
 	for _, place_lock in resources.lock.places do
@@ -73,9 +73,8 @@ local function import_places(cookie: cloud.cookie_session, universe_id: number, 
 		local key = place.name
 
 		if resources.manifest.places[key] then key = `{place.name}_{place.id}` end
-		local read = types.from_develop_place(place)
+		local read = types.from_place_config(place)
 
-		-- manifest only references the place by key + name; full state goes to the lock
 		resources.manifest.places[key] = { display_name = place.name, conflicts = {} }
 		resources.lock.places[key] = { universe_id = universe_id, place_id = place.id, input = read }
 
@@ -83,5 +82,31 @@ local function import_places(cookie: cloud.cookie_session, universe_id: number, 
 	end
 end
 
+local function import_universe(
+	session: cloud.apikey_session,
+	cookie: cloud.cookie_session,
+	universe_id: number,
+	resources: state.resources
+)
+	if resources.lock.universe then return end
+
+	local open_res = cloud.universe.get(session, { universe_id = universe_id })
+	local open = assert(open_res.ok and open_res.body, open_res.message)
+
+	local config_res = cloud.universe_configuration.get(cookie, { universe_id = universe_id })
+	local config = assert(config_res.ok and config_res.body, config_res.message)
+
+	local read = tbl.applied(types.from_universe_api(open), types.from_universe_config(config))
+
+	resources.manifest.universe = { conflicts = {} }
+	resources.lock.universe = { universe_id = universe_id, input = read }
+
+	sync_logger.imported('universe', universe_id)
+end
+
 -- module
-return table.freeze { import_products = import_products, import_places = import_places }
+return table.freeze {
+	import_products = import_products,
+	import_places = import_places,
+	import_universe = import_universe,
+}
