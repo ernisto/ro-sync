@@ -24,4 +24,4 @@ lune = "^0.10.4"
 default = "https://github.com/pesde-pkg/index"
 
 [dependencies]
-ro_cloud = { name = "ernisto/ro_cloud", version = "=0.1.0-alpha.11" }
+ro_cloud = { name = "ernisto/ro_cloud", version = "=0.1.0-alpha.12" }
