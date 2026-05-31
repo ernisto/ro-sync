@@ -83,7 +83,10 @@ if not state_fs.files_exist(INPUTS_PATH) then
 	local subject = prompt.prompt_subject(user_session)
 
 	local resources = state_fs.create_resources(subject.owner, subject.universe and subject.universe.universe_id)
-	if subject.universe then import.import(session, subject.universe.universe_id, resources) end
+	if subject.universe then
+		import.import_products(session, subject.universe.universe_id, resources)
+		import.import_places(user_session, subject.universe.universe_id, resources)
+	end
 
 	state_fs.save_resources(resources, INPUTS_PATH, LOCK_PATH)
 	ctx_log.str(`Wrote {c.bold}{INPUTS_PATH}{c.reset} and {c.bold}{LOCK_PATH}`)
@@ -110,12 +113,16 @@ local place_api: sync.place_api = {
 	create = function(opts, place)
 		local file = assert(place.asset_file, 'place create requires a file').content
 		local op = http_log.log_http_call('POST', 'assets (Place)', function()
-			return cloud.asset.create(session, {
-				assetType = 'Place',
-				displayName = place.display_name,
-				description = place.description,
-				creationContext = { creator = creator },
-			} :: any, assert(file, 'place file has no content'))
+			return cloud.asset.create(
+				session,
+				{
+					assetType = 'Place',
+					displayName = place.display_name,
+					description = place.description,
+					creationContext = { creator = creator },
+				} :: any,
+				assert(file, 'place file has no content')
+			)
 		end)
 
 		local asset = await_asset(op)
@@ -162,7 +169,7 @@ for _, resource in resources.products do
 	resource.lock = sync.await_reconcile_product(product_api, resource, sync_opts)
 end
 
-if detect_new then import.import(session, resources.lock.universe_id, resources) end
+if detect_new then import.import_products(session, resources.lock.universe_id, resources) end
 
 sync_logger.print_summary()
 state_fs.save_resources(resources, INPUTS_PATH, LOCK_PATH)

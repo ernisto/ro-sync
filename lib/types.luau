@@ -57,6 +57,10 @@ end
 local function to_place_info_params(patch: state.place_input)
 	return { displayName = patch.display_name, description = patch.description, serverSize = patch.server_size }
 end
+-- develop.list_universe_places returns the legacy place shape (name/maxPlayerCount)
+local function from_develop_place(data: cloud.place_data): state.place_data
+	return { display_name = data.name, description = data.description, server_size = data.maxPlayerCount } :: any
+end
 
 -- universe
 local function from_universe_api(data: cloud.universe): state.universe_data
@@ -87,6 +91,7 @@ return table.freeze {
 	from_api_result = from_product_api,
 	to_api_params = to_product_api_params,
 	from_place_api = from_place_api,
+	from_develop_place = from_develop_place,
 	to_place_info_params = to_place_info_params,
 	from_universe_api = from_universe_api,
 	to_universe_params = to_universe_params,

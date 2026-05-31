@@ -20,7 +20,24 @@ local function await_all_products(session: cloud.apikey_session, universe_id: nu
 	return products
 end
 
-local function import(session: cloud.apikey_session, universe_id: number, resources: state.resources)
+local function await_all_places(cookie: cloud.cookie_session, universe_id: number)
+	local places = {}
+	local cursor: string? = nil
+	repeat
+		local res = cloud.develop.list_universe_places(cookie, { universe_id = universe_id }, { cursor = cursor })
+		local page = assert(res.ok and res.body, res.message)
+
+		for _, place in page.data do
+			table.insert(places, place)
+		end
+		local next_cursor = page.nextPageCursor
+		cursor = if next_cursor == '' or next_cursor == cursor then nil else next_cursor
+	until cursor == nil
+
+	return places
+end
+
+local function import_products(session: cloud.apikey_session, universe_id: number, resources: state.resources)
 	local known_ids: { [number]: boolean } = {}
 	for _, product_lock in resources.lock.products do
 		known_ids[product_lock.product_id] = true
@@ -44,5 +61,27 @@ local function import(session: cloud.apikey_session, universe_id: number, resour
 	end
 end
 
+-- places live behind the legacy develop API, so a cookie session is required to list them
+local function import_places(cookie: cloud.cookie_session, universe_id: number, resources: state.resources)
+	local known_ids: { [number]: boolean } = {}
+	for _, place_lock in resources.lock.places do
+		known_ids[place_lock.place_id] = true
+	end
+
+	for _, place in await_all_places(cookie, universe_id) do
+		if known_ids[place.id] then continue end
+		local key = place.name
+
+		if resources.manifest.places[key] then key = `{place.name}_{place.id}` end
+		local read = types.from_develop_place(place)
+
+		-- manifest only references the place by key + name; full state goes to the lock
+		resources.manifest.places[key] = { display_name = place.name, conflicts = {} }
+		resources.lock.places[key] = { universe_id = universe_id, place_id = place.id, input = read }
+
+		sync_logger.imported(key, place.id)
+	end
+end
+
 -- module
-return table.freeze { import = import }
+return table.freeze { import_products = import_products, import_places = import_places }
