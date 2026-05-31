@@ -18,14 +18,15 @@ local function fmt_val(value: any): string
 		else `{c.dim}({c.unbold}{c.bold}file{c.unbold}{c.dim})`
 end
 
-local function print_diff(prev: set, diffs: set, conflicts: set?)
+local function print_diff(prev: set, diffs: set, conflicts: set?, dropped: set?)
 	for key, new in diffs do
 		local old = prev[key]
 		if old then ctx_log.str(`{c.dim}{c.red}- {key}: {fmt_val(old)}`) end
 		if new then
 			ctx_log.str(
 				if conflicts and conflicts[key] ~= nil
-					then `{c.yellow}∙ {key}: {fmt_val(new)} {c.dim}(conflict)`
+					then `{c.yellow}⊘ {key}: {fmt_val(new)} {c.dim}(conflict)`
+					elseif dropped and dropped[key] ~= nil then `{c.yellow}⇠ {key}: {fmt_val(new)} {c.dim}(dropped)`
 					else `{c.green}+ {key}: {fmt_val(new)}`
 			)
 		end
@@ -52,6 +53,13 @@ local function print_pushed_changes(pushed: set)
 
 	ctx_log.str(`{c.dim}pushed changes:`)
 	print_diff({}, pushed)
+end
+local function print_dropped_changes(dropped: set)
+	if next(dropped) == nil then return end
+
+	ctx_log.str ''
+	ctx_log.str(`{c.dim}dropped changes:`)
+	print_diff({}, dropped, {}, dropped)
 end
 
 -- operations
@@ -135,4 +143,5 @@ return table.freeze {
 	print_local_changes = print_local_changes,
 	print_external_changes = print_external_changes,
 	print_pushed_changes = print_pushed_changes,
+	print_dropped_changes = print_dropped_changes,
 }

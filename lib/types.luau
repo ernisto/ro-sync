@@ -122,8 +122,11 @@ local function from_universe_config(data: cloud.universe_configuration_data): st
 	for snake, camel in UNIVERSE_CONFIG_MAP do
 		out[snake] = (data :: any)[camel]
 	end
-	-- get exposes studio access as `isStudioAccessToApisAllowed`, but the patch field drops the `is`
-	out.studio_access_to_apis_allowed = data.isStudioAccessToApisAllowed
+	-- GET exposes studio access as `isStudioAccessToApisAllowed`; the PATCH echo uses `studioAccessToApisAllowed`
+	local any: any = data
+	out.studio_access_to_apis_allowed = if any.isStudioAccessToApisAllowed ~= nil
+		then any.isStudioAccessToApisAllowed
+		else any.studioAccessToApisAllowed
 	return out
 end
 local function to_universe_config_params(patch: state.universe_input): cloud.universe_settings_patch

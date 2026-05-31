@@ -239,4 +239,81 @@ function run.universe_baselines_from_cloud_without_lock()
 	expect.eq(update.calls[1][2].desktop, false) -- manifest change pushed against pulled baseline
 end
 
+-- ── update drops (cloud silently refuses a pushed field) ───────────────────────
+
+-- cloud accepts the push (echoes the new value) → lock takes the pushed value
+function run.universe_accepted_push_updates_lock()
+	local input = sm.make_universe_input { price = 100 }
+	local prev = sm.make_universe_lock(sm.make_universe_input { price = 0 })
+
+	local api: sync.universe_api = {
+		get = function()
+			return sm.universe_mirror(sm.make_universe_input { price = 0 })
+		end,
+		update = function(_, patch)
+			return sm.universe_mirror(sm.make_universe_input { price = patch.price }) -- applied as sent
+		end,
+	}
+
+	local lock = sync.await_reconcile_universe(api, sm.make_universe(input, prev), opts)
+	expect.eq(lock.input.price, 100)
+end
+
+-- cloud drops the push (echoes the old value) → lock follows what actually landed, not the optimistic value
+function run.universe_dropped_push_keeps_lock_in_sync()
+	local input = sm.make_universe_input { price = 100 }
+	local prev = sm.make_universe_lock(sm.make_universe_input { price = 0 })
+	local update = mock.fn(function()
+		return sm.universe_mirror(sm.make_universe_input { price = 0 }) -- price refused (e.g. not for-sale)
+	end)
+
+	local api: sync.universe_api = {
+		get = function()
+			return sm.universe_mirror(sm.make_universe_input { price = 0 })
+		end,
+		update = update,
+	}
+
+	local lock = sync.await_reconcile_universe(api, sm.make_universe(input, prev), opts)
+	expect.eq(update.calls[1][2].price, 100) -- we did push 100
+	expect.eq(lock.input.price, 0) -- but lock reflects the dropped result
+end
+
+-- no echo from update (returns nil) → optimistic: lock takes the pushed value
+function run.universe_no_echo_falls_back_to_optimistic()
+	local input = sm.make_universe_input { price = 100 }
+	local prev = sm.make_universe_lock(sm.make_universe_input { price = 0 })
+
+	local api: sync.universe_api = {
+		get = function()
+			return sm.universe_mirror(sm.make_universe_input { price = 0 })
+		end,
+		update = function() end, -- returns nil
+	}
+
+	local lock = sync.await_reconcile_universe(api, sm.make_universe(input, prev), opts)
+	expect.eq(lock.input.price, 100)
+end
+
+-- place: cloud drops a refused setting → lock follows the applied result
+function run.place_dropped_push_keeps_lock_in_sync()
+	local input = sm.make_place_input { allow_copying = true }
+	local prev = sm.make_place_lock(sm.make_place_input { allow_copying = false })
+	local update = mock.fn(function()
+		return sm.place_mirror(sm.make_place_input { allow_copying = false }) -- refused
+	end)
+
+	local api: sync.place_api = {
+		create = mock.never_called 'create',
+		get = function()
+			return sm.place_mirror(sm.make_place_input { allow_copying = false })
+		end,
+		update = update,
+	}
+
+	local lock = sync.await_reconcile_place(api, sm.make_place(input, prev), opts)
+	expect.eq(update.calls[1][2].allow_copying, true) -- pushed true
+	expect.eq(lock.input.allow_copying, false) -- but cloud kept false
+end
+
 return run

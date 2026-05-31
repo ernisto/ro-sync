@@ -74,9 +74,18 @@ end
 local function make_asset_file(hash: string): any
 	return { hash = hash, content = buffer.create(0) }
 end
--- place.get_info returns settings only — never the file
+-- place configuration returns settings only — never the file
 local function place_mirror(input: any): any
-	return { display_name = input.display_name, description = input.description, server_size = input.server_size }
+	return {
+		display_name = input.display_name,
+		description = input.description,
+		server_size = input.server_size,
+		social_slot_type = input.social_slot_type,
+		custom_social_slots_count = input.custom_social_slots_count,
+		allow_copying = input.allow_copying,
+		allowed_gear_types = input.allowed_gear_types,
+		is_all_genres_allowed = input.is_all_genres_allowed,
+	}
 end
 
 -- universe builders

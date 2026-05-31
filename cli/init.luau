@@ -109,19 +109,25 @@ local universe_api: sync.universe_api = {
 		return tbl.applied(open, config)
 	end,
 	update = function(u, patch)
+		local applied: { [string]: any } = {}
+
 		local open_params = types.to_universe_params(patch)
 		if next(open_params) ~= nil then
-			http_log.log_http_call('PATCH', `universe/{u.universe_id}`, function()
+			local res = http_log.log_http_call('PATCH', `universe/{u.universe_id}`, function()
 				return cloud.universe.update(session, u, open_params)
 			end)
+			tbl.apply(applied, types.from_universe_api(res))
 		end
 
 		local config_params = types.to_universe_config_params(patch)
 		if next(config_params) ~= nil then
-			http_log.log_http_call('PATCH', `universes/{u.universe_id}/configuration`, function()
+			local res = http_log.log_http_call('PATCH', `universes/{u.universe_id}/configuration`, function()
 				return cloud.universe_configuration.update(user_session, u, config_params)
 			end)
+			tbl.apply(applied, types.from_universe_config(res :: any))
 		end
+
+		return if next(applied) ~= nil then applied else nil
 	end,
 }
 
@@ -168,10 +174,11 @@ local place_api: sync.place_api = {
 		end
 		local config = types.to_place_config_params(patch)
 		if next(config) ~= nil then
-			http_log.log_http_call('PATCH', `places/{place.place_id}`, function()
+			return types.from_place_config(http_log.log_http_call('PATCH', `places/{place.place_id}`, function()
 				return cloud.place_configuration.update(user_session, { place_id = place.place_id }, config)
-			end)
+			end))
 		end
+		return nil
 	end,
 }
 

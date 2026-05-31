@@ -11,7 +11,8 @@ export type sync_opts = { universe_id: number, force_fresh_state: boolean? }
 type resource_api = {
 	diff: ({ [string]: any }, { [string]: any }) -> { [string]: any },
 	get: (any) -> { [string]: any },
-	update: (any, { [string]: any }) -> (),
+	-- may echo back the state the cloud actually applied, so silently-dropped fields can be detected
+	update: (any, { [string]: any }) -> { [string]: any }?,
 	validate: (({ [string]: any }) -> ())?,
 }
 
@@ -22,11 +23,13 @@ export type cloud_api = {
 }
 export type place_api = {
 	create: (sync_opts, state.place_input) -> types.place_read,
-	update: (cloud.place_identity, state.place_input) -> (),
+	-- returns the settings the cloud actually applied (nil when nothing settable was pushed)
+	update: (cloud.place_identity, state.place_input) -> state.place_data?,
 	get: (cloud.place_identity) -> state.place_data,
 }
 export type universe_api = {
-	update: (cloud.universe_identity, state.universe_input) -> (),
+	-- returns the settings the cloud actually applied (nil when nothing settable was pushed)
+	update: (cloud.universe_identity, state.universe_input) -> state.universe_data?,
 	get: (cloud.universe_identity) -> state.universe_data,
 }
 
@@ -57,14 +60,29 @@ local function reconcile_resource(api: resource_api, key: string, input: any, pr
 	local free_receiving = tbl.subtraction(receiving_changes, conflicts)
 
 	-- push
-	local successfully_pushed = next(free_sending) == nil or ctx_log.pcall(api.update, prev, free_sending)
-	if successfully_pushed then tbl.apply(prev.input, free_sending) end
+	local pushed_state: { [string]: any }? = nil
+	local successfully_pushed, applied = true, nil
+
+	if next(free_sending) then
+		successfully_pushed, applied = ctx_log.pcall(api.update, prev, free_sending)
+	end
+	if successfully_pushed then
+		-- optimistically record the pushed values into the lock; echo (if any) corrects dropped fields below
+		tbl.apply(prev.input, free_sending)
+		if type(applied) == 'table' then pushed_state = applied end
+	end
 
 	-- save
 	tbl.apply(prev.input, receiving_changes)
 	tbl.apply(input, tbl.intersection(free_receiving, input))
 
+	-- the cloud can silently drop a pushed field (e.g. price while not for-sale); when update echoes the
+	-- applied state, reconcile lock.input to what actually landed instead of the value we optimistically set
+	local dropped = if pushed_state then tbl.intersection(api.diff(prev.input, pushed_state), free_sending) else {}
+	tbl.apply(prev.input, dropped)
+
 	sync_logger.print_pushed_changes(free_sending)
+	sync_logger.print_dropped_changes(dropped)
 	sync_logger.update_result(successfully_pushed, free_sending, conflicts)
 end
 
