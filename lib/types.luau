@@ -3,6 +3,8 @@ local state = require '@lib/state'
 
 -- types
 export type product_read = state.product_data & { universe_id: number, product_id: number }
+export type place_read = state.place_data & { universe_id: number, place_id: number }
+
 local SOCIAL_MAP: { [string]: string } = {
 	facebook = 'facebookSocialLink',
 	twitter = 'twitterSocialLink',

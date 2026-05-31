@@ -135,6 +135,28 @@ function run.should_not_push_fields_listed_in_conflicts()
 	expect.falsy(patch and patch.name, 'conflicted field should not be pushed')
 end
 
+function run.should_not_pull_new_fields_into_input()
+	-- manifest + lock share a baseline that never declares `store_page_enabled`
+	local input = make_input { name = 'Local Name' }
+	local prev = make_lock(make_input())
+
+	-- cloud changed an existing field (description) AND exposes an untracked field
+	local api: sync.cloud_api = {
+		create = mock.never_called 'create',
+		get = function()
+			return cloud_mirror(make_input { description = 'Dashboard edit', store_page_enabled = true })
+		end,
+		update = function() end,
+	}
+
+	sync.await_reconcile_product(api, make_product(input, prev), opts)
+
+	-- modified existing field is pulled back into the manifest
+	expect.eq(input.description, 'Dashboard edit')
+	-- field never declared in the manifest must NOT be introduced
+	expect.eq(input.store_page_enabled, nil)
+end
+
 -- icon tests
 function run.icon_create_saves_assetid_from_result_and_hash_from_input()
 	local input = make_input { icon_file = make_icon_input(ICON_HASH_A) }
