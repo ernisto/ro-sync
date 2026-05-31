@@ -3,6 +3,7 @@ local cloud = require '@pkg/ro_cloud'
 local ctx_log = require '@utils/ctx_log'
 local env = require '@utils/env'
 local http_log = require '@utils/http_log'
+local task = require '@lune/task'
 local c = ctx_log.colors
 
 local prompt = require '@cli/prompt'
@@ -23,6 +24,20 @@ local detect_new = cli.bool 'detect-new'
 -- login
 local session = cloud.auth.apikey.login(API_KEY)
 
+-- assets are created asynchronously; poll the returned operation until it resolves to asset data
+local function await_asset(operation: cloud.asset_operation): cloud.asset_data
+	for _ = 1, 30 do
+		if operation.done then return operation.response end
+		local op_id = operation.path:match 'operations/(.+)' or error(`malformed operation path '{operation.path}'`)
+
+		task.wait(1)
+		operation = http_log.log_http_call('GET', `assets/operations/{op_id}`, function()
+			return cloud.asset.get_operation(session, op_id)
+		end)
+	end
+	return error 'asset creation timed out'
+end
+
 local product_api: sync.cloud_api = {
 	get = function(product)
 		local path = `developer-product/{product.product_id}`
@@ -41,27 +56,6 @@ local product_api: sync.cloud_api = {
 		return http_log.log_http_call('PATCH', path, function()
 			return cloud.product.update(session, product, types.to_api_params(patch))
 		end)
-	end,
-}
-local place_api: sync.place_api = {
-	get = function(place)
-		local path = `universes/{place.universe_id}/places/{place.place_id}`
-		return types.from_place_api(http_log.log_http_call('GET', path, function()
-			return cloud.place.get_info(session, place)
-		end))
-	end,
-	update = function(place, patch)
-		if patch.asset_file and patch.asset_file.content then
-			http_log.log_http_call('POST', `places/{place.place_id}/versions`, function()
-				return cloud.place.upload(session, place, patch.asset_file.content, true)
-			end)
-		end
-		local info = types.to_place_info_params(patch)
-		if next(info) ~= nil then
-			http_log.log_http_call('PATCH', `universes/{place.universe_id}/places/{place.place_id}`, function()
-				return cloud.place.update_info(session, place, info)
-			end)
-		end
 	end,
 }
 local universe_api: sync.universe_api = {
@@ -107,6 +101,53 @@ local universe = http_log.log_http_call('GET', `universe/{resources.lock.univers
 end)
 ctx_log.str(`Target universe: {c.bold}{universe.displayName}{c.reset} {c.dim}({resources.lock.universe_id})`)
 ctx_log.str ''
+
+-- creator drives the creationContext required when creating new place assets
+local owner = resources.manifest.owner
+local creator = if owner.user then { userId = owner.user } else { groupId = owner.group }
+
+local place_api: sync.place_api = {
+	create = function(opts, place)
+		local file = assert(place.asset_file, 'place create requires a file').content
+		local op = http_log.log_http_call('POST', 'assets (Place)', function()
+			return cloud.asset.create(session, {
+				assetType = 'Place',
+				displayName = place.display_name,
+				description = place.description,
+				creationContext = { creator = creator },
+			} :: any, assert(file, 'place file has no content'))
+		end)
+
+		local asset = await_asset(op)
+		return {
+			universe_id = opts.universe_id,
+			place_id = asset.assetId,
+			asset_file = place.asset_file,
+			display_name = place.display_name,
+			description = place.description,
+			server_size = place.server_size,
+		} :: any
+	end,
+	get = function(place)
+		local path = `universes/{place.universe_id}/places/{place.place_id}`
+		return types.from_place_api(http_log.log_http_call('GET', path, function()
+			return cloud.place.get_info(session, place)
+		end))
+	end,
+	update = function(place, patch)
+		if patch.asset_file and patch.asset_file.content then
+			http_log.log_http_call('POST', `places/{place.place_id}/versions`, function()
+				return cloud.place.upload(session, place, patch.asset_file.content, true)
+			end)
+		end
+		local info = types.to_place_info_params(patch)
+		if next(info) ~= nil then
+			http_log.log_http_call('PATCH', `universes/{place.universe_id}/places/{place.place_id}`, function()
+				return cloud.place.update_info(session, place, info)
+			end)
+		end
+	end,
+}
 
 -- reconcile
 local sync_opts = { universe_id = resources.lock.universe_id, force_fresh_state = force_fresh_state }

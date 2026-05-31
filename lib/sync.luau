@@ -13,7 +13,9 @@ export type cloud_api = {
 	update: (cloud.product_identity, state.product_input) -> (),
 	get: (cloud.product_identity) -> types.product_read,
 }
+export type place_read = state.place_data & { universe_id: number, place_id: number }
 export type place_api = {
+	create: (sync_opts, state.place_input) -> place_read,
 	update: (cloud.place_identity, state.place_input) -> (),
 	get: (cloud.place_identity) -> state.place_data,
 }
@@ -101,10 +103,28 @@ local function await_reconcile_product(api: cloud_api, product: state.product, o
 	return prev
 end
 
--- places (settings merge + push-only file upload; must pre-exist with a place_id)
+-- places (created via assets.create; settings merge + push-only file upload thereafter)
+local function await_create_place(api: place_api, place: state.place, opts: sync_opts): state.place_lock
+	local key, input = place.key, place.input
+	if not input.display_name then error(`place '{key}' needs a display_name to be created`) end
+	if not input.asset_file then
+		local missing = if input.file then `file '{input.file}' not found` else 'no file set'
+		error(`place '{key}' has {missing}; a .rbxl file is required to create a place`)
+	end
+	sync_logger.creation(key)
+
+	local success, result = ctx_log.pcall(api.create, opts, input)
+	sync_logger.print_pushed_changes(tbl.subtraction(input, { file = true, conflicts = true }))
+	sync_logger.creation_result(success)
+
+	-- store only the file hash in the lock so an identical file isn't re-uploaded next sync
+	tbl.apply(result, { asset_file = { hash = input.asset_file.hash } })
+
+	return { universe_id = result.universe_id, place_id = result.place_id, input = result }
+end
 local function await_reconcile_place(api: place_api, place: state.place, opts: sync_opts): state.place_lock
 	local prev = place.lock
-	if not prev then error(`place '{place.key}' has no place_id in lock; cannot sync a place that doesn't exist`) end
+	if not prev then return await_create_place(api, place, opts) end
 
 	reconcile({
 		diff = state.diff_place,

@@ -18,6 +18,7 @@ function run.place_pushes_settings_change()
 	local update = mock.fn()
 
 	local api: sync.place_api = {
+		create = mock.never_called 'create',
 		get = function()
 			return sm.place_mirror(sm.make_place_input())
 		end,
@@ -35,6 +36,7 @@ function run.place_skips_when_unchanged()
 	local prev = sm.make_place_lock(sm.make_place_input())
 
 	local api: sync.place_api = {
+		create = mock.never_called 'create',
 		get = mock.never_called 'get should not be called when nothing changed',
 		update = mock.never_called 'update',
 	}
@@ -47,6 +49,7 @@ function run.place_records_settings_conflict()
 	local prev = sm.make_place_lock(sm.make_place_input())
 
 	local api: sync.place_api = {
+		create = mock.never_called 'create',
 		get = function()
 			return sm.place_mirror(sm.make_place_input { display_name = 'Cloud Name' })
 		end,
@@ -57,15 +60,44 @@ function run.place_records_settings_conflict()
 	expect.truthy(input.conflicts.display_name, 'display_name conflict should be recorded')
 end
 
-function run.place_errors_without_lock()
-	local input = sm.make_place_input()
-	local api: sync.place_api = {
+function run.place_creates_when_no_lock()
+	local file = sm.make_asset_file(HASH_A)
+	local input = sm.make_place_input { file = 'game.rbxl', asset_file = file }
+	local create = mock.fn(function(opts, place)
+		return {
+			universe_id = opts.universe_id,
+			place_id = sm.PLACE_ID,
+			asset_file = place.asset_file,
+			display_name = place.display_name,
+			description = place.description,
+			server_size = place.server_size,
+		}
+	end)
+
+	local api = {
+		create = create,
 		get = mock.never_called 'get',
 		update = mock.never_called 'update',
-	}
+	} :: sync.place_api
+
+	local lock = sync.await_reconcile_place(api, sm.make_place(input, nil), opts)
+
+	expect.eq(create.call_count, 1)
+	expect.eq(lock.place_id, sm.PLACE_ID)
+	expect.eq(lock.input.asset_file.hash, HASH_A) -- lock keeps the file hash, not its content
+	expect.falsy(lock.input.asset_file.content, 'lock should not retain the uploaded file content')
+end
+
+function run.place_create_errors_without_file()
+	local input = sm.make_place_input() -- no file/asset_file
+	local api = {
+		create = mock.never_called 'create',
+		get = mock.never_called 'get',
+		update = mock.never_called 'update',
+	} :: sync.place_api
 
 	local ok = pcall(sync.await_reconcile_place, api, sm.make_place(input, nil), opts)
-	expect.falsy(ok, 'syncing a place with no lock should error')
+	expect.falsy(ok, 'creating a place without a file should error')
 end
 
 -- ── places: file asset (push-only) ─────────────────────────────────────────────
@@ -77,6 +109,7 @@ function run.place_file_pushed_when_hash_differs()
 	local update = mock.fn()
 
 	local api: sync.place_api = {
+		create = mock.never_called 'create',
 		get = function()
 			return sm.place_mirror(sm.make_place_input())
 		end,
@@ -92,6 +125,7 @@ function run.place_file_noop_when_hash_matches()
 	local prev = sm.make_place_lock(sm.make_place_input { asset_file = sm.make_asset_file(HASH_A) })
 
 	local api: sync.place_api = {
+		create = mock.never_called 'create',
 		get = mock.never_called 'get should not be called when file unchanged',
 		update = mock.never_called 'update',
 	}
@@ -107,6 +141,7 @@ function run.place_file_never_conflicts()
 	local update = mock.fn()
 
 	local api: sync.place_api = {
+		create = mock.never_called 'create',
 		get = function()
 			return sm.place_mirror(sm.make_place_input { description = 'Cloud edit' })
 		end,
