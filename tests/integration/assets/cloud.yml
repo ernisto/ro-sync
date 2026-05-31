@@ -7,8 +7,9 @@
     "display_name": "start"
 
 "universe":
-  "desktop": true
-  "mobile": true
+  "devices":
+    "desktop": true
+    "mobile": true
 
 "products":
   "100 money":

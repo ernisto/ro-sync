@@ -40,7 +40,7 @@ local UNIVERSE_MASK: { [string]: any } = {
 }
 local UNIVERSE_COMPLEX: { [string]: (any) -> any } = {}
 
-for _, field in parser.SOCIAL_FIELDS do
+for field in parser.SOCIAL_FIELDS do
 	UNIVERSE_MASK[field] = {} :: social_link
 	UNIVERSE_COMPLEX[field] = json_of
 end

@@ -41,6 +41,15 @@ local function encode_manifest(data: manifest): string
 	if data.universe then
 		out.universe = table.clone(data.universe)
 		if next(data.universe.conflicts) == nil then out.universe.conflicts = nil end
+
+		local socials = tbl.intersection(out.universe, parser.SOCIAL_FIELDS)
+		tbl.subtract(out.universe, parser.SOCIAL_FIELDS)
+
+		local devices = tbl.intersection(out.universe, parser.DEVICE_FIELDS)
+		tbl.subtract(out.universe, parser.DEVICE_FIELDS)
+
+		if next(socials) ~= nil then out.universe.socials = socials end
+		if next(devices) ~= nil then out.universe.devices = devices end
 	end
 
 	return serde.encode('yaml', out, true)

@@ -121,8 +121,17 @@ export type universe_input = {
 	vr: boolean?,
 }
 
-local SOCIAL_FIELDS: { string } = { 'facebook', 'twitter', 'youtube', 'twitch', 'discord', 'roblox_group', 'guilded' }
-local UNIVERSE_TOGGLES = { 'voice_chat', 'desktop', 'mobile', 'tablet', 'console', 'vr' }
+-- key-sets so `tbl.intersection`/`tbl.subtract` can mask a universe table by these fields directly
+local SOCIAL_FIELDS: { [string]: true } = {
+	facebook = true,
+	twitter = true,
+	youtube = true,
+	twitch = true,
+	discord = true,
+	roblox_group = true,
+	guilded = true,
+}
+local DEVICE_FIELDS: { [string]: true } = { desktop = true, mobile = true, tablet = true, console = true, vr = true }
 
 -- helpers
 local function check(cond: boolean, msg: string)
@@ -186,16 +195,36 @@ local function validate_place_input(p: any, label: string)
 	p.conflicts = p.conflicts or {}
 end
 
+local function validate_map(
+	input: any,
+	group: string,
+	fields: { [string]: true },
+	validator: (any, string) -> (),
+	label: string
+)
+	local nested = input[group]
+	if nested == nil then return end
+
+	req(nested, 'table', `{label}.{group}`)
+
+	for field in fields do
+		if nested[field] == nil then continue end
+		validator(nested[field], `{label}.{group}.{field}`)
+		input[field] = nested[field]
+	end
+	input[group] = nil
+end
+
 local function validate_universe_input(u: any, label: string)
 	req(u, 'table', label)
 
-	for _, field in SOCIAL_FIELDS do
-		if u[field] ~= nil then validate_social(u[field], `{label}.{field}`) end
-	end
-	for _, toggle in UNIVERSE_TOGGLES do
-		opt(u[toggle], 'boolean', `{label}.{toggle}`)
-	end
+	-- manifest nests social links under `socials:` and allowed devices under `devices:`
+	validate_map(u, 'socials', SOCIAL_FIELDS, validate_social, label)
+	validate_map(u, 'devices', DEVICE_FIELDS, function(v, l)
+		req(v, 'boolean', l)
+	end, label)
 
+	opt(u.voice_chat, 'boolean', `{label}.voice_chat`)
 	opt(u.private_server_price, 'number', `{label}.private_server_price`)
 	opt(u.conflicts, 'table', `{label}.conflicts`)
 	u.conflicts = u.conflicts or {}
@@ -256,6 +285,7 @@ end
 -- module
 return table.freeze {
 	SOCIAL_FIELDS = SOCIAL_FIELDS,
+	DEVICE_FIELDS = DEVICE_FIELDS,
 	parse_manifest = parse_manifest,
 	parse_lock = parse_lock,
 }

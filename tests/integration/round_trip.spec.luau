@@ -3,6 +3,7 @@ local fs = require '@lune/fs'
 local mock = require '@test/mock'
 local serde = require '@lune/serde'
 local sm = require '@test/sync_mock'
+local state = require '@lib/state'
 local state_fs = require '@cli/state_fs'
 local sync = require '@lib/sync'
 
@@ -244,6 +245,31 @@ function run.cloud_pull_is_written_to_manifest()
 	expect.eq(after.products[1].input.description, 'From Cloud')
 
 	cleanup()
+end
+
+-- ── manifest nesting ───────────────────────────────────────────────────────────
+
+-- the manifest groups social links and devices; parse flattens them, encode must re-nest
+function run.universe_socials_devices_round_trip()
+	local source = table.concat({
+		'version: 1',
+		'owner:',
+		'  group: 1',
+		'universe:',
+		'  devices:',
+		'    desktop: true',
+		'  socials:',
+		'    discord:',
+		'      uri: https://discord.gg/x',
+	}, '\n')
+
+	local manifest = state.parse_manifest(buffer.fromstring(source))
+	expect.eq(manifest.universe.desktop, true) -- nested → flat internally
+	expect.eq(manifest.universe.discord.uri, 'https://discord.gg/x')
+
+	local reparsed = state.parse_manifest(buffer.fromstring(state.encode_manifest(manifest)))
+	expect.eq(reparsed.universe.desktop, true) -- survived flat → nested → flat
+	expect.eq(reparsed.universe.discord.uri, 'https://discord.gg/x')
 end
 
 return run
