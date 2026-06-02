@@ -35,9 +35,9 @@ if not state_fs.files_exist(INPUTS_PATH) then
 
 	local resources = state_fs.create_resources(subject.owner, subject.universe and subject.universe.universe_id)
 	if subject.universe then
-		import.import_products(session, subject.universe.universe_id, resources)
-		import.import_places(user_session, subject.universe.universe_id, resources)
-		import.import_universe(session, user_session, subject.universe.universe_id, resources)
+		import.await_import_products(session, subject.universe.universe_id, resources)
+		import.await_import_places(user_session, subject.universe.universe_id, resources)
+		import.await_import_universe(session, user_session, subject.universe.universe_id, resources)
 	end
 
 	state_fs.save_resources(resources, INPUTS_PATH, LOCK_PATH)
@@ -78,7 +78,11 @@ for _, resource in resources.products do
 	resource.lock = sync.await_reconcile_product(product_api, resource, sync_opts)
 end
 
-if detect_new then import.import_products(session, resources.lock.universe_id, resources) end
+if detect_new then
+	import.await_import_places(user_session, resources.lock.universe_id, resources)
+	import.await_import_universe(session, user_session, resources.lock.universe_id, resources)
+	import.await_import_products(session, resources.lock.universe_id, resources)
+end
 
 sync_logger.print_summary()
 state_fs.save_resources(resources, INPUTS_PATH, LOCK_PATH)

@@ -1,5 +1,6 @@
 local sync = require '@lib/sync'
 local tbl = require '@utils/tbl'
+local types = require '@lib/types'
 
 -- constants
 local UNIVERSE_ID = 1000
@@ -37,8 +38,7 @@ local function make_icon_lock(assetid: number, hash: string?): any
 	return { assetid = assetid, hash = hash }
 end
 
--- mirrors a product_input as a flat_product (simulates cloud returning unchanged state)
-local function cloud_mirror(input: any): any
+local function cloud_mirror(input: any): types.product_read
 	local icon_id = type(input.icon) == 'table' and input.icon.assetid or nil
 	return {
 		universe_id = UNIVERSE_ID,
@@ -46,6 +46,7 @@ local function cloud_mirror(input: any): any
 		icon = if icon_id then { assetid = icon_id } else nil,
 		name = input.name,
 		price = input.price,
+		icon_file = { assetid = -1 },
 		description = input.description,
 		is_for_sale = input.is_for_sale,
 		regional_pricing = input.regional_pricing,
@@ -53,7 +54,6 @@ local function cloud_mirror(input: any): any
 	}
 end
 
--- a full product_read (product_data + identity) as the cloud would return from create/get
 local function make_product_read(overrides: { [string]: any }): any
 	return tbl.apply({
 		universe_id = UNIVERSE_ID,
@@ -68,7 +68,6 @@ local function make_product_read(overrides: { [string]: any }): any
 end
 
 -- place builders
-
 local function make_place_input(overrides: { [string]: any }?): any
 	return tbl.apply(
 		{ display_name = 'Start', description = 'A place', server_size = 50, conflicts = {} },
@@ -84,7 +83,6 @@ end
 local function make_asset_file(hash: string): any
 	return { hash = hash, content = buffer.create(0) }
 end
--- place configuration returns settings only — never the file
 local function place_mirror(input: any): any
 	return {
 		display_name = input.display_name,
@@ -114,6 +112,7 @@ local function universe_mirror(input: any): any
 	return out
 end
 
+-- module
 return table.freeze {
 	UNIVERSE_ID = UNIVERSE_ID,
 	PRODUCT_ID = PRODUCT_ID,

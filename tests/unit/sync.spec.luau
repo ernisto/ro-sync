@@ -3,6 +3,7 @@ local mock = require '@test/mock'
 local sm = require '@test/sync_mock'
 local sync = require '@lib/sync'
 
+-- defs
 local ICON_HASH_A = string.rep('a', 64)
 local ICON_HASH_B = string.rep('b', 64)
 
@@ -18,6 +19,7 @@ local make_icon_input = sm.make_icon_input
 local make_icon_lock = sm.make_icon_lock
 local cloud_mirror = sm.cloud_mirror
 
+-- tests
 local run = {}
 
 function run.should_create_product_when_no_prev_lock()
@@ -88,7 +90,7 @@ function run.should_pull_cloud_changes_into_input()
 		update = function() end,
 	}
 
-	local force_opts = table.clone(opts) :: sync.sync_opts
+	local force_opts = table.clone(opts)
 	force_opts.force_fresh_state = true
 
 	sync.await_reconcile_product(api, make_product(input, prev), force_opts)

@@ -7,12 +7,13 @@ local state = require '@lib/state'
 local state_fs = require '@cli/state_fs'
 local sync = require '@lib/sync'
 
+-- defs
+local OPTS: sync.sync_opts = { universe_id = sm.UNIVERSE_ID, force_fresh_state = false }
 local ICON_PATH = 'tests/integration/assets/placeholder.png'
 local TMP_MANIFEST = 'tests/integration/assets/tmp_manifest.yml'
 local TMP_LOCK = 'tests/integration/assets/tmp_lock.yml'
 
-local run = {}
-
+-- helpers
 local function cleanup()
 	if fs.isFile(TMP_MANIFEST) then fs.removeFile(TMP_MANIFEST) end
 	if fs.isFile(TMP_LOCK) then fs.removeFile(TMP_LOCK) end
@@ -31,28 +32,24 @@ local function run_sync(api: sync.cloud_api, opts: sync.sync_opts)
 	state_fs.save_resources(resources, TMP_MANIFEST, TMP_LOCK)
 end
 
-local OPTS: sync.sync_opts = { universe_id = sm.UNIVERSE_ID, force_fresh_state = false }
-
 -- tests
+local run = {}
 
 function run.field_change_is_noop_on_second_sync()
 	cleanup()
 
-	write_files({ version = 1, owner = { group = 1 }, products = { test_pack = { name = 'New Name', price = 100 } } }, {
-		version = 1,
+	local test_product = {
 		universe_id = sm.UNIVERSE_ID,
-		products = {
-			test_pack = {
-				universe_id = sm.UNIVERSE_ID,
-				product_id = sm.PRODUCT_ID,
-				input = { name = 'Old Name', price = 100 },
-			},
-		},
-	})
+		product_id = sm.PRODUCT_ID,
+		input = { name = 'Old Name', price = 100 },
+	}
+	write_files(
+		{ version = 1, owner = { group = 1 }, products = { test_pack = { name = 'New Name', price = 100 } } },
+		{ version = 1, universe_id = sm.UNIVERSE_ID, products = { test_pack = test_product } }
+	)
 
 	local cloud_state = sm.make_input { name = 'Old Name', price = 100 }
 
-	-- first sync: name changed locally → pushed
 	local first_update = mock.fn()
 	run_sync({
 		create = mock.never_called 'create',
@@ -63,11 +60,9 @@ function run.field_change_is_noop_on_second_sync()
 	}, OPTS)
 	expect.eq(first_update.call_count, 1)
 
-	-- second sync: lock now matches manifest → noop, no API calls
-	run_sync(
-		{ create = mock.never_called 'create', get = mock.never_called 'get', update = mock.never_called 'update' },
-		OPTS
-	)
+	local api =
+		{ create = mock.never_called 'create', get = mock.never_called 'get', update = mock.never_called 'update' }
+	run_sync(api, OPTS)
 
 	cleanup()
 end
@@ -75,26 +70,19 @@ end
 function run.icon_hash_is_noop_on_second_sync()
 	cleanup()
 
-	-- manifest references a real icon file; lock has a stale hash
+	local test_product = {
+		universe_id = sm.UNIVERSE_ID,
+		product_id = sm.PRODUCT_ID,
+		input = { name = 'Pack', icon_file = { assetid = sm.ICON_ID, hash = 'stale' } },
+	}
 	write_files(
 		{ version = 1, owner = { group = 1 }, products = { test_pack = { name = 'Pack', icon = ICON_PATH } } },
-		{
-			version = 1,
-			universe_id = sm.UNIVERSE_ID,
-			products = {
-				test_pack = {
-					universe_id = sm.UNIVERSE_ID,
-					product_id = sm.PRODUCT_ID,
-					input = { name = 'Pack', icon_file = { assetid = sm.ICON_ID, hash = 'stale' } },
-				},
-			},
-		}
+		{ version = 1, universe_id = sm.UNIVERSE_ID, products = { test_pack = test_product } }
 	)
 
 	local cloud_state = sm.make_input { icon = sm.make_icon_lock(sm.ICON_ID, nil) }
-
-	-- first sync: stale hash differs from real file hash → icon pushed
 	local first_update = mock.fn()
+
 	run_sync({
 		create = mock.never_called 'create',
 		get = function()
@@ -104,11 +92,9 @@ function run.icon_hash_is_noop_on_second_sync()
 	}, OPTS)
 	expect.eq(first_update.call_count, 1)
 
-	-- second sync: lock now has real hash → noop, no API calls
-	run_sync(
-		{ create = mock.never_called 'create', get = mock.never_called 'get', update = mock.never_called 'update' },
-		OPTS
-	)
+	local api =
+		{ create = mock.never_called 'create', get = mock.never_called 'get', update = mock.never_called 'update' }
+	run_sync(api, OPTS)
 
 	cleanup()
 end
@@ -116,15 +102,12 @@ end
 function run.create_writes_product_id_to_lock()
 	cleanup()
 
-	-- lock has no entry for test_pack → product gets created
-	fs.writeFile(
-		TMP_MANIFEST,
-		serde.encode(
-			'yaml',
-			{ version = 1, owner = { group = 1 }, products = { test_pack = { name = 'Pack', price = 100 } } },
-			true
-		)
+	local raw_content = serde.encode(
+		'yaml',
+		{ version = 1, owner = { group = 1 }, products = { test_pack = { name = 'Pack', price = 100 } } },
+		true
 	)
+	fs.writeFile(TMP_MANIFEST, raw_content)
 	fs.writeFile(TMP_LOCK, `version: 1\nuniverse_id: {sm.UNIVERSE_ID}\nproducts: \{\{}}\n`)
 
 	run_sync({
@@ -146,15 +129,12 @@ end
 function run.create_with_icon_writes_assetid_and_hash_to_lock()
 	cleanup()
 
-	-- lock has no entry for test_pack → product gets created with icon
-	fs.writeFile(
-		TMP_MANIFEST,
-		serde.encode(
-			'yaml',
-			{ version = 1, owner = { group = 1 }, products = { test_pack = { name = 'Pack', icon = ICON_PATH } } },
-			true
-		)
+	local raw_content = serde.encode(
+		'yaml',
+		{ version = 1, owner = { group = 1 }, products = { test_pack = { name = 'Pack', icon = ICON_PATH } } },
+		true
 	)
+	fs.writeFile(TMP_MANIFEST, raw_content)
 	fs.writeFile(TMP_LOCK, `version: 1\nuniverse_id: {sm.UNIVERSE_ID}\nproducts: \{\{}}\n`)
 
 	run_sync({
@@ -177,19 +157,14 @@ end
 function run.conflict_is_written_to_manifest()
 	cleanup()
 
+	local test_product = {
+		universe_id = sm.UNIVERSE_ID,
+		product_id = sm.PRODUCT_ID,
+		input = { name = 'Old Name', price = 100 },
+	}
 	write_files(
 		{ version = 1, owner = { group = 1 }, products = { test_pack = { name = 'Local Name', price = 100 } } },
-		{
-			version = 1,
-			universe_id = sm.UNIVERSE_ID,
-			products = {
-				test_pack = {
-					universe_id = sm.UNIVERSE_ID,
-					product_id = sm.PRODUCT_ID,
-					input = { name = 'Old Name', price = 100 },
-				},
-			},
-		}
+		{ version = 1, universe_id = sm.UNIVERSE_ID, products = { test_pack = test_product } }
 	)
 
 	run_sync({
@@ -211,22 +186,16 @@ end
 function run.cloud_pull_is_written_to_manifest()
 	cleanup()
 
-	-- local changed name; cloud changed description (no overlap)
+	local test_product = {
+		universe_id = sm.UNIVERSE_ID,
+		product_id = sm.PRODUCT_ID,
+		input = { name = 'Old Name', price = 100, description = 'Old' },
+	}
 	write_files({
 		version = 1,
 		owner = { group = 1 },
 		products = { test_pack = { name = 'New Name', price = 100, description = 'Old' } },
-	}, {
-		version = 1,
-		universe_id = sm.UNIVERSE_ID,
-		products = {
-			test_pack = {
-				universe_id = sm.UNIVERSE_ID,
-				product_id = sm.PRODUCT_ID,
-				input = { name = 'Old Name', price = 100, description = 'Old' },
-			},
-		},
-	})
+	}, { version = 1, universe_id = sm.UNIVERSE_ID, products = { test_pack = test_product } })
 
 	run_sync({
 		create = mock.never_called 'create',
@@ -242,9 +211,6 @@ function run.cloud_pull_is_written_to_manifest()
 	cleanup()
 end
 
--- ── manifest nesting ───────────────────────────────────────────────────────────
-
--- the manifest groups social links and devices; parse flattens them, encode must re-nest
 function run.universe_socials_devices_round_trip()
 	local source = table.concat({
 		'version: 1',

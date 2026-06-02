@@ -12,15 +12,11 @@ local MANIFEST_PATH = 'tests/integration/assets/cloud.yml'
 local ICON_PATH = 'tests/integration/assets/placeholder.png'
 
 local API_KEY = env.str 'API_KEY'
-if not API_KEY then
-	warn 'integration/sync: skipping — API_KEY not set'
-	return {}
-end
 
-local session = cloud.auth.apikey.login(API_KEY)
 local resources = state_fs.load_resources(MANIFEST_PATH, LOCK_PATH)
 
 -- real API adapter — mirrors cli.luau exactly
+local session = cloud.auth.apikey.login(API_KEY)
 local api: sync.cloud_api = {
 	get = function(product)
 		local res = cloud.product.get(session, product)
@@ -39,9 +35,8 @@ local function get_product()
 	return api.get(resources.lock.products.money_pack1)
 end
 
+-- tests
 local run = {}
-
--- ── read-only ────────────────────────────────────────────────────────────────
 
 function run.should_authenticate_and_fetch_product()
 	local product = get_product()
@@ -59,15 +54,13 @@ function run.should_fetch_price_matching_manifest()
 	expect.eq(product.price, resources.manifest.products.money_pack1.price)
 end
 
--- ── sync pipeline ────────────────────────────────────────────────────────────
-
 function run.should_return_prev_unchanged_when_no_local_changes()
 	local prev = resources.lock.products.money_pack1
 	local input = table.clone(resources.manifest.products.money_pack1)
 	input.icon = nil
 	input.icon_file = nil
 
-	local guarded_api = table.clone(api) :: sync.cloud_api
+	local guarded_api = table.clone(api)
 	guarded_api.get = mock.never_called 'get should not be reached for a no-op'
 	guarded_api.update = mock.never_called 'update should not be reached for a no-op'
 
@@ -76,8 +69,6 @@ function run.should_return_prev_unchanged_when_no_local_changes()
 
 	expect.eq(result, prev)
 end
-
--- ── write + revert ────────────────────────────────────────────────────────────
 
 function run.should_push_description_change_and_revert()
 	local prev = resources.lock.products.money_pack1
@@ -121,4 +112,4 @@ function run.should_push_icon_change_and_revert()
 	expect.truthy(after_lock.product_id)
 end
 
-return run
+return if API_KEY then run else { run = {}, skip = run }

@@ -56,7 +56,7 @@ local function str(key: string): string?
 end
 local function num(key: string | number): number?
 	if type(key) == 'number' then return tonumber(positional[key]) end
-	return tonumber(options[key :: string])
+	return tonumber(options[key])
 end
 local function uint(key: string | number): number?
 	local val = num(key)

@@ -38,7 +38,7 @@ local function await_all_places(cookie: cloud.cookie_session, universe_id: numbe
 	return places
 end
 
-local function import_products(session: cloud.apikey_session, universe_id: number, resources: state.resources)
+local function await_import_products(session: cloud.apikey_session, universe_id: number, resources: state.resources)
 	local known_ids: { [number]: boolean } = {}
 	for _, product_lock in resources.lock.products do
 		known_ids[product_lock.product_id] = true
@@ -62,7 +62,7 @@ local function import_products(session: cloud.apikey_session, universe_id: numbe
 	end
 end
 
-local function import_places(cookie: cloud.cookie_session, universe_id: number, resources: state.resources)
+local function await_import_places(cookie: cloud.cookie_session, universe_id: number, resources: state.resources)
 	local known_ids: { [number]: boolean } = {}
 	for _, place_lock in resources.lock.places do
 		known_ids[place_lock.place_id] = true
@@ -82,7 +82,7 @@ local function import_places(cookie: cloud.cookie_session, universe_id: number, 
 	end
 end
 
-local function import_universe(
+local function await_import_universe(
 	session: cloud.apikey_session,
 	cookie: cloud.cookie_session,
 	universe_id: number,
@@ -106,7 +106,7 @@ end
 
 -- module
 return table.freeze {
-	import_products = import_products,
-	import_places = import_places,
-	import_universe = import_universe,
+	await_import_products = await_import_products,
+	await_import_places = await_import_places,
+	await_import_universe = await_import_universe,
 }

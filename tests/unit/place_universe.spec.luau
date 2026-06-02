@@ -8,9 +8,8 @@ local HASH_B = string.rep('b', 64)
 
 local opts = sm.DEFAULT_OPTS
 
+-- tests
 local run = {}
-
--- ── places: settings ──────────────────────────────────────────────────────────
 
 function run.place_pushes_settings_change()
 	local input = sm.make_place_input { display_name = 'New Name' }
@@ -65,6 +64,7 @@ end
 function run.place_creates_when_no_lock()
 	local file = sm.make_asset_file(HASH_A)
 	local input = sm.make_place_input { file = 'game.rbxl', asset_file = file }
+
 	local create = mock.fn(function(opts, place)
 		return {
 			universe_id = opts.universe_id,
@@ -76,34 +76,33 @@ function run.place_creates_when_no_lock()
 		}
 	end)
 
-	local api = {
+	local api: sync.place_api = {
 		create = create,
 		get = mock.never_called 'get',
 		update = mock.never_called 'update',
-	} :: sync.place_api
+	}
 
 	local lock = sync.await_reconcile_place(api, sm.make_place(input, nil), opts)
 
 	expect.eq(create.call_count, 1)
 	expect.eq(lock.place_id, sm.PLACE_ID)
+
 	local asset_file = assert(lock.input.asset_file, 'lock should keep the asset_file')
-	expect.eq(asset_file.hash, HASH_A) -- lock keeps the file hash, not its content
+	expect.eq(asset_file.hash, HASH_A)
 	expect.falsy(asset_file.content, 'lock should not retain the uploaded file content')
 end
 
 function run.place_create_errors_without_file()
 	local input = sm.make_place_input() -- no file/asset_file
-	local api = {
+	local api: sync.place_api = {
 		create = mock.never_called 'create',
 		get = mock.never_called 'get',
 		update = mock.never_called 'update',
-	} :: sync.place_api
+	}
 
 	local ok = pcall(sync.await_reconcile_place, api, sm.make_place(input, nil), opts)
 	expect.falsy(ok, 'creating a place without a file should error')
 end
-
--- ── places: file asset (push-only) ─────────────────────────────────────────────
 
 function run.place_file_pushed_when_hash_differs()
 	local new_file = sm.make_asset_file(HASH_B)
@@ -136,7 +135,6 @@ function run.place_file_noop_when_hash_matches()
 	sync.await_reconcile_place(api, sm.make_place(input, prev), opts)
 end
 
--- file change never conflicts with a concurrent cloud settings change
 function run.place_file_never_conflicts()
 	local new_file = sm.make_asset_file(HASH_B)
 	local input = sm.make_place_input { file = 'game.rbxl', asset_file = new_file }
@@ -157,8 +155,6 @@ function run.place_file_never_conflicts()
 	expect.eq(update.calls[1][2].asset_file, new_file) -- file still pushed
 	expect.eq(input.description, 'Cloud edit') -- cloud settings pulled in
 end
-
--- ── universe settings ──────────────────────────────────────────────────────────
 
 function run.universe_pushes_flag_change()
 	local input = sm.make_universe_input { desktop = false }
@@ -205,7 +201,7 @@ function run.universe_pulls_external_change()
 		end,
 	}
 
-	local force = table.clone(opts) :: sync.sync_opts
+	local force = table.clone(opts)
 	force.force_fresh_state = true
 
 	sync.await_reconcile_universe(api, sm.make_universe(input, prev), force)
@@ -246,9 +242,6 @@ function run.universe_baselines_from_cloud_without_lock()
 	expect.eq(update.calls[1][2].desktop, false) -- manifest change pushed against pulled baseline
 end
 
--- ── update drops (cloud silently refuses a pushed field) ───────────────────────
-
--- cloud accepts the push (echoes the new value) → lock takes the pushed value
 function run.universe_accepted_push_updates_lock()
 	local input = sm.make_universe_input { price = 100 }
 	local prev = sm.make_universe_lock(sm.make_universe_input { price = 0 })
@@ -266,7 +259,6 @@ function run.universe_accepted_push_updates_lock()
 	expect.eq(lock.input.price, 100)
 end
 
--- cloud drops the push (echoes the old value) → lock follows what actually landed, not the optimistic value
 function run.universe_dropped_push_keeps_lock_in_sync()
 	local input = sm.make_universe_input { price = 100 }
 	local prev = sm.make_universe_lock(sm.make_universe_input { price = 0 })
@@ -297,7 +289,7 @@ function run.universe_no_echo_falls_back_to_optimistic()
 		end,
 		update = function()
 			return nil
-		end, -- returns nil
+		end,
 	}
 
 	local lock = sync.await_reconcile_universe(api, sm.make_universe(input, prev), opts)
@@ -308,6 +300,7 @@ end
 function run.place_dropped_push_keeps_lock_in_sync()
 	local input = sm.make_place_input { allow_copying = true }
 	local prev = sm.make_place_lock(sm.make_place_input { allow_copying = false })
+
 	local update = mock.fn(function()
 		return sm.place_mirror(sm.make_place_input { allow_copying = false }) -- refused
 	end)
