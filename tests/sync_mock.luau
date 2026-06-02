@@ -1,4 +1,5 @@
 local sync = require '@lib/sync'
+local tbl = require '@utils/tbl'
 
 -- constants
 local UNIVERSE_ID = 1000
@@ -38,7 +39,7 @@ end
 
 -- mirrors a product_input as a flat_product (simulates cloud returning unchanged state)
 local function cloud_mirror(input: any): any
-	local icon_id = type(input.icon) == 'table' and (input.icon :: any).assetid or nil
+	local icon_id = type(input.icon) == 'table' and input.icon.assetid or nil
 	return {
 		universe_id = UNIVERSE_ID,
 		product_id = PRODUCT_ID,
@@ -52,18 +53,27 @@ local function cloud_mirror(input: any): any
 	}
 end
 
--- place builders
-local function merge(base: any, overrides: { [string]: any }?): any
-	if overrides then
-		for k, v in overrides do
-			base[k] = v
-		end
-	end
-	return base
+-- a full product_read (product_data + identity) as the cloud would return from create/get
+local function make_product_read(overrides: { [string]: any }): any
+	return tbl.apply({
+		universe_id = UNIVERSE_ID,
+		product_id = PRODUCT_ID,
+		name = 'Pack',
+		price = 100,
+		description = 'A pack',
+		is_for_sale = true,
+		regional_pricing = false,
+		store_page_enabled = false,
+	}, overrides)
 end
 
+-- place builders
+
 local function make_place_input(overrides: { [string]: any }?): any
-	return merge({ display_name = 'Start', description = 'A place', server_size = 50, conflicts = {} }, overrides)
+	return tbl.apply(
+		{ display_name = 'Start', description = 'A place', server_size = 50, conflicts = {} },
+		overrides or {}
+	)
 end
 local function make_place_lock(input: any): any
 	return { universe_id = UNIVERSE_ID, place_id = PLACE_ID, input = input }
@@ -90,7 +100,7 @@ end
 
 -- universe builders
 local function make_universe_input(overrides: { [string]: any }?): any
-	return merge({ desktop = true, mobile = true, private_server_price = 0, conflicts = {} }, overrides)
+	return tbl.apply({ desktop = true, mobile = true, private_server_price = 0, conflicts = {} }, overrides or {})
 end
 local function make_universe_lock(input: any): any
 	return { universe_id = UNIVERSE_ID, input = input }
@@ -116,6 +126,7 @@ return table.freeze {
 	make_product = make_product,
 	make_icon_input = make_icon_input,
 	make_icon_lock = make_icon_lock,
+	make_product_read = make_product_read,
 	cloud_mirror = cloud_mirror,
 
 	make_place_input = make_place_input,

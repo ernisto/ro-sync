@@ -53,7 +53,9 @@ function run.place_records_settings_conflict()
 		get = function()
 			return sm.place_mirror(sm.make_place_input { display_name = 'Cloud Name' })
 		end,
-		update = function() end,
+		update = function()
+			return nil
+		end,
 	}
 
 	sync.await_reconcile_place(api, sm.make_place(input, prev), opts)
@@ -84,8 +86,9 @@ function run.place_creates_when_no_lock()
 
 	expect.eq(create.call_count, 1)
 	expect.eq(lock.place_id, sm.PLACE_ID)
-	expect.eq(lock.input.asset_file.hash, HASH_A) -- lock keeps the file hash, not its content
-	expect.falsy(lock.input.asset_file.content, 'lock should not retain the uploaded file content')
+	local asset_file = assert(lock.input.asset_file, 'lock should keep the asset_file')
+	expect.eq(asset_file.hash, HASH_A) -- lock keeps the file hash, not its content
+	expect.falsy(asset_file.content, 'lock should not retain the uploaded file content')
 end
 
 function run.place_create_errors_without_file()
@@ -197,7 +200,9 @@ function run.universe_pulls_external_change()
 		get = function()
 			return sm.universe_mirror(sm.make_universe_input { private_server_price = 100 })
 		end,
-		update = function() end,
+		update = function()
+			return nil
+		end,
 	}
 
 	local force = table.clone(opts) :: sync.sync_opts
@@ -215,7 +220,9 @@ function run.universe_records_conflict()
 		get = function()
 			return sm.universe_mirror(sm.make_universe_input { private_server_price = 200 })
 		end,
-		update = function() end,
+		update = function()
+			return nil
+		end,
 	}
 
 	sync.await_reconcile_universe(api, sm.make_universe(input, prev), opts)
@@ -288,7 +295,9 @@ function run.universe_no_echo_falls_back_to_optimistic()
 		get = function()
 			return sm.universe_mirror(sm.make_universe_input { price = 0 })
 		end,
-		update = function() end, -- returns nil
+		update = function()
+			return nil
+		end, -- returns nil
 	}
 
 	local lock = sync.await_reconcile_universe(api, sm.make_universe(input, prev), opts)

@@ -71,9 +71,9 @@ local function to_product_api_params(data: state.product_input)
 end
 
 local function from_place_config(data: cloud.place_data): state.place_data
-	local out: any = {}
+	local out = {}
 	for snake, camel in PLACE_CONFIG_MAP do
-		out[snake] = (data :: any)[camel]
+		out[snake] = data[camel]
 	end
 	return out
 end

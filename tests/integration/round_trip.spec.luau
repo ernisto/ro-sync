@@ -129,7 +129,7 @@ function run.create_writes_product_id_to_lock()
 
 	run_sync({
 		create = function()
-			return { universe_id = sm.UNIVERSE_ID, product_id = sm.PRODUCT_ID, name = 'Pack' }
+			return sm.make_product_read { name = 'Pack' }
 		end,
 		get = mock.never_called 'get',
 		update = mock.never_called 'update',
@@ -159,12 +159,7 @@ function run.create_with_icon_writes_assetid_and_hash_to_lock()
 
 	run_sync({
 		create = function()
-			return {
-				universe_id = sm.UNIVERSE_ID,
-				product_id = sm.PRODUCT_ID,
-				icon_file = { assetid = sm.ICON_ID },
-				name = 'Pack',
-			}
+			return sm.make_product_read { icon_file = { assetid = sm.ICON_ID }, name = 'Pack' }
 		end,
 		get = mock.never_called 'get',
 		update = mock.never_called 'update',
@@ -264,12 +259,16 @@ function run.universe_socials_devices_round_trip()
 	}, '\n')
 
 	local manifest = state.parse_manifest(buffer.fromstring(source))
-	expect.eq(manifest.universe.desktop, true) -- nested → flat internally
-	expect.eq(manifest.universe.discord.uri, 'https://discord.gg/x')
+	local universe = assert(manifest.universe, 'manifest should have a universe')
+	expect.eq(universe.desktop, true) -- nested → flat internally
+	expect.eq(assert(universe.discord, 'universe should have discord').uri, 'https://discord.gg/x')
 
-	local reparsed = state.parse_manifest(buffer.fromstring(state.encode_manifest(manifest)))
-	expect.eq(reparsed.universe.desktop, true) -- survived flat → nested → flat
-	expect.eq(reparsed.universe.discord.uri, 'https://discord.gg/x')
+	local reparsed = assert(
+		state.parse_manifest(buffer.fromstring(state.encode_manifest(manifest))).universe,
+		'reparsed manifest should have a universe'
+	)
+	expect.eq(reparsed.desktop, true) -- survived flat → nested → flat
+	expect.eq(assert(reparsed.discord, 'reparsed universe should have discord').uri, 'https://discord.gg/x')
 end
 
 return run

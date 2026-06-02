@@ -27,7 +27,7 @@ function run.should_create_product_when_no_prev_lock()
 	local api: sync.cloud_api = {
 		create = function(_, data)
 			created = data
-			return { universe_id = UNIVERSE_ID, product_id = PRODUCT_ID, name = data.name }
+			return sm.make_product_read { name = data.name }
 		end,
 		get = mock.never_called 'get should not be called on create',
 		update = mock.never_called 'update should not be called on create',
@@ -163,12 +163,7 @@ function run.icon_create_saves_assetid_from_result_and_hash_from_input()
 
 	local api: sync.cloud_api = {
 		create = function(_, data)
-			return {
-				universe_id = UNIVERSE_ID,
-				product_id = PRODUCT_ID,
-				icon_file = { assetid = ICON_ID },
-				name = data.name,
-			}
+			return sm.make_product_read { icon_file = { assetid = ICON_ID }, name = data.name }
 		end,
 		get = mock.never_called 'get',
 		update = mock.never_called 'update',
@@ -185,7 +180,7 @@ function run.icon_create_preserves_hash_when_result_has_no_icon()
 
 	local api: sync.cloud_api = {
 		create = function(_, data)
-			return { universe_id = UNIVERSE_ID, product_id = PRODUCT_ID, icon = nil, name = data.name }
+			return sm.make_product_read { name = data.name }
 		end,
 		get = mock.never_called 'get',
 		update = mock.never_called 'update',

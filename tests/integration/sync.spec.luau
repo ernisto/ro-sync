@@ -98,7 +98,7 @@ function run.should_push_description_change_and_revert()
 		expect.eq(after.description, '__integration_test__')
 	end)
 
-	cloud.product.update(session, prev, { description = original })
+	cloud.product.update(session, prev, { name = prev.input.name, description = original })
 
 	if not ok then error(err, 0) end
 end

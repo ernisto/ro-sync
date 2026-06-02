@@ -125,7 +125,7 @@ local universe_api: sync.universe_api = {
 			local res = http_log.log_http_call('PATCH', `universes/{u.universe_id}/configuration`, function()
 				return cloud.universe_configuration.update(user_session, u, config_params)
 			end)
-			tbl.apply(applied, types.from_universe_config(res :: any))
+			tbl.apply(applied, types.from_universe_config(res))
 		end
 
 		return if next(applied) ~= nil then applied else nil
@@ -148,7 +148,7 @@ local place_api: sync.place_api = {
 					description = place.description,
 					creationContext = { creator = creator },
 				} :: any,
-				assert(file, 'place file has no content')
+				(assert(file, 'place file has no content'))
 			)
 		end)
 
@@ -160,7 +160,7 @@ local place_api: sync.place_api = {
 			display_name = place.display_name,
 			description = place.description,
 			server_size = place.server_size,
-		} :: any
+		}
 	end,
 	get = function(place)
 		return types.from_place_config(http_log.log_http_call('GET', `places/{place.place_id}`, function()
