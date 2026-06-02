@@ -163,7 +163,12 @@ function run.icon_create_saves_assetid_from_result_and_hash_from_input()
 
 	local api: sync.cloud_api = {
 		create = function(_, data)
-			return { universe_id = UNIVERSE_ID, product_id = PRODUCT_ID, icon_file = { assetid = ICON_ID }, name = data.name }
+			return {
+				universe_id = UNIVERSE_ID,
+				product_id = PRODUCT_ID,
+				icon_file = { assetid = ICON_ID },
+				name = data.name,
+			}
 		end,
 		get = mock.never_called 'get',
 		update = mock.never_called 'update',
