@@ -51,7 +51,11 @@ local function save_resources(resources: state.resources, manifest_path: string,
 	end
 
 	fs.writeFile(lock_path, state.encode_lock(resources.lock))
-	fs.writeFile(manifest_path, state.encode_manifest(resources.manifest))
+	fs.writeFile(
+		manifest_path,
+		'# yaml-language-server: $schema=https://raw.githubusercontent.com/ernisto/ro-sync/refs/heads/main/assets/manifest.schema.json\n\n'
+			.. state.encode_manifest(resources.manifest)
+	)
 end
 
 -- module
