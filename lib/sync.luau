@@ -116,13 +116,20 @@ end
 
 local function await_create_place(api: place_api, place: state.place, opts: sync_opts): state.place_lock
 	local key, input = place.key, place.input
-	if not input.display_name then error(`place '{key}' needs a display_name to be created`) end
+	sync_logger.creation(key)
 
+	if not input.display_name then
+		ctx_log.error(`place '{key}' needs a display_name to be created`)
+		sync_logger.creation_result(false)
+		error(`place '{key}' needs a display_name to be created`)
+	end
 	if not input.asset_file then
 		local missing = if input.file then `file '{input.file}' not found` else 'no file set'
+
+		ctx_log.error(`place '{key}' has {missing}; a .rbxl file is required to create a place`)
+		sync_logger.creation_result(false)
 		error(`place '{key}' has {missing}; a .rbxl file is required to create a place`)
 	end
-	sync_logger.creation(key)
 
 	local success, result = ctx_log.pcall(api.create, opts, input)
 	sync_logger.print_pushed_changes(tbl.subtraction(input, { file = true, conflicts = true }))

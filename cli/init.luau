@@ -69,13 +69,16 @@ local product_api = api.build_product_api(session)
 local sync_opts = { universe_id = resources.lock.universe_id, force_fresh_state = force_fresh_state }
 
 if resources.universe then
-	resources.universe.lock = sync.await_reconcile_universe(universe_api, resources.universe, sync_opts)
+	local ok, err = pcall(sync.await_reconcile_universe, universe_api, resources.universe, sync_opts)
+	if ok then resources.universe.lock = err end
 end
 for _, place in resources.places do
-	place.lock = sync.await_reconcile_place(place_api, place, sync_opts)
+	local ok, err = pcall(sync.await_reconcile_place, place_api, place, sync_opts)
+	if ok then place.lock = err end
 end
 for _, resource in resources.products do
-	resource.lock = sync.await_reconcile_product(product_api, resource, sync_opts)
+	local ok, err = pcall(sync.await_reconcile_product, product_api, resource, sync_opts)
+	if ok then resource.lock = err end
 end
 
 if detect_new then
