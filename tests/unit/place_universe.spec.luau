@@ -69,10 +69,12 @@ function run.place_creates_when_no_lock()
 		return {
 			universe_id = opts.universe_id,
 			place_id = sm.PLACE_ID,
-			asset_file = place.asset_file,
-			display_name = place.display_name,
-			description = place.description,
-			server_size = place.server_size,
+			input = {
+				display_name = place.display_name,
+				description = place.description,
+				server_size = place.server_size,
+				asset_file = { hash = place.asset_file.hash },
+			},
 		}
 	end)
 
@@ -92,16 +94,20 @@ function run.place_creates_when_no_lock()
 	expect.falsy(asset_file.content, 'lock should not retain the uploaded file content')
 end
 
-function run.place_create_errors_without_file()
-	local input = sm.make_place_input() -- no file/asset_file
+function run.place_creates_without_file()
+	local input = sm.make_place_input()
+	local create = mock.fn(function(opts)
+		return { universe_id = opts.universe_id, place_id = sm.PLACE_ID, input = {} }
+	end)
 	local api: sync.place_api = {
-		create = mock.never_called 'create',
+		create = create,
 		get = mock.never_called 'get',
 		update = mock.never_called 'update',
 	}
 
-	local ok = pcall(sync.await_reconcile_place, api, sm.make_place(input, nil), opts)
-	expect.falsy(ok, 'creating a place without a file should error')
+	local lock = sync.await_reconcile_place(api, sm.make_place(input, nil), opts)
+	expect.eq(create.call_count, 1)
+	expect.eq(lock.place_id, sm.PLACE_ID)
 end
 
 function run.place_file_pushed_when_hash_differs()

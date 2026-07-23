@@ -6,6 +6,7 @@ local sm = require '@test/sync_mock'
 local state = require '@lib/state'
 local state_fs = require '@cli/state_fs'
 local sync = require '@lib/sync'
+local types = require '@lib/types'
 
 -- defs
 local OPTS: sync.sync_opts = { universe_id = sm.UNIVERSE_ID, force_fresh_state = false }
@@ -24,7 +25,7 @@ local function write_files(manifest: any, lock: any)
 	fs.writeFile(TMP_LOCK, serde.encode('yaml', lock, true))
 end
 
-local function run_sync(api: sync.cloud_api, opts: sync.sync_opts)
+local function run_sync(api: sync.product_api, opts: sync.sync_opts)
 	local resources = state_fs.load_resources(TMP_MANIFEST, TMP_LOCK)
 	for _, product in resources.products do
 		product.lock = sync.await_reconcile_product(api, product, opts)
@@ -112,7 +113,7 @@ function run.create_writes_product_id_to_lock()
 
 	run_sync({
 		create = function()
-			return sm.make_product_read { name = 'Pack' }
+			return { universe_id = sm.UNIVERSE_ID, product_id = sm.PRODUCT_ID, input = { name = 'Pack' } } :: any
 		end,
 		get = mock.never_called 'get',
 		update = mock.never_called 'update',
@@ -138,8 +139,11 @@ function run.create_with_icon_writes_assetid_and_hash_to_lock()
 	fs.writeFile(TMP_LOCK, `version: 1\nuniverse_id: {sm.UNIVERSE_ID}\nproducts: \{\{}}\n`)
 
 	run_sync({
-		create = function()
-			return sm.make_product_read { icon_file = { assetid = sm.ICON_ID }, name = 'Pack' }
+		create = function(_, data)
+			return types.to_product_lock(
+				sm.make_product_read { icon_file = { assetid = sm.ICON_ID }, name = 'Pack' },
+				data
+			)
 		end,
 		get = mock.never_called 'get',
 		update = mock.never_called 'update',

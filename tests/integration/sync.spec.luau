@@ -17,7 +17,7 @@ local resources = state_fs.load_resources(MANIFEST_PATH, LOCK_PATH)
 
 -- real API adapter — mirrors cli.luau exactly
 local session = cloud.auth.apikey.login(API_KEY)
-local api: sync.cloud_api = {
+local api: sync.product_api = {
 	get = function(product)
 		local res = cloud.product.get(session, product)
 		assert(res.ok, res.message)

@@ -5,10 +5,10 @@ local env = require '@utils/env'
 local http = require '@utils/http'
 local c = ctx_log.colors
 
-local api = require '@cli/api'
 local prompt = require '@cli/prompt'
 local state_fs = require '@cli/state_fs'
 
+local api = require '@lib/api'
 local import = require '@lib/import'
 local sync = require '@lib/sync'
 local sync_logger = require '@lib/sync_logger'

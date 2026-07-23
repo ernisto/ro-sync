@@ -8,42 +8,59 @@ local types = require './types'
 
 -- defs
 export type sync_opts = { universe_id: number, force_fresh_state: boolean? }
+type resource_lock = { universe_id: number, input: { [string]: any } }
 type resource_api = {
 	diff: ({ [string]: any }, { [string]: any }) -> { [string]: any },
 	get: (any) -> { [string]: any },
-	-- may echo back the state the cloud actually applied, so silently-dropped fields can be detected
 	update: (any, { [string]: any }) -> { [string]: any }?,
+	create: ((sync_opts, any) -> resource_lock)?,
 	validate: (({ [string]: any }) -> ())?,
 }
 
-export type cloud_api = {
-	create: (cloud.universe_identity, state.product_input) -> types.product_read,
+export type product_api = {
+	create: (sync_opts, state.product_input) -> state.product_lock,
 	update: (cloud.product_identity, state.product_input) -> (),
 	get: (cloud.product_identity) -> types.product_read,
 }
 export type place_api = {
-	create: (sync_opts, state.place_input) -> types.place_read,
-	-- returns the settings the cloud actually applied (nil when nothing settable was pushed)
+	create: (sync_opts, state.place_input) -> state.place_lock,
 	update: (cloud.place_identity, state.place_input) -> state.place_data?,
 	get: (cloud.place_identity) -> state.place_data,
 }
 export type universe_api = {
-	-- returns the settings the cloud actually applied (nil when nothing settable was pushed)
 	update: (cloud.universe_identity, state.universe_input) -> state.universe_data?,
 	get: (cloud.universe_identity) -> state.universe_data,
 }
 
 -- functions
-local function reconcile_resource(api: resource_api, key: string, input: any, prev: any, opts: sync_opts)
-	local conflicts = input.conflicts
+local function reconcile_resource<Lock>(
+	api: resource_api,
+	key: string,
+	input: any,
+	prev: (Lock & resource_lock)?,
+	opts: sync_opts
+): Lock
 	if api.validate then api.validate(input) end
 
+	if not prev then
+		sync_logger.creation(key)
+		local create = api.create or error 'resource has no create'
+
+		local ok, created_lock = ctx_log.pcall(create, opts, input)
+		if ok then sync_logger.print_pushed_changes(api.diff({}, created_lock.input)) end
+
+		sync_logger.creation_result(ok)
+		assert(ok, created_lock)
+		return created_lock :: any
+	end
+
+	local conflicts = input.conflicts
 	local local_changes = api.diff(prev.input, input)
 	tbl.subtract(local_changes, conflicts)
 
 	if next(local_changes) == nil and not opts.force_fresh_state then
 		sync_logger.noop(key)
-		return
+		return prev
 	end
 
 	sync_logger.update(key, prev.input, local_changes)
@@ -84,78 +101,32 @@ local function reconcile_resource(api: resource_api, key: string, input: any, pr
 	sync_logger.print_pushed_changes(free_sending)
 	sync_logger.print_dropped_changes(dropped)
 	sync_logger.update_result(successfully_pushed, free_sending, conflicts)
+
+	return prev
 end
 
-local function await_create_product(api: cloud_api, product: state.product, opts: sync_opts): state.product_lock
-	local key, input = product.key, product.input
-	sync_logger.creation(key)
-
-	local success, result = ctx_log.pcall(api.create, opts, input)
-	sync_logger.print_pushed_changes(tbl.subtraction(input, { addons = true, conflicts = true }))
-	sync_logger.creation_result(success)
-
-	local saved_icon =
-		{ assetid = result.icon_file and result.icon_file.assetid, hash = input.icon_file and input.icon_file.hash }
-
-	local universe_id, product_id = result.universe_id, result.product_id
-	tbl.subtract(result, { universe_id = true, product_id = true })
-	
-	tbl.apply(result, { icon_file = saved_icon })
-	return { universe_id = universe_id, product_id = product_id, input = result }
-end
-local function await_reconcile_product(api: cloud_api, product: state.product, opts: sync_opts): state.product_lock
+local function await_reconcile_product(api: product_api, product: state.product, opts: sync_opts): state.product_lock
 	local prev = product.lock
-	if not prev then return await_create_product(api, product, opts) end
 
 	local function validate(input)
 		if input.icon and not input.icon_file then ctx_log.warn(`couldnt find icon '{input.icon}'`) end
 	end
 
-	local api_impl = { diff = state.diff_product, get = api.get, update = api.update, validate = validate }
-	reconcile_resource(api_impl, product.key, product.input, prev, opts)
-
-	return prev
+	local api_impl =
+		{ diff = state.diff_product, get = api.get, update = api.update, create = api.create, validate = validate }
+	return reconcile_resource(api_impl :: any, product.key, product.input, prev, opts)
 end
 
-local function await_create_place(api: place_api, place: state.place, opts: sync_opts): state.place_lock
-	local key, input = place.key, place.input
-	sync_logger.creation(key)
-
-	if not input.display_name then
-		ctx_log.error(`place '{key}' needs a display_name to be created`)
-		sync_logger.creation_result(false)
-		error(`place '{key}' needs a display_name to be created`)
-	end
-	if not input.asset_file then
-		local missing = if input.file then `file '{input.file}' not found` else 'no file set'
-
-		ctx_log.error(`place '{key}' has {missing}; a .rbxl file is required to create a place`)
-		sync_logger.creation_result(false)
-		error(`place '{key}' has {missing}; a .rbxl file is required to create a place`)
-	end
-
-	local success, result = ctx_log.pcall(api.create, opts, input)
-	sync_logger.print_pushed_changes(tbl.subtraction(input, { file = true, conflicts = true }))
-	sync_logger.creation_result(success)
-
-	local universe_id, place_id = result.universe_id, result.place_id
-	tbl.subtract(result, { universe_id = true, place_id = true })
-
-	tbl.apply(result, { asset_file = { hash = input.asset_file.hash } })
-	return { universe_id = universe_id, place_id = place_id, input = result }
-end
 local function await_reconcile_place(api: place_api, place: state.place, opts: sync_opts): state.place_lock
 	local prev = place.lock
-	if not prev then return await_create_place(api, place, opts) end
 
 	local function validate(input)
 		if input.file and not input.asset_file then ctx_log.warn(`couldnt find place file '{input.file}'`) end
 	end
 
-	local api_impl = { diff = state.diff_place, get = api.get, update = api.update, validate = validate }
-	reconcile_resource(api_impl, place.key, place.input, prev, opts)
-
-	return prev
+	local api_impl =
+		{ diff = state.diff_place, get = api.get, update = api.update, create = api.create, validate = validate }
+	return reconcile_resource(api_impl :: any, place.key, place.input, prev, opts)
 end
 
 local function await_reconcile_universe(
@@ -166,9 +137,7 @@ local function await_reconcile_universe(
 	local prev = universe.lock or { universe_id = opts.universe_id, input = api.get { universe_id = opts.universe_id } }
 
 	local api_impl = { diff = state.diff_universe, get = api.get, update = api.update }
-	reconcile_resource(api_impl, universe.key, universe.input, prev, opts)
-
-	return prev
+	return reconcile_resource(api_impl, universe.key, universe.input, prev, opts)
 end
 
 -- module

@@ -1,5 +1,6 @@
 local cloud = require '@pkg/ro_cloud'
 local state = require '@lib/state'
+local tbl = require '@utils/tbl'
 
 -- types
 export type product_read = state.product_data & { universe_id: number, product_id: number }
@@ -56,6 +57,15 @@ local function from_product_api(data: cloud.product): product_read
 		regional_pricing = table.find(price_info.enabledFeatures, 'RegionalPricing') ~= nil,
 		store_page_enabled = data.storePageEnabled,
 	}
+end
+local function to_product_lock(read: product_read, input: state.product_input): state.product_lock
+	local saved_icon =
+		{ assetid = read.icon_file and read.icon_file.assetid, hash = input.icon_file and input.icon_file.hash }
+
+	local data: any = tbl.subtraction(read, { universe_id = true, product_id = true })
+	tbl.apply(data, { icon_file = saved_icon })
+
+	return { universe_id = read.universe_id, product_id = read.product_id, input = data }
 end
 local function to_product_api_params(data: state.product_input)
 	local icon = data.icon_file
@@ -136,6 +146,7 @@ end
 return table.freeze {
 	from_api_result = from_product_api,
 	to_api_params = to_product_api_params,
+	to_product_lock = to_product_lock,
 	from_place_config = from_place_config,
 	to_place_config_params = to_place_config_params,
 	from_universe_api = from_universe_api,
