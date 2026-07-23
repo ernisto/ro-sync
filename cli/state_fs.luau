@@ -2,6 +2,9 @@ local fs = require '@lune/fs'
 local serde = require '@lune/serde'
 local state = require '@lib/state'
 
+local MANIFEST_HEADER =
+	'# yaml-language-server: $schema=https://raw.githubusercontent.com/ernisto/ro-sync/refs/heads/main/assets/manifest.schema.json\n\n'
+
 -- functions
 local function maybe_read(path: string): buffer?
 	return fs.isFile(path) and buffer.fromstring(fs.readFile(path)) or nil
@@ -51,11 +54,13 @@ local function save_resources(resources: state.resources, manifest_path: string,
 	end
 
 	fs.writeFile(lock_path, state.encode_lock(resources.lock))
-	fs.writeFile(
-		manifest_path,
-		'# yaml-language-server: $schema=https://raw.githubusercontent.com/ernisto/ro-sync/refs/heads/main/assets/manifest.schema.json\n\n'
-			.. state.encode_manifest(resources.manifest)
-	)
+
+	local new_yml = state.encode_manifest(resources.manifest)
+	local current_yml = if fs.isFile(manifest_path)
+		then serde.encode('yaml', serde.decode('yaml', fs.readFile(manifest_path)))
+		else nil
+
+	if new_yml ~= current_yml then fs.writeFile(manifest_path, MANIFEST_HEADER .. new_yml) end
 end
 
 -- module
