@@ -1,6 +1,8 @@
 local cloud = require '@pkg/ro_cloud'
+local ctx_log = require '@utils/ctx_log'
 local state = require '@lib/state'
 local stdio = require '@lune/stdio'
+local c = ctx_log.colors
 
 -- defs
 local BASEPLATE_PLACE_ID = 95206881
@@ -47,10 +49,10 @@ local function prompt_creator(session: cloud.cookie_session): creator?
 	local user = assert(user_res.ok and user_res.body, user_res.message)
 
 	local groups = groups_res.body.data
-	local options = { `@{user.name} ({user.id})` }
+	local options = { `@{user.name} {c.dim}({user.id}){c.reset}` }
 
 	for _, group in groups do
-		table.insert(options, `{group.name} ({group.id})`)
+		table.insert(options, `{group.name} {c.dim}({group.id}){c.reset}`)
 	end
 
 	local option = stdio.prompt('select', 'Select a creator', options)
@@ -63,12 +65,12 @@ local function prompt_universe(
 	creator: creator,
 	universes: { cloud.dev_universe }
 ): cloud.universe_identity?
-	local CREATE = 'Create a new universe'
-	local SKIP = 'Skip (set universe_id manually later)'
+	local CREATE = `{c.green}Create a new universe{c.reset}`
+	local SKIP = `{c.green}Skip (set universe_id manually later){c.reset}`
 
 	local options = { CREATE, SKIP }
 	for _, universe in universes do
-		table.insert(options, `{universe.name} ({universe.id})`)
+		table.insert(options, `{universe.name} {c.dim}({universe.id}){c.reset}`)
 	end
 
 	local option = stdio.prompt('select', 'Select a universe to import', options)
