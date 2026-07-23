@@ -96,9 +96,12 @@ local function await_create_product(api: cloud_api, product: state.product, opts
 
 	local saved_icon =
 		{ assetid = result.icon_file and result.icon_file.assetid, hash = input.icon_file and input.icon_file.hash }
-	tbl.apply(result, { icon_file = saved_icon })
 
-	return { universe_id = result.universe_id, product_id = result.product_id, input = result }
+	local universe_id, product_id = result.universe_id, result.product_id
+	tbl.subtract(result, { universe_id = true, product_id = true })
+	
+	tbl.apply(result, { icon_file = saved_icon })
+	return { universe_id = universe_id, product_id = product_id, input = result }
 end
 local function await_reconcile_product(api: cloud_api, product: state.product, opts: sync_opts): state.product_lock
 	local prev = product.lock
@@ -135,8 +138,11 @@ local function await_create_place(api: place_api, place: state.place, opts: sync
 	sync_logger.print_pushed_changes(tbl.subtraction(input, { file = true, conflicts = true }))
 	sync_logger.creation_result(success)
 
+	local universe_id, place_id = result.universe_id, result.place_id
+	tbl.subtract(result, { universe_id = true, place_id = true })
+
 	tbl.apply(result, { asset_file = { hash = input.asset_file.hash } })
-	return { universe_id = result.universe_id, place_id = result.place_id, input = result }
+	return { universe_id = universe_id, place_id = place_id, input = result }
 end
 local function await_reconcile_place(api: place_api, place: state.place, opts: sync_opts): state.place_lock
 	local prev = place.lock
