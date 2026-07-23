@@ -1,5 +1,5 @@
-local function eq(actual: any, expected: any)
-	if actual ~= expected then error(`expected {tostring(expected)}, got {tostring(actual)}`, 2) end
+local function eq(actual: any, expected: any, msg: string?)
+	if actual ~= expected then error(msg or `expected {tostring(expected)}, got {tostring(actual)}`, 2) end
 end
 
 local function neq(actual: any, unexpected: any)

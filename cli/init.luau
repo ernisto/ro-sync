@@ -2,7 +2,7 @@ local cli = require '@utils/cli'
 local cloud = require '@pkg/ro_cloud'
 local ctx_log = require '@utils/ctx_log'
 local env = require '@utils/env'
-local http_log = require '@utils/http_log'
+local http = require '@utils/http'
 local c = ctx_log.colors
 
 local api = require '@cli/api'
@@ -51,7 +51,7 @@ if not resources.lock.universe_id or resources.lock.universe_id < 0 then
 	return ctx_log.error(`Lock file missing universe_id, delete {LOCK_PATH} to re-bootstrap`)
 end
 
-local universe = http_log.log_http_call('GET', `universe/{resources.lock.universe_id}`, function()
+local universe = http.request('GET', `universe/{resources.lock.universe_id}`, function()
 	return cloud.universe.get(session, { universe_id = resources.lock.universe_id })
 end)
 ctx_log.str(`Target universe: {c.bold}{universe.displayName}{c.reset} {c.dim}({resources.lock.universe_id})`)
