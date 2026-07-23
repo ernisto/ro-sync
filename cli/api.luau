@@ -1,25 +1,14 @@
 local cloud = require '@pkg/ro_cloud'
 local http_log = require '@utils/http_log'
-local task = require '@lune/task'
 local tbl = require '@utils/tbl'
 
 local sync = require '@lib/sync'
 local types = require '@lib/types'
 
+-- defs
+local BASEPLATE_PLACE_ID = 95206881
+
 -- functions
-local function await_asset(session: cloud.apikey_session, operation: cloud.asset_operation): cloud.asset_data
-	for _ = 1, 30 do
-		if operation.done then return operation.response end
-		local op_id = operation.path:match 'operations/(.+)' or error(`malformed operation path '{operation.path}'`)
-
-		task.wait(1)
-		operation = http_log.log_http_call('GET', `assets/operations/{op_id}`, function()
-			return cloud.asset.get_operation(session, op_id)
-		end)
-	end
-	return error 'asset creation timed out'
-end
-
 local function build_product_api(session: cloud.apikey_session): sync.cloud_api
 	return {
 		get = function(product)
@@ -87,26 +76,16 @@ local function build_place_api(
 ): sync.place_api
 	return {
 		create = function(opts, place)
-			local file = assert(place.asset_file, 'place create requires a file').content
-				or error 'place file has no content'
-
-			local op = http_log.log_http_call('POST', 'assets (Place)', function()
-				return cloud.asset.create(session, {
-					assetType = 'Place',
-					displayName = assert(place.display_name),
-					description = place.description,
-					creationContext = { creator = creator :: any },
-				}, file)
+			local result = http_log.log_http_call('POST', 'assets (Place)', function()
+				return cloud.place.create(
+					user_session,
+					{ universe_id = opts.universe_id },
+					{ templatePlaceId = BASEPLATE_PLACE_ID }
+				)
 			end)
-
-			local asset = await_asset(session, op)
 			return {
 				universe_id = opts.universe_id,
-				place_id = asset.assetId,
-				asset_file = place.asset_file,
-				display_name = place.display_name,
-				description = place.description,
-				server_size = place.server_size,
+				place_id = result.placeId,
 			}
 		end,
 		get = function(place)
