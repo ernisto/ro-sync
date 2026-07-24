@@ -22,11 +22,21 @@ pesde install
 
 ## Running
 
+The CLI dispatches on a subcommand (first positional). A bare invocation with no subcommand defaults to `sync`. Do **not** use `--` before subcommand args — utils/cli treats `--` as "forward everything remaining".
+
 ```sh
-lune run cli -- --api-key <KEY> [--manifest cloud.yml] [--state cloud-state.yml] [--import]
+# 3-way sync (default command)
+lune run cli sync --cache cloud-state.yml --push cloud.yml
+lune run cli --api-key <KEY>            # bare -> sync
+
+# place operations (resolve <name> against the --cache lock file)
+lune run cli place load lobby --cache dev-state.yml --output lobby.rbxl
+lune run cli place play lobby --cache dev-state.yml --data '{"match":10}'
+lune run cli place edit lobby --cache dev-state.yml
+lune run cli place run  lobby --cache dev-state.yml --script "require(tests)"
 ```
 
-Or set `API_KEY` in a `.env` file (TOML format: `API_KEY = "..."`).
+`--cache` is the lock/state file, `--push` is the manifest (these replaced the old `--state`/`--manifest` flags). `--data` must be valid JSON. Set `API_KEY` in a `.env` file (TOML: `API_KEY = "..."`) instead of `--api-key`.
 
 ## Formatting
 
@@ -38,9 +48,13 @@ StyLua config is in `stylua.toml`: single quotes preferred, no call parentheses 
 
 ## Architecture
 
-### Entry point — `cli.luau`
+### Entry point — `cli/init.luau`
 
-Reads CLI args/env, constructs a `cloud_api` adapter (translating between the flat internal format and the `ro_cloud` library's API), then spawns concurrent `sync_product` calls for every product in the manifest.
+A thin dispatcher: reads the first two positionals (`cmd`, `sub`) and `require`s the matching module in `cli/commands/` (`sync`, `load_place`, `play_place`, `edit_place`, `run_place`). Unknown commands error with the available list.
+
+- `cli/commands/sync.luau` — the 3-way sync flow (auth, resource recovery, reconcile). Reads `--cache`/`--push`.
+- `cli/commands/place_ref.luau` — shared helper: resolves a `<name>` positional to `{ place_id, universe_id }` from the `--cache` lock file, and reads the api key.
+- `load_place` downloads a place `.rbxl`; `play_place`/`edit_place` open Roblox player/studio deep links; `run_place` runs a Luau script via `luau_task_exec` and streams logs.
 
 ### `lib/state.luau`
 
