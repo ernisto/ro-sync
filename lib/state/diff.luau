@@ -11,7 +11,7 @@ local function hash_of(f: any): any
 	return f.hash
 end
 local function json_of(v: any): any
-	return serde.encode('json', v)
+	return if type(v) == 'table' and next(v) == nil then nil else serde.encode('json', v)
 end
 
 -- defs
