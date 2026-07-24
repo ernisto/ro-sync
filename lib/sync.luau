@@ -7,7 +7,7 @@ local sync_logger = require './sync_logger'
 local types = require './types'
 
 -- defs
-export type sync_opts = { universe_id: number, force_fresh_state: boolean? }
+export type sync_opts = { universe_id: number, force_fresh_state: boolean?, overwrite: boolean? }
 type resource_lock = { universe_id: number, input: { [string]: any } }
 type resource_api = {
 	diff: ({ [string]: any }, { [string]: any }) -> { [string]: any },
@@ -55,6 +55,8 @@ local function reconcile_resource<Lock>(
 	end
 
 	local conflicts = input.conflicts
+	if opts.overwrite then table.clear(conflicts) end
+
 	local local_changes = api.diff(prev.input, input)
 	tbl.subtract(local_changes, conflicts)
 
@@ -69,12 +71,12 @@ local function reconcile_resource<Lock>(
 	local receiving_changes = api.diff(prev.input, current)
 	local sending_changes = tbl.changes(receiving_changes, local_changes)
 
-	tbl.apply(conflicts, tbl.intersection(receiving_changes, sending_changes))
+	if not opts.overwrite then tbl.apply(conflicts, tbl.intersection(receiving_changes, sending_changes)) end
 	sync_logger.print_external_changes(prev.input, receiving_changes, conflicts)
 
 	-- resolve
 	local free_sending = tbl.subtraction(sending_changes, conflicts)
-	local free_receiving = tbl.subtraction(receiving_changes, conflicts)
+	local free_receiving = tbl.subtraction(receiving_changes, sending_changes)
 
 	-- push
 	local pushed_state: { [string]: any }? = nil
@@ -90,7 +92,7 @@ local function reconcile_resource<Lock>(
 	end
 
 	-- save
-	tbl.apply(prev.input, receiving_changes)
+	tbl.apply(prev.input, tbl.subtraction(receiving_changes, free_sending))
 	tbl.apply(input, tbl.intersection(free_receiving, input))
 
 	-- the cloud can silently drop a pushed field (e.g. price while not for-sale); when update echoes the

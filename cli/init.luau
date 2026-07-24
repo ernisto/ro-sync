@@ -19,6 +19,7 @@ local INPUTS_PATH = cli.str 'manifest' or 'cloud.yml'
 local LOCK_PATH = cli.str 'state' or 'cloud-state.yml'
 local force_fresh_state = cli.bool 'fresh-state'
 local detect_new = cli.bool 'detect-new'
+local overwrite = cli.bool 'overwrite'
 
 -- login
 local session = cloud.auth.apikey.login(API_KEY)
@@ -66,7 +67,8 @@ local universe_api = api.build_universe_api(session, user_session)
 local product_api = api.build_product_api(session)
 
 -- reconcile
-local sync_opts = { universe_id = resources.lock.universe_id, force_fresh_state = force_fresh_state }
+local sync_opts =
+	{ universe_id = resources.lock.universe_id, force_fresh_state = force_fresh_state, overwrite = overwrite }
 
 if resources.universe then
 	local ok, err = pcall(sync.await_reconcile_universe, universe_api, resources.universe, sync_opts)
