@@ -48,7 +48,7 @@ local function await_import_products(session: cloud.apikey_session, universe_id:
 		if known_ids[product.productId] then continue end
 		local key = product.name
 
-		if resources.manifest.products[key] then key = `{product.name}_{product.productId}` end
+		if resources.manifest.products[key] then continue end
 		local read = types.from_api_result(product)
 
 		resources.manifest.products[key] = { name = product.name, conflicts = {} }
@@ -72,7 +72,7 @@ local function await_import_places(cookie: cloud.cookie_session, universe_id: nu
 		if known_ids[place.id] then continue end
 		local key = place.name
 
-		if resources.manifest.places[key] then key = `{place.name}_{place.id}` end
+		if resources.manifest.places[key] then continue end
 		local read = types.from_place_config(place)
 
 		resources.manifest.places[key] = { display_name = place.name, conflicts = {} }
