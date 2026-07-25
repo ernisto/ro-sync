@@ -27,11 +27,27 @@ local function build_product_api(session: cloud.apikey_session): sync.product_ap
 	end
 	local function update(product, patch)
 		local path = `developer-product/{product.product_id}`
-		return http.request('PATCH', path, function()
+		http.request('PATCH', path, function()
 			return cloud.product.update(session, product, types.to_api_params(patch))
 		end)
 	end
-	return { get = get, create = create, update = update }
+	local function list(universe_id: number)
+		local products = {}
+		local token: string? = nil
+		repeat
+			local page = http.request('GET', `universes/{universe_id}/developer-products/creator`, function()
+				return cloud.product.list(session, { universe_id = universe_id }, { pageToken = token })
+			end)
+
+			for _, product in page.developerProducts do
+				table.insert(products, product)
+			end
+			token = if page.nextPageToken ~= '' then page.nextPageToken else nil
+		until token == nil
+
+		return products
+	end
+	return { get = get, create = create, update = update, list = list }
 end
 
 local function build_universe_api(session: cloud.apikey_session, user_session: cloud.cookie_session): sync.universe_api
@@ -69,11 +85,7 @@ local function build_universe_api(session: cloud.apikey_session, user_session: c
 	return { get = get, update = update }
 end
 
-local function build_place_api(
-	session: cloud.apikey_session,
-	user_session: cloud.cookie_session,
-	creator: any
-): sync.place_api
+local function build_place_api(session: cloud.apikey_session, user_session: cloud.cookie_session): sync.place_api
 	local function get(place)
 		return types.from_place_config(http.request('GET', `places/{place.place_id}`, function()
 			return cloud.place_configuration.get(user_session, { place_id = place.place_id })
@@ -99,6 +111,23 @@ local function build_place_api(
 
 		return if next(applied) ~= nil then applied else nil
 	end
+	local function list(universe_id: number)
+		local places = {}
+		local cursor: string? = nil
+		repeat
+			local page = http.request('GET', `universes/{universe_id}/places`, function()
+				return cloud.develop.list_universe_places(user_session, { universe_id = universe_id }, { cursor = cursor })
+			end)
+
+			for _, place in page.data do
+				table.insert(places, place)
+			end
+			local next_cursor = page.nextPageCursor
+			cursor = if next_cursor == '' or next_cursor == cursor then nil else next_cursor
+		until cursor == nil
+
+		return places
+	end
 	local function create(opts: sync.sync_opts, place: state.place_input): state.place_lock
 		local result = http.request('POST', 'assets (Place)', function()
 			return cloud.place.create(
@@ -115,7 +144,7 @@ local function build_place_api(
 			input = update(identity, place) or {},
 		}
 	end
-	return { create = create, get = get, update = update }
+	return { create = create, get = get, update = update, list = list }
 end
 
 -- module

@@ -1,105 +1,65 @@
-local cloud = require '@pkg/ro_cloud'
 local state = require '@lib/state'
+local sync = require '@lib/sync'
 local sync_logger = require '@lib/sync_logger'
-local tbl = require '@utils/tbl'
 local types = require '@lib/types'
 
 -- functions
-local function await_all_products(session: cloud.apikey_session, universe_id: number)
-	local products = {}
-	local token: string? = nil
-	repeat
-		local page_res = cloud.product.list(session, { universe_id = universe_id }, { pageToken = token })
-		local page = assert(page_res.ok and page_res.body, page_res.message)
-
-		for _, product in page.developerProducts do
-			table.insert(products, product)
-		end
-		token = if page.nextPageToken ~= '' then page.nextPageToken else nil
-	until token == nil
-
-	return products
-end
-
-local function await_all_places(cookie: cloud.cookie_session, universe_id: number)
-	local places = {}
-	local cursor: string? = nil
-	repeat
-		local res = cloud.develop.list_universe_places(cookie, { universe_id = universe_id }, { cursor = cursor })
-		local page = assert(res.ok and res.body, res.message)
-
-		for _, place in page.data do
-			table.insert(places, place)
-		end
-		local next_cursor = page.nextPageCursor
-		cursor = if next_cursor == '' or next_cursor == cursor then nil else next_cursor
-	until cursor == nil
-
-	return places
-end
-
-local function await_import_products(session: cloud.apikey_session, universe_id: number, resources: state.resources)
-	local known_ids: { [number]: boolean } = {}
-	for _, product_lock in resources.lock.products do
-		known_ids[product_lock.product_id] = true
+local function await_import_products(api: sync.product_api, universe_id: number, resources: state.resources)
+	local assetid_keys: { [number]: string } = {}
+	for key, product_lock in resources.lock.products do
+		assetid_keys[product_lock.product_id] = key
 	end
 
-	for _, product in await_all_products(session, universe_id) do
-		if known_ids[product.productId] then continue end
-		local key = product.name
-
-		if resources.manifest.products[key] then continue end
+	for _, product in api.list(universe_id) do
+		local known_key = assetid_keys[product.productId]
 		local read = types.from_api_result(product)
+		local key = known_key or `product_{product.productId}`
 
-		resources.manifest.products[key] = { name = product.name, conflicts = {} }
 		resources.lock.products[key] = {
 			universe_id = read.universe_id,
 			product_id = read.product_id,
 			input = read,
 		}
 
+		local input = resources.manifest.products[key]
+		resources.manifest.products[key] = if input
+			then state.mask_product(read, input)
+			else { name = product.name, conflicts = {} }
+
 		sync_logger.imported(key, product.productId)
 	end
 end
 
-local function await_import_places(cookie: cloud.cookie_session, universe_id: number, resources: state.resources)
-	local known_ids: { [number]: boolean } = {}
-	for _, place_lock in resources.lock.places do
-		known_ids[place_lock.place_id] = true
+local function await_import_places(api: sync.place_api, universe_id: number, resources: state.resources)
+	local placeid_keys: { [number]: string } = {}
+	for key, place_lock in resources.lock.places do
+		placeid_keys[place_lock.place_id] = key
 	end
 
-	for _, place in await_all_places(cookie, universe_id) do
-		if known_ids[place.id] then continue end
-		local key = place.name
-
-		if resources.manifest.places[key] then continue end
+	for _, place in api.list(universe_id) do
+		local key = placeid_keys[place.id] or place.name
 		local read = types.from_place_config(place)
 
-		resources.manifest.places[key] = { display_name = place.name, conflicts = {} }
 		resources.lock.places[key] = { universe_id = universe_id, place_id = place.id, input = read }
+
+		local input = resources.manifest.places[key]
+		resources.manifest.places[key] = if input
+			then state.mask_place(read, input)
+			else { display_name = place.name, conflicts = {} }
 
 		sync_logger.imported(key, place.id)
 	end
 end
 
-local function await_import_universe(
-	session: cloud.apikey_session,
-	cookie: cloud.cookie_session,
-	universe_id: number,
-	resources: state.resources
-)
+local function await_import_universe(api: sync.universe_api, universe_id: number, resources: state.resources)
 	if resources.lock.universe then return end
 
-	local open_res = cloud.universe.get(session, { universe_id = universe_id })
-	local open = assert(open_res.ok and open_res.body, open_res.message)
+	local read = api.get { universe_id = universe_id }
 
-	local config_res = cloud.universe_configuration.get(cookie, { universe_id = universe_id })
-	local config = assert(config_res.ok and config_res.body, config_res.message)
-
-	local read = tbl.applied(types.from_universe_api(open), types.from_universe_config(config))
-
-	resources.manifest.universe = { conflicts = {} }
 	resources.lock.universe = { universe_id = universe_id, input = read }
+
+	local input = resources.manifest.universe
+	resources.manifest.universe = if input then state.mask_universe(read, input) else { conflicts = {} }
 
 	sync_logger.imported('universe', universe_id)
 end

@@ -1,13 +1,17 @@
+local cli = require '@utils/cli'
 local cloud = require '@pkg/ro_cloud'
 local ctx_log = require '@utils/ctx_log'
+local env = require '@utils/env'
 local state = require '@lib/state'
 local stdio = require '@lune/stdio'
 local c = ctx_log.colors
 
 -- defs
 local BASEPLATE_PLACE_ID = 95206881
+local AUTO_ACCEPT = cli.bool 'yes' or cli.bool 'y'
+local INTERACTIVE_MODE = not env.str 'CI'
 
-export type creator = { user: nil, group: cloud.dev_group } | { user: { id: number, name: string }, group: nil }
+type creator = { user: nil, group: cloud.dev_group } | { user: { id: number, name: string }, group: nil }
 
 -- helpers
 local function fetch_universes(session: cloud.cookie_session, group: cloud.dev_group?): { cloud.dev_universe }
@@ -31,7 +35,7 @@ local function fetch_universes(session: cloud.cookie_session, group: cloud.dev_g
 
 	return universes
 end
-local function create_universe(session: cloud.cookie_session, creator: creator): cloud.universe_identity?
+local function create_universe(session: cloud.cookie_session, creator: creator): cloud.universe_identity
 	local res = cloud.universe.create(session, {
 		templatePlaceId = BASEPLATE_PLACE_ID,
 		groupId = creator.group and creator.group.id,
@@ -42,6 +46,8 @@ end
 
 -- functions
 local function prompt_creator(session: cloud.cookie_session): creator?
+	assert(INTERACTIVE_MODE, 'not possible to choice a subject')
+
 	local groups_res = cloud.develop.get_groups(session)
 	assert(groups_res.ok, groups_res.message)
 
@@ -64,26 +70,21 @@ local function prompt_universe(
 	session: cloud.cookie_session,
 	creator: creator,
 	universes: { cloud.dev_universe }
-): cloud.universe_identity?
-	local CREATE = `{c.green}Create a new universe{c.reset}`
-	local SKIP = `{c.green}Skip (set universe_id manually later){c.reset}`
+): cloud.universe_identity
+	assert(INTERACTIVE_MODE, 'not possible to choice a subject')
 
-	local options = { CREATE, SKIP }
+	local options = { `{c.green}Create a new universe{c.reset}` }
 	for _, universe in universes do
 		table.insert(options, `{universe.name} {c.dim}({universe.id}){c.reset}`)
 	end
 
 	local option = stdio.prompt('select', 'Select a universe to import', options)
-	if not option then return nil end
-
-	return if option == 1
-		then create_universe(session, creator)
-		elseif option == 2 then nil
-		else { universe_id = universes[option - 2].id }
+	return if option == 1 then create_universe(session, creator) else { universe_id = universes[option - 1].id }
 end
 
-export type subject = { owner: state.owner, universe: cloud.universe_identity? }
+export type subject = { owner: state.owner, universe: cloud.universe_identity }
 local function prompt_subject(session: cloud.cookie_session): subject
+	assert(INTERACTIVE_MODE, 'not possible to choice a subject')
 	local creator = prompt_creator(session) or error 'creator required'
 
 	local universes = fetch_universes(session, creator.group)
@@ -93,5 +94,37 @@ local function prompt_subject(session: cloud.cookie_session): subject
 	return { owner = owner, universe = universe }
 end
 
+local function confirm_reimport(inputs_path: string): boolean
+	if not INTERACTIVE_MODE then return false end
+	local msg =
+		`Enable {c.green}--scan-state{c.reset} to scan the whole roblox cloud state? {c.dim}(reconciles with {inputs_path}){c.reset}`
+	return stdio.prompt('confirm', msg)
+end
+
+local function confirm_regen_input(input_path: string, state_path: string): boolean
+	if AUTO_ACCEPT then return true end
+
+	if env.str 'CI' then
+		ctx_log.warn(`Running on CI, skipping input regeneration`)
+		return false
+	else
+		local msg = `No {c.bold}{input_path}{c.reset} found, regenerate it from {c.bold}{state_path}{c.reset}?`
+		return stdio.prompt('confirm', msg)
+	end
+end
+
+local function prompt_add_overwrite(): boolean
+	if AUTO_ACCEPT then return true end
+	if not INTERACTIVE_MODE then return false end
+
+	local msg = `Scanned cloud. Enable {c.green}--overwrite{c.reset} to push local changes to Roblox?`
+	return stdio.prompt('confirm', msg)
+end
+
 -- module
-return table.freeze { prompt_subject = prompt_subject }
+return table.freeze {
+	prompt_subject = prompt_subject,
+	confirm_reimport = confirm_reimport,
+	confirm_regen_input = confirm_regen_input,
+	prompt_add_overwrite = prompt_add_overwrite,
+}

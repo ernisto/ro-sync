@@ -19,9 +19,46 @@ local function files_exist(manifest_path: string): boolean
 	return fs.isFile(manifest_path)
 end
 
-local function create_resources(owner: state.owner, universe_id: number?): state.resources
+local function resolve_manifest_files(manifest: state.manifest)
+	for _, product in manifest.products do
+		if product.icon then product.icon_file = resolve_file(product.icon) end
+	end
+	for _, place in manifest.places do
+		if place.file then place.asset_file = resolve_file(place.file) end
+	end
+end
+
+local function load_input(manifest_path: string): state.manifest
+	local raw_manifest = maybe_read(manifest_path) or error(`No file at {manifest_path}`)
+
+	local manifest = state.parse_manifest(raw_manifest)
+	resolve_manifest_files(manifest)
+	return manifest
+end
+
+local function load_lock(lock_path: string): state.lock
+	local raw_lock = maybe_read(lock_path) or error(`No file at {lock_path}`)
+	return raw_lock and state.parse_lock(raw_lock)
+end
+
+local function resources_from_lock(lock: state.lock, owner: state.owner): state.resources
 	local manifest: state.manifest = { owner = owner, products = {}, places = {} }
-	local lock: state.lock = { universe_id = universe_id, products = {}, places = {} }
+
+	for key, product in lock.products do
+		local input: any = table.clone(product.input)
+		input.icon_file, input.conflicts = nil, {}
+		manifest.products[key] = input
+	end
+	for key, place in lock.places do
+		local input: any = table.clone(place.input)
+		input.asset_file, input.conflicts = nil, {}
+		manifest.places[key] = input
+	end
+	if lock.universe then
+		local input: any = table.clone(lock.universe.input)
+		input.conflicts = {}
+		manifest.universe = input
+	end
 
 	return state.build_resources(manifest, lock)
 end
@@ -33,12 +70,7 @@ local function load_resources(manifest_path: string, lock_path: string): state.r
 	local manifest = state.parse_manifest(raw_manifest)
 	local lock = state.parse_lock(raw_lock)
 
-	for _, product in manifest.products do
-		if product.icon then product.icon_file = resolve_file(product.icon) end
-	end
-	for _, place in manifest.places do
-		if place.file then place.asset_file = resolve_file(place.file) end
-	end
+	resolve_manifest_files(manifest)
 	return state.build_resources(manifest, lock)
 end
 
@@ -66,7 +98,9 @@ end
 -- module
 return table.freeze {
 	files_exist = files_exist,
-	create_resources = create_resources,
+	load_input = load_input,
+	load_state = load_lock,
+	resources_from_lock = resources_from_lock,
 	load_resources = load_resources,
 	save_resources = save_resources,
 	resolve_file = resolve_file,

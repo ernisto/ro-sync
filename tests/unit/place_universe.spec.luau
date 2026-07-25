@@ -194,26 +194,6 @@ function run.universe_detects_social_link_change()
 	expect.eq(update.calls[1][2].discord.uri, 'https://discord.gg/x')
 end
 
-function run.universe_pulls_external_change()
-	local input = sm.make_universe_input()
-	local prev = sm.make_universe_lock(sm.make_universe_input())
-
-	local api: sync.universe_api = {
-		get = function()
-			return sm.universe_mirror(sm.make_universe_input { private_server_price = 100 })
-		end,
-		update = function()
-			return nil
-		end,
-	}
-
-	local force = table.clone(opts)
-	force.force_fresh_state = true
-
-	sync.await_reconcile_universe(api, sm.make_universe(input, prev), force)
-	expect.eq(input.private_server_price, 100)
-end
-
 function run.universe_records_conflict()
 	local input = sm.make_universe_input { private_server_price = 100 }
 	local prev = sm.make_universe_lock(sm.make_universe_input())

@@ -17,7 +17,7 @@ export type input = {
 	products: { [string]: product_input },
 }
 export type lock = {
-	universe_id: number?,
+	universe_id: number,
 	universe: universe_lock?,
 	places: { [string]: place_lock },
 	products: { [string]: product_lock },

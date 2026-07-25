@@ -23,7 +23,7 @@ pesde install
 ## Running
 
 ```sh
-lune run cli -- --api-key <KEY> [--manifest cloud.yml] [--state cloud-state.yml] [--fresh-state]
+lune run cli -- --api-key <KEY> [--manifest cloud.yml] [--state cloud-state.yml] [--import]
 ```
 
 Or set `API_KEY` in a `.env` file (TOML format: `API_KEY = "..."`).

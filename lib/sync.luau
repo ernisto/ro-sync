@@ -7,7 +7,7 @@ local sync_logger = require './sync_logger'
 local types = require './types'
 
 -- defs
-export type sync_opts = { universe_id: number, force_fresh_state: boolean?, overwrite: boolean? }
+export type sync_opts = { universe_id: number, overwrite: boolean?, fresh_state: boolean? }
 type resource_lock = { universe_id: number, input: { [string]: any } }
 type resource_api = {
 	diff: ({ [string]: any }, { [string]: any }) -> { [string]: any },
@@ -21,11 +21,13 @@ export type product_api = {
 	create: (sync_opts, state.product_input) -> state.product_lock,
 	update: (cloud.product_identity, state.product_input) -> (),
 	get: (cloud.product_identity) -> types.product_read,
+	list: (universe_id: number) -> { cloud.product },
 }
 export type place_api = {
 	create: (sync_opts, state.place_input) -> state.place_lock,
 	update: (cloud.place_identity, state.place_input) -> state.place_data?,
 	get: (cloud.place_identity) -> state.place_data,
+	list: (universe_id: number) -> { cloud.place_data },
 }
 export type universe_api = {
 	update: (cloud.universe_identity, state.universe_input) -> state.universe_data?,
@@ -60,15 +62,15 @@ local function reconcile_resource<Lock>(
 	local local_changes = api.diff(prev.input, input)
 	tbl.subtract(local_changes, conflicts)
 
-	if next(local_changes) == nil and not opts.force_fresh_state then
+	if next(local_changes) == nil then
 		sync_logger.noop(key)
 		return prev
 	end
 
 	sync_logger.update(key, prev.input, local_changes)
 
-	local current = api.get(prev)
-	local receiving_changes = api.diff(prev.input, current)
+	-- fresh_state: lock already matches cloud (just scanned) or conflicts ignored, skip the fetch
+	local receiving_changes = if opts.fresh_state then {} else api.diff(prev.input, api.get(prev))
 	local sending_changes = tbl.changes(receiving_changes, local_changes)
 
 	if not opts.overwrite then tbl.apply(conflicts, tbl.intersection(receiving_changes, sending_changes)) end

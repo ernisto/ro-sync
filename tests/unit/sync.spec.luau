@@ -78,26 +78,6 @@ function run.should_push_local_changes_to_cloud()
 	expect.eq(patch.price, 200)
 end
 
-function run.should_pull_cloud_changes_into_input()
-	local input = make_input()
-	local prev = make_lock(table.clone(input))
-
-	local api: sync.product_api = {
-		create = mock.never_called 'create',
-		get = function()
-			return cloud_mirror(make_input { description = 'Dashboard edit' })
-		end,
-		update = function() end,
-	}
-
-	local force_opts = table.clone(opts)
-	force_opts.force_fresh_state = true
-
-	sync.await_reconcile_product(api, make_product(input, prev), force_opts)
-
-	expect.eq(input.description, 'Dashboard edit')
-end
-
 function run.should_record_conflict_when_both_sides_change_same_field()
 	local original_input = make_input()
 	local prev = make_lock(table.clone(original_input))
