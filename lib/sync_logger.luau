@@ -41,14 +41,14 @@ local function print_local_changes(prev: set, diffs: set, conflicts: set?)
 	print_diff(prev, diffs, conflicts)
 end
 local function print_external_changes(prev: set, diffs: set, conflicts: set?)
-	ctx_log.str ''
+	ctx_log.gap()
 	if next(diffs) == nil then return ctx_log.str(`{c.dim}no external changes`) end
 
 	ctx_log.str(`{c.dim}external changes:`)
 	print_diff(prev, diffs, conflicts)
 end
 local function print_pushed_changes(pushed: set)
-	ctx_log.str ''
+	ctx_log.gap()
 	if next(pushed) == nil then return ctx_log.str(`{c.dim}no changes to push`) end
 
 	ctx_log.str(`{c.dim}pushed changes:`)
@@ -57,7 +57,7 @@ end
 local function print_dropped_changes(dropped: set)
 	if next(dropped) == nil then return end
 
-	ctx_log.str ''
+	ctx_log.gap()
 	ctx_log.str(`{c.dim}dropped changes:`)
 	print_diff({}, dropped, {}, dropped)
 end

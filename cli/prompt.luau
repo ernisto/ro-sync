@@ -3,7 +3,6 @@ local cloud = require '@pkg/ro_cloud'
 local ctx_log = require '@utils/ctx_log'
 local env = require '@utils/env'
 local state = require '@lib/state'
-local stdio = require '@lune/stdio'
 local c = ctx_log.colors
 
 -- defs
@@ -61,8 +60,9 @@ local function prompt_creator(session: cloud.cookie_session): creator?
 		table.insert(options, `{group.name} {c.dim}({group.id}){c.reset}`)
 	end
 
-	local option = stdio.prompt('select', 'Select a creator', options)
+	local option = ctx_log.prompt('select', 'Select a creator', options)
 	if not option then return nil end
+	ctx_log.str(`Importing from {c.green}{options[option]}`)
 
 	return if option == 1 then { user = { id = user.id, name = user.name } } else { group = groups[option - 1] }
 end
@@ -78,8 +78,13 @@ local function prompt_universe(
 		table.insert(options, `{universe.name} {c.dim}({universe.id}){c.reset}`)
 	end
 
-	local option = stdio.prompt('select', 'Select a universe to import', options)
-	return if option == 1 then create_universe(session, creator) else { universe_id = universes[option - 1].id }
+	local option = assert(ctx_log.prompt('select', 'Select a universe to import', options), 'universe required')
+	if option == 1 then
+		ctx_log.str(`Creating a {c.green}New universe`)
+		return create_universe(session, creator)
+	end
+	ctx_log.str(`Importing {c.green}{options[option]}`)
+	return { universe_id = universes[option - 1].id }
 end
 
 export type subject = { owner: state.owner, universe: cloud.universe_identity }
@@ -97,8 +102,10 @@ end
 local function confirm_reimport(inputs_path: string): boolean
 	if not INTERACTIVE_MODE then return false end
 	local msg =
-		`Enable {c.green}--scan-state{c.reset} to scan the whole roblox cloud state? {c.dim}(reconciles with {inputs_path}){c.reset}`
-	return stdio.prompt('confirm', msg)
+		`Enable {c.green}--scan-state{c.reset}? {c.dim}it scan the whole roblox cloud state and reconciles with {inputs_path}`
+	local ok = ctx_log.prompt('confirm', msg)
+	ctx_log.str(if ok then `Enabled {c.green}--scan-state` else `{c.dim}Skipping cloud scan`)
+	return ok
 end
 
 local function confirm_regen_input(input_path: string, state_path: string): boolean
@@ -109,7 +116,9 @@ local function confirm_regen_input(input_path: string, state_path: string): bool
 		return false
 	else
 		local msg = `No {c.bold}{input_path}{c.reset} found, regenerate it from {c.bold}{state_path}{c.reset}?`
-		return stdio.prompt('confirm', msg)
+		local ok = ctx_log.prompt('confirm', msg)
+		ctx_log.str(if ok then `Regenerating {c.green}{input_path}` else `{c.dim}Keeping empty manifest`)
+		return ok
 	end
 end
 
@@ -117,8 +126,11 @@ local function prompt_add_overwrite(): boolean
 	if AUTO_ACCEPT then return true end
 	if not INTERACTIVE_MODE then return false end
 
-	local msg = `Scanned cloud. Enable {c.green}--overwrite{c.reset} to push local changes to Roblox?`
-	return stdio.prompt('confirm', msg)
+	local msg =
+		`Enable {c.green}--overwrite{c.reset}? {c.dim}We already pulled all changes made externally, push now means overwrite those external changes`
+	local ok = ctx_log.prompt('confirm', msg)
+	ctx_log.str(if ok then `Overwriting with local changes` else `{c.dim}Taking a time to analyze external changes`)
+	return ok
 end
 
 -- module

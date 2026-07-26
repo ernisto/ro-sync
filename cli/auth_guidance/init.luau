@@ -5,7 +5,6 @@ local env = require '@utils/env'
 local fs = require '@lune/fs'
 local roblox = require '@lune/roblox'
 local serde = require '@lune/serde'
-local stdio = require '@lune/stdio'
 local c = ctx_log.colors
 
 local introspect = require '@self/introspect'
@@ -131,13 +130,13 @@ local function prompt_api_key(): string?
 		return nil
 	end
 
-	local key = stdio.prompt('text', 'Enter a new API Key')
+	local key = ctx_log.prompt('text', 'Enter a new API Key')
 	return if key ~= '' then key else nil
 end
 
 local function confirm_save_api_key(): boolean
 	if not INTERACTIVE_MODE then return false end
-	return stdio.prompt('confirm', `Save this API Key to {c.green}.env{c.reset}?`)
+	return ctx_log.prompt('confirm', `Save this API Key to {c.green}.env{c.reset}?`)
 end
 
 local function describe(cookie: string): string?
@@ -158,14 +157,14 @@ local function prompt_user_auth(): cloud.cookie_session?
 	local ok, local_cookie = pcall(roblox.getAuthCookie)
 	if ok and local_cookie then
 		local local_who = describe(local_cookie)
-		table.insert(options, { label = `{c.green}Log in as {local_who}`, kind = 'local' })
+		table.insert(options, 1, { label = `{c.green}Log in as {local_who}`, kind = 'local' })
 	end
 	if COOKIE then
 		local env_who = describe(COOKIE)
 		local env_label = if env_who
 			then `{c.green}Log in from ROBLOX_COOKIE as {env_who}`
 			else `{c.green}Log in from ROBLOX_COOKIE{c.reset}`
-		table.insert(options, { label = env_label, kind = 'env' })
+		table.insert(options, 1, { label = env_label, kind = 'env' })
 	end
 
 	local labels = {}
@@ -174,7 +173,7 @@ local function prompt_user_auth(): cloud.cookie_session?
 	end
 
 	while true do
-		local option = stdio.prompt('select', 'Authenticate as a Roblox user', labels)
+		local option = ctx_log.prompt('select', 'Authenticate as a Roblox user', labels)
 		local kind = if option then options[option].kind else 'ignore'
 
 		if kind == 'local' then
@@ -182,7 +181,7 @@ local function prompt_user_auth(): cloud.cookie_session?
 		elseif kind == 'env' then
 			return cloud.auth.cookie.login(COOKIE :: string)
 		elseif kind == 'paste' then
-			local cookie = stdio.prompt('text', 'Paste your .ROBLOSECURITY cookie')
+			local cookie = ctx_log.prompt('text', 'Paste your .ROBLOSECURITY cookie')
 			if cookie ~= '' then return cloud.auth.cookie.login(cookie) end
 		elseif kind == 'why' then
 			ctx_log.str(
@@ -207,17 +206,18 @@ local function grant_scope(
 	target: string?
 ): introspect.introspection
 	if introspect.has_scope(info, scope, target) then return info end
-	local label = if target then `{scope} {c.dim}[{target}]{c.reset}` else scope
+	local label = if target then `({target})` else ''
 
 	if not INTERACTIVE_MODE then
-		ctx_log.warn(`API Key missing scope {c.bold}{label}{c.reset}, requests may fail`)
+		ctx_log.warn(`API Key missing scope {c.bold}{scope}{label}`)
 		return info
 	end
 
+	ctx_log.warn(`API Key missing scope {c.bold}{scope}{label}`)
+	ctx_log.str(`Grant it at {c.green}{CREDENTIALS_URL}{c.reset}, then continue`)
+
 	repeat
-		ctx_log.warn(`API Key missing scope {c.green}{label}`)
-		ctx_log.str(`Grant it at {c.green}{CREDENTIALS_URL}{c.reset}, then continue`)
-		if not stdio.prompt('confirm', 'Granted?') then return info end
+		if not ctx_log.prompt('confirm', 'Granted?') then return info end
 
 		local next_info, err = introspect.introspect(session)
 		if not next_info then

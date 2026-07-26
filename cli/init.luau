@@ -53,7 +53,9 @@ local function state_from_cloud(input: state.manifest?)
 	local universe_id = subject.universe.universe_id
 	local resources = state.build_resources(input or state.create_input(subject.owner), state.create_state(universe_id))
 
+	ctx_log.gap()
 	local target = tostring(universe_id)
+
 	key_info = auth_guidance.grant_scope(session, key_info, 'developer-product:read', target)
 	import.await_import_products(api.build_product_api(session), universe_id, resources)
 
@@ -86,7 +88,8 @@ end
 
 -- resource recovery
 if not state_ok and STATE_PATH then
-	ctx_log.warn(`Couldnt read state, {state_result}`)
+	ctx_log.gap()
+	ctx_log.warn(`Couldnt read state, {(tostring(state_result):gsub('^.-:%d+: ', ''))}`)
 	resources = state_from_cloud(input_ok and input_result or nil)
 else
 	local universe_id = state_result.universe_id
@@ -96,7 +99,7 @@ else
 	ctx_log.str(`Target universe {c.green}{universe.displayName}{c.reset} {c.dim}({universe_id})`)
 
 	if not input_ok and INPUT_PATH then
-		ctx_log.warn(`Couldnt read input, {input_result}`)
+		ctx_log.warn(`Couldnt read input, {(tostring(input_result):gsub('^.-:%d+: ', ''))}`)
 		resources = input_from_state(state_result, universe)
 	else
 		resources = state.build_resources(input_result, state_result)
@@ -113,7 +116,7 @@ if scanned_cloud then
 	overwrite = true -- push local changes over the freshly-scanned cloud state
 end
 
-ctx_log.str ''
+ctx_log.gap()
 
 local sync_opts =
 	{ universe_id = resources.lock.universe_id, overwrite = overwrite, fresh_state = scanned_cloud or fresh_state }
