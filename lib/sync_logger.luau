@@ -128,6 +128,7 @@ end
 
 -- module
 return table.freeze {
+	summary = summary,
 	print_header = print_header,
 	print_summary = print_summary,
 
