@@ -89,6 +89,10 @@ local function push_err(msg: string, backtrace: string?)
 	if backtrace then push_backtrace(backtrace) end
 end
 
+local function clear_line()
+	stdio.write '\27[1A\r\27[2K'
+end
+
 local function prompt(kind: any, raw_message: any, default_or_options: any): any
 	-- lune prepends a 2-char marker to the message and each option, so drop 2 chars to keep the tree aligned
 	local prefix = string.sub(current_prefix(), 3)
@@ -103,9 +107,7 @@ local function prompt(kind: any, raw_message: any, default_or_options: any): any
 	end
 
 	local result = stdio.prompt(kind, message, options)
-
-	-- dialoguer echoes a summary line reusing our prefixed strings; erase it so the caller can log a clean answer
-	if type(raw_message) == 'string' then stdio.write '\27[1A\r\27[2K' end
+	if type(raw_message) == 'string' then clear_line() end
 
 	return result
 end
@@ -124,6 +126,7 @@ return table.freeze {
 	gap = gap,
 	warn = warn,
 	error = push_err,
+	clear_line = clear_line,
 	backtrace = push_backtrace,
 	pcall = try_result,
 	prompt = prompt :: (() -> string) & ((kind: 'text', message: string?, default: string?) -> string) & ((kind: 'confirm', message: string, default: boolean?) -> boolean) & ((kind: 'select', message: string?, options: { string }) -> number?) & ((kind: 'multiselect', message: string?, options: { string }) -> { number }?),

@@ -29,11 +29,11 @@ local function retry_after(response: any): number?
 	return nil
 end
 
-local function log_http_result(method: string, url: string, ok: boolean, code: number?, err_msg: string?)
-	local status
-	if ok then
+local function log_http_result(method: string, url: string, ok: boolean?, code: number?, err_msg: string?)
+	local status = ''
+	if ok == true then
 		status = `{c.green}OK {code or 200}`
-	else
+	elseif ok == false then
 		local code_str = if code then tostring(code) else '???'
 		local detail = if err_msg then `: {err_msg}` else ''
 		status = `{c.red}FAIL {code_str}{detail}`
@@ -42,17 +42,19 @@ local function log_http_result(method: string, url: string, ok: boolean, code: n
 end
 local function request<T>(method: string, path: string, fn: () -> cloud.http_result<T, any>): T
 	for attempt = 0, MAX_RETRIES do
+		log_http_result(method, path)
 		local response = fn()
+
+		ctx_log.clear_line()
+		log_http_result(method, path, response.ok, response.code, response.message)
+
 		if response.ok then
-			log_http_result(method, path, true, response.code or 200)
+			ctx_log.clear_line()
 			return response.body
 		end
 
 		local interval = if attempt < MAX_RETRIES then retry_after(response) else nil
-		if interval == nil then
-			log_http_result(method, path, false, response.code, response.message)
-			error(response.message, 0)
-		end
+		if interval == nil then error(response.message, 0) end
 
 		log_http_result(method, path, false, response.code, `rate limited, retrying in {interval}s`)
 		task.wait(interval)

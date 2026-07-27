@@ -1,4 +1,5 @@
 local cloud = require '@pkg/ro_cloud'
+local http = require '@utils/http'
 
 -- defs
 export type scope = {
@@ -21,9 +22,11 @@ local INTROSPECT_URL = 'https://apis.roblox.com/api-keys/v1/introspect'
 
 -- functions
 local function introspect(session: cloud.apikey_session): (introspection?, string?)
-	local res = cloud.auth.request_json(session, 'POST', INTROSPECT_URL, nil, { apiKey = session.api_key })
-	if not res.ok then return nil, res.body.message end
-	return res.body :: introspection
+	local ok, result = pcall(http.request, 'POST', 'api-keys/introspect', function()
+		return cloud.auth.request_json(session, 'POST', INTROSPECT_URL, nil, { apiKey = session.api_key })
+	end)
+	if not ok then return nil, result :: string end
+	return result :: introspection
 end
 
 local function usable(info: introspection): boolean
