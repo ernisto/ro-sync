@@ -19,7 +19,7 @@ local sync_logger = require '@lib/sync_logger'
 -- cli
 -- local COOKIE = env.str 'ROBLOX_COOKIE' -- used by auth_guidance
 -- local AUTO_ACCEPT = cli.str 'yes' or cli.str 'y' -- used by prompt
--- local INTERACTIVE = not env.str 'CLI' -- used bu prompt
+local INTERACTIVE = not env.str 'CI' -- used bu prompt
 
 local API_KEY = cli.str 'api-key' or env.str 'API_KEY'
 local INPUT_PATH = cli.str 'manifest' or 'cloud.yml'
@@ -33,25 +33,32 @@ local state_ok, state_result = pcall(state_fs.load_state, STATE_PATH)
 local input_ok, input_result = pcall(state_fs.load_input, INPUT_PATH)
 local resources
 
-local expected_target = if state_ok then tostring(state_result.universe_id) else nil
-
 -- login
 sync_logger.print_header()
 
-local authorized = auth_guidance.authorize(API_KEY, API_KEY ~= nil, expected_target)
-if not authorized then return process.exit(1) end
+local user_session = auth_guidance.authenticate_user() :: any
+local universe_id = if state_ok
+	then state_result.universe_id
+	elseif INTERACTIVE then prompt.prompt_subject(user_session).universe.universe_id
+	else error 'universe expected'
 
-local session = authorized.session
-local key_info = authorized.key_info
-local user_session = authorized.user_session :: any -- ignore until session refactor
+local session, key_info = auth_guidance.authenticate_key(API_KEY, API_KEY ~= nil, universe_id)
+if not session or not key_info then return process.exit(1) end
+
+local universe = http.request('GET', `universe/{universe_id}`, function()
+	return cloud.universe.get(session, { universe_id = universe_id })
+end)
+ctx_log.str(`Target universe {c.green}{universe.displayName}{c.reset} {c.dim}({universe_id})`)
 
 -- ensure resources
 local function state_from_cloud(input: state.manifest?)
 	if not prompt.confirm_reimport(INPUT_PATH) then return end
 
-	local subject = prompt.prompt_subject(user_session)
-	local universe_id = subject.universe.universe_id
-	local resources = state.build_resources(input or state.create_input(subject.owner), state.create_state(universe_id))
+	local owner: state.owner = if universe.user
+		then { user = tonumber(universe.user) :: number, group = nil }
+		else { group = tonumber(universe.group) :: number, user = nil }
+
+	local resources = state.build_resources(input or state.create_input(owner), state.create_state(universe_id))
 
 	ctx_log.gap()
 	local target = tostring(universe_id)
@@ -59,7 +66,6 @@ local function state_from_cloud(input: state.manifest?)
 	key_info = auth_guidance.grant_scope(session, key_info, 'developer-product:read', target)
 	import.await_import_products(api.build_product_api(session), universe_id, resources)
 
-	key_info = auth_guidance.grant_scope(session, key_info, 'universe-places:read', target)
 	import.await_import_places(api.build_place_api(session, user_session), universe_id, resources)
 
 	key_info = auth_guidance.grant_scope(session, key_info, 'universe:read', target)
@@ -91,19 +97,11 @@ if not state_ok and STATE_PATH then
 	ctx_log.gap()
 	ctx_log.warn(`Couldnt read state, {(tostring(state_result):gsub('^.-:%d+: ', ''))}`)
 	resources = state_from_cloud(input_ok and input_result or nil)
+elseif not input_ok and INPUT_PATH then
+	ctx_log.warn(`Couldnt read input, {(tostring(input_result):gsub('^.-:%d+: ', ''))}`)
+	resources = input_from_state(state_result, universe)
 else
-	local universe_id = state_result.universe_id
-	local universe = http.request('GET', `universe/{universe_id}`, function()
-		return cloud.universe.get(session, { universe_id = universe_id })
-	end)
-	ctx_log.str(`Target universe {c.green}{universe.displayName}{c.reset} {c.dim}({universe_id})`)
-
-	if not input_ok and INPUT_PATH then
-		ctx_log.warn(`Couldnt read input, {(tostring(input_result):gsub('^.-:%d+: ', ''))}`)
-		resources = input_from_state(state_result, universe)
-	else
-		resources = state.build_resources(input_result, state_result)
-	end
+	resources = state.build_resources(input_result, state_result)
 end
 
 if not resources then

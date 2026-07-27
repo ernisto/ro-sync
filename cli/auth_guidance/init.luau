@@ -19,7 +19,6 @@ local COOKIE = env.str 'ROBLOX_COOKIE'
 local USED_SCOPES = {
 	'universe:read',
 	'universe:write',
-	'universe-places:read',
 	'universe-places:write',
 	'developer-product:read',
 	'developer-product:write',
@@ -32,15 +31,17 @@ export type session = {
 }
 
 -- helpers
-local function print_status(key_info: introspect.introspection?, expected_target: string?): string
+local function print_status(key_info: introspect.introspection?, api_key: string?, universe_id: number?): string
 	if not key_info then return 'unexisting' end
 
 	local status = if not key_info.enabled then 'disabled' elseif key_info.expired then 'expired' else 'active'
 	local color = if status == 'active' then c.green else c.red
-	local label = if status == 'active' then 'ENABLED' else string.upper(status)
 
+	local prefix = if api_key then ` {c.dim}({string.sub(api_key, 1, 8)}...){c.reset}` else ''
 	local expiry = if key_info.expirationUtcTime then ` {c.dim}(expires {key_info.expirationUtcTime}){c.reset}` else ''
-	ctx_log.str(`API Key {color}{key_info.name}{c.reset} {color}{label}{c.reset}{expiry}`)
+
+	ctx_log.str(`Logged in api key {color}{key_info.name}{prefix} {color}`)
+	ctx_log.str(`Currently {c.green}{string.upper(status)}{c.reset}{expiry}`)
 
 	local used = {}
 	for _, scope in USED_SCOPES do
@@ -71,11 +72,13 @@ local function print_status(key_info: introspect.introspection?, expected_target
 	local greens, grays = {}, {}
 	for _, group in groups do
 		local targets = group.targets
-		local suffix = ''
+
+		-- a scope only helps if it targets our universe (or everything)
+		local applies = not targets or #targets == 0 or targets[1] == '*'
 		if targets and #targets > 0 and targets[1] ~= '*' then
-			-- hide the target when it's exactly the universe we're going to sync
-			local only_expected = #targets == 1 and targets[1] == expected_target
-			if not only_expected then suffix = `({table.concat(targets, ',')})` end
+			for _, target in targets do
+				if target == tostring(universe_id) then applies = true end
+			end
 		end
 
 		local any_used = false
@@ -86,19 +89,22 @@ local function print_status(key_info: introspect.introspection?, expected_target
 			end
 		end
 
+		-- only show the target on used scopes granted for a different universe
+		local suffix = if any_used and not applies then `({table.concat(targets, ',')})` else ''
+
 		local ops = table.concat(group.ops, '/')
-		if any_used then
-			table.insert(greens, `{c.green}{group.name}:{ops}{suffix}{c.reset}`)
+		if any_used and applies then
+			table.insert(greens, `{c.green}{group.name}:{ops}{c.reset}`)
 		else
-			-- unused scopes don't need their target shown
-			table.insert(grays, `{c.dim}{group.name}:{ops}{c.reset}`)
+			table.insert(grays, `{c.dim}{group.name}:{ops}{suffix}{c.reset}`)
 		end
 	end
 
 	-- merge missing operations we rely on by scope name
 	local missing, missing_index = {}, {}
+	local target = if universe_id then tostring(universe_id) else nil
 	for _, scope in USED_SCOPES do
-		if introspect.has_scope(key_info, scope) then continue end
+		if introspect.has_scope(key_info, scope, target) then continue end
 		local name, op = string.match(scope, '^(.*):([^:]+)$')
 
 		local group = missing_index[name]
@@ -172,9 +178,15 @@ local function prompt_user_auth(): cloud.cookie_session?
 		table.insert(labels, option.label)
 	end
 
+	local replied_why = false
 	while true do
 		local option = ctx_log.prompt('select', 'Authenticate as a Roblox user', labels)
 		local kind = if option then options[option].kind else 'ignore'
+
+		if replied_why then
+			ctx_log.clear_line()
+			ctx_log.clear_line()
+		end
 
 		if kind == 'local' then
 			return cloud.auth.cookie.login(local_cookie :: string)
@@ -184,12 +196,9 @@ local function prompt_user_auth(): cloud.cookie_session?
 			local cookie = ctx_log.prompt('text', 'Paste your .ROBLOSECURITY cookie')
 			if cookie ~= '' then return cloud.auth.cookie.login(cookie) end
 		elseif kind == 'why' then
-			ctx_log.str(
-				`Some endpoints {c.dim}(universe/place config, listing & creating universes/places){c.reset} arent`
-			)
-			ctx_log.str(
-				`covered by the Open Cloud API Key, so ro-sync acts {c.bold}as you{c.reset} via a Roblox cookie`
-			)
+			ctx_log.str(`{c.dim}Endpoints for universe config and place config, arent covered by the Open Cloud API`)
+			ctx_log.str(`{c.dim}So ro-sync acts {c.green}as you{c.reset}{c.dim} via a Roblox cookie`)
+			replied_why = true
 		else
 			return nil
 		end
@@ -197,8 +206,6 @@ local function prompt_user_auth(): cloud.cookie_session?
 end
 
 -- functions
-
--- ensure the key has `scope` (on `target`), prompting the user to grant it and re-introspecting
 local function grant_scope(
 	session: cloud.apikey_session,
 	info: introspect.introspection,
@@ -231,15 +238,13 @@ local function grant_scope(
 	return info
 end
 
--- interactive introspection loop; returns the usable session, its key info and the resolved key
-local function login(
+local function prompt_valid_api_key(
 	api_key: string?,
-	expected_target: string?
+	universe_id: number?
 ): (cloud.apikey_session?, introspect.introspection?, string?)
 	local session, key_info, key_err
 	repeat
 		if api_key then
-			ctx_log.str(`Introspecting API Key {c.dim}{string.sub(api_key, 1, 8)}...`)
 			session = cloud.auth.apikey.login(api_key)
 			key_info, key_err = introspect.introspect(session)
 		end
@@ -250,7 +255,7 @@ local function login(
 			ctx_log.warn(key_err :: any)
 		end
 
-		local status = print_status(key_info, expected_target)
+		local status = print_status(key_info, api_key, universe_id)
 		if status == 'active' then break end
 
 		if api_key then
@@ -267,12 +272,27 @@ local function login(
 	return session, key_info, api_key
 end
 
--- runs the full auth flow: introspect key, offer to persist it, then authenticate a user
-local function authorize(api_key: string?, provided: boolean, expected_target: string?): session?
-	local api_session, key_info, resolved = login(api_key, expected_target)
+local function authenticate_user(): cloud.cookie_session?
+	local user_session = prompt_user_auth()
+	if user_session then
+		local me = cloud.auth.get_user_info(user_session)
+		if me.ok then
+			ctx_log.str(`Authenticated as {c.green}@{me.body.name} {c.dim}({me.body.id})`)
+		else
+			ctx_log.warn(`Couldnt authenticate, {me.message}`)
+		end
+	end
+	return user_session
+end
+
+local function authenticate_key(
+	api_key: string?,
+	provided: boolean,
+	universe_id: number?
+): (cloud.apikey_session?, introspect.introspection?)
+	local api_session, key_info, resolved = prompt_valid_api_key(api_key, universe_id)
 	if not api_session or not key_info or not resolved then return nil end
 
-	-- offer to persist a freshly entered key
 	if not provided and confirm_save_api_key() then
 		local dotenv = if fs.isFile '.env' then serde.decode('toml', fs.readFile '.env') else {}
 		dotenv.API_KEY = resolved
@@ -280,18 +300,12 @@ local function authorize(api_key: string?, provided: boolean, expected_target: s
 		ctx_log.str(`Saved API Key to {c.bold}.env`)
 	end
 
-	local user_session = prompt_user_auth()
-	if user_session then
-		local me = cloud.auth.get_user_info(user_session)
-		if me.ok then
-			ctx_log.str(`Authenticated as {c.green}@{me.body.name}{c.reset} {c.dim}({me.body.id})`)
-		else
-			ctx_log.warn(`Couldnt verify user: {me.message}`)
-		end
-	end
-
-	return { session = api_session, key_info = key_info, user_session = user_session }
+	return api_session, key_info
 end
 
 -- module
-return table.freeze { authorize = authorize, grant_scope = grant_scope }
+return table.freeze {
+	authenticate_user = authenticate_user,
+	authenticate_key = authenticate_key,
+	grant_scope = grant_scope,
+}

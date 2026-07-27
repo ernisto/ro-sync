@@ -60,9 +60,9 @@ local function prompt_creator(session: cloud.cookie_session): creator?
 		table.insert(options, `{group.name} {c.dim}({group.id}){c.reset}`)
 	end
 
-	local option = ctx_log.prompt('select', 'Select a creator', options)
+	local option = ctx_log.prompt('select', 'Browse games of creator', options)
 	if not option then return nil end
-	ctx_log.str(`Importing from {c.green}{options[option]}`)
+	ctx_log.str(`Browsing games of {c.green}{options[option]}`)
 
 	return if option == 1 then { user = { id = user.id, name = user.name } } else { group = groups[option - 1] }
 end
@@ -78,12 +78,11 @@ local function prompt_universe(
 		table.insert(options, `{universe.name} {c.dim}({universe.id}){c.reset}`)
 	end
 
-	local option = assert(ctx_log.prompt('select', 'Select a universe to import', options), 'universe required')
+	local option = ctx_log.prompt('select', 'Select the universe', options) or error 'universe required'
 	if option == 1 then
 		ctx_log.str(`Creating a {c.green}New universe`)
 		return create_universe(session, creator)
 	end
-	ctx_log.str(`Importing {c.green}{options[option]}`)
 	return { universe_id = universes[option - 1].id }
 end
 
@@ -94,6 +93,7 @@ local function prompt_subject(session: cloud.cookie_session): subject
 
 	local universes = fetch_universes(session, creator.group)
 	local universe = prompt_universe(session, creator, universes)
+	ctx_log.clear_line()
 
 	local owner = if creator.user then { user = creator.user.id } else { group = assert(creator.group).id }
 	return { owner = owner, universe = universe }
