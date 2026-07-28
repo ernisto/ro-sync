@@ -1,9 +1,9 @@
 name = "ernisto/ro_sync"
-version = "0.1.0-alpha.1"
+version = "0.1.0-alpha.2"
 license = "MIT"
 includes = [
-  "cli.luau",
   "utils/**",
+  "cli/**",
   "lib/**",
   "pesde.toml",
   "README.md",
