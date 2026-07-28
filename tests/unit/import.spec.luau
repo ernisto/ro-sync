@@ -1,6 +1,6 @@
 local expect = require '@test/expect'
-local mock = require '@test/mock'
 local import = require '@lib/import'
+local mock = require '@test/mock'
 
 local UNIVERSE_ID = 1000
 local PRODUCT_ID = 2000

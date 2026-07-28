@@ -116,7 +116,11 @@ local function build_place_api(session: cloud.apikey_session, user_session: clou
 		local cursor: string? = nil
 		repeat
 			local page = http.request('GET', `universes/{universe_id}/places`, function()
-				return cloud.develop.list_universe_places(user_session, { universe_id = universe_id }, { cursor = cursor })
+				return cloud.develop.list_universe_places(
+					user_session,
+					{ universe_id = universe_id },
+					{ cursor = cursor }
+				)
 			end)
 
 			for _, place in page.data do
