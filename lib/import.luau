@@ -10,7 +10,8 @@ local function await_import_products(api: sync.product_api, universe_id: number,
 		assetid_keys[product_lock.product_id] = key
 	end
 
-	for _, product in api.list(universe_id) do
+	local list = assert(api.list, 'product api missing list')
+	for _, product in list(universe_id) do
 		local known_key = assetid_keys[product.productId]
 		local read = types.from_api_result(product)
 		local key = known_key or `product_{product.productId}`
@@ -36,7 +37,8 @@ local function await_import_places(api: sync.place_api, universe_id: number, res
 		placeid_keys[place_lock.place_id] = key
 	end
 
-	for _, place in api.list(universe_id) do
+	local list = assert(api.list, 'place api missing list')
+	for _, place in list(universe_id) do
 		local key = placeid_keys[place.id] or place.name
 		local read = types.from_place_config(place)
 

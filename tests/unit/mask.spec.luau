@@ -29,7 +29,7 @@ function run.mask_product_preserves_conflicts_icon_addons()
 
 	local out = state.mask_product(read, input)
 	expect.eq(out.icon, 'icon.png')
-	expect.eq(out.addons.foo, 1)
+	expect.eq(assert(out.addons).foo, 1)
 	expect.eq(out.conflicts.name, 'x')
 end
 

@@ -21,13 +21,13 @@ export type product_api = {
 	create: (sync_opts, state.product_input) -> state.product_lock,
 	update: (cloud.product_identity, state.product_input) -> (),
 	get: (cloud.product_identity) -> types.product_read,
-	list: (universe_id: number) -> { cloud.product },
+	list: ((universe_id: number) -> { cloud.product })?,
 }
 export type place_api = {
 	create: (sync_opts, state.place_input) -> state.place_lock,
 	update: (cloud.place_identity, state.place_input) -> state.place_data?,
 	get: (cloud.place_identity) -> state.place_data,
-	list: (universe_id: number) -> { cloud.place_data },
+	list: ((universe_id: number) -> { cloud.place_data })?,
 }
 export type universe_api = {
 	update: (cloud.universe_identity, state.universe_input) -> state.universe_data?,
