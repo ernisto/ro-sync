@@ -19,7 +19,7 @@ local COOKIE = env.str 'ROBLOX_COOKIE'
 local USED_SCOPES = {
 	'universe:read',
 	'universe:write',
-	'universe-places:write',
+	'universe.place:write',
 	'developer-product:read',
 	'developer-product:write',
 }

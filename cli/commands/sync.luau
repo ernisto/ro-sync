@@ -134,7 +134,7 @@ end
 
 local place_api = api.build_place_api(session, user_session)
 if next(resources.places) then
-	key_info = auth_guidance.grant_scope(session, key_info, 'universe-places:write', write_target)
+	key_info = auth_guidance.grant_scope(session, key_info, 'universe.place:write', write_target)
 end
 for _, place in resources.places do
 	local ok, err = pcall(sync.await_reconcile_place, place_api, place, sync_opts)
