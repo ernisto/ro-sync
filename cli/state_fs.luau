@@ -10,7 +10,7 @@ local function maybe_read(path: string): buffer?
 	return fs.isFile(path) and buffer.fromstring(fs.readFile(path)) or nil
 end
 
-local function resolve_file(path: string): state.file_input?
+local function resolve_file(path: string): state.input_file?
 	local content = maybe_read(path)
 	return content and table.freeze { content = content, hash = serde.hash('sha256', content) }
 end

@@ -1,20 +1,20 @@
+local place = require '@lib/resources/place'
+local product = require '@lib/resources/product'
 local state = require '@lib/state'
-local sync = require '@lib/sync'
 local sync_logger = require '@lib/sync_logger'
-local types = require '@lib/types'
+local universe = require '@lib/resources/universe'
 
 -- functions
-local function await_import_products(api: sync.product_api, universe_id: number, resources: state.resources)
+local function await_import_products(api: product.api, universe_id: number, resources: state.resources)
 	local assetid_keys: { [number]: string } = {}
 	for key, product_lock in resources.lock.products do
 		assetid_keys[product_lock.product_id] = key
 	end
 
-	local list = assert(api.list, 'product api missing list')
-	for _, product in list(universe_id) do
-		local known_key = assetid_keys[product.productId]
-		local read = types.from_api_result(product)
-		local key = known_key or `product_{product.productId}`
+	for _, raw in api.list(universe_id) do
+		local known_key = assetid_keys[raw.productId]
+		local read = product.from_api_result(raw)
+		local key = known_key or `product_{raw.productId}`
 
 		resources.lock.products[key] = {
 			universe_id = read.universe_id,
@@ -25,39 +25,42 @@ local function await_import_products(api: sync.product_api, universe_id: number,
 		local input = resources.manifest.products[key]
 		resources.manifest.products[key] = if input
 			then state.mask_product(read, input)
-			else { name = product.name, conflicts = {} }
+			else { name = raw.name, conflicts = {} }
 
-		sync_logger.imported(key, product.productId)
+		sync_logger.imported(key, raw.productId)
 	end
 end
 
-local function await_import_places(api: sync.place_api, universe_id: number, resources: state.resources)
+local function await_import_places(api: place.api, universe_id: number, resources: state.resources)
 	local placeid_keys: { [number]: string } = {}
 	for key, place_lock in resources.lock.places do
 		placeid_keys[place_lock.place_id] = key
 	end
 
-	local list = assert(api.list, 'place api missing list')
-	for _, place in list(universe_id) do
-		local key = placeid_keys[place.id] or place.name
-		local read = types.from_place_config(place)
+	for _, raw in api.list(universe_id) do
+		local known_key = placeid_keys[raw.id]
+		local read = place.from_place_config(raw)
+		local key = known_key or `place_{raw.id}`
 
-		resources.lock.places[key] = { universe_id = universe_id, place_id = place.id, input = read }
+		resources.lock.places[key] = {
+			universe_id = universe_id,
+			place_id = raw.id,
+			input = read,
+		}
 
 		local input = resources.manifest.places[key]
 		resources.manifest.places[key] = if input
 			then state.mask_place(read, input)
-			else { display_name = place.name, conflicts = {} }
+			else { display_name = raw.name, conflicts = {} }
 
-		sync_logger.imported(key, place.id)
+		sync_logger.imported(key, raw.id)
 	end
 end
 
-local function await_import_universe(api: sync.universe_api, universe_id: number, resources: state.resources)
+local function await_import_universe(api: universe.api, universe_id: number, resources: state.resources)
 	if resources.lock.universe then return end
 
 	local read = api.get { universe_id = universe_id }
-
 	resources.lock.universe = { universe_id = universe_id, input = read }
 
 	local input = resources.manifest.universe

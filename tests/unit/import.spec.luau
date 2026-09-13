@@ -98,11 +98,13 @@ function run.imports_new_place_into_lock_and_manifest()
 
 	import.await_import_places(api, UNIVERSE_ID, resources)
 
-	local lock = resources.lock.places.Start
+	local key = `place_{PLACE_ID}`
+	local lock = resources.lock.places[key]
+
 	expect.truthy(lock, 'lock entry created under place name key')
 	expect.eq(lock.place_id, PLACE_ID)
 	expect.eq(lock.input.server_size, 50) -- maxPlayerCount mapped to server_size
-	expect.eq(resources.manifest.places.Start.display_name, 'Start')
+	expect.eq(resources.manifest.places[key].display_name, 'Start')
 end
 
 -- universe

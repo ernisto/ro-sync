@@ -1,10 +1,11 @@
-local cloud = require '@pkg/ro_cloud'
 local ctx_log = require '@utils/ctx_log'
 local tbl = require '@utils/tbl'
 
+local place = require './resources/place'
+local product = require './resources/product'
 local state = require './state'
 local sync_logger = require './sync_logger'
-local types = require './types'
+local universe = require './resources/universe'
 
 -- defs
 export type sync_opts = { universe_id: number, overwrite: boolean?, fresh_state: boolean? }
@@ -15,23 +16,6 @@ type resource_api = {
 	update: (any, { [string]: any }) -> { [string]: any }?,
 	create: ((sync_opts, any) -> resource_lock)?,
 	validate: (({ [string]: any }) -> ())?,
-}
-
-export type product_api = {
-	create: (sync_opts, state.product_input) -> state.product_lock,
-	update: (cloud.product_identity, state.product_input) -> (),
-	get: (cloud.product_identity) -> types.product_read,
-	list: ((universe_id: number) -> { cloud.product })?,
-}
-export type place_api = {
-	create: (sync_opts, state.place_input) -> state.place_lock,
-	update: (cloud.place_identity, state.place_input) -> state.place_data?,
-	get: (cloud.place_identity) -> state.place_data,
-	list: ((universe_id: number) -> { cloud.place_data })?,
-}
-export type universe_api = {
-	update: (cloud.universe_identity, state.universe_input) -> state.universe_data?,
-	get: (cloud.universe_identity) -> state.universe_data,
 }
 
 -- functions
@@ -109,7 +93,7 @@ local function reconcile_resource<Lock>(
 	return prev
 end
 
-local function await_reconcile_product(api: product_api, product: state.product, opts: sync_opts): state.product_lock
+local function await_reconcile_product(api: product.api, product: state.product, opts: sync_opts): product.product_lock
 	local prev = product.lock
 
 	local function validate(input)
@@ -121,7 +105,7 @@ local function await_reconcile_product(api: product_api, product: state.product,
 	return reconcile_resource(api_impl :: any, product.key, product.input, prev, opts)
 end
 
-local function await_reconcile_place(api: place_api, place: state.place, opts: sync_opts): state.place_lock
+local function await_reconcile_place(api: place.api, place: state.place, opts: sync_opts): place.place_lock
 	local prev = place.lock
 
 	local function validate(input)
@@ -134,10 +118,10 @@ local function await_reconcile_place(api: place_api, place: state.place, opts: s
 end
 
 local function await_reconcile_universe(
-	api: universe_api,
+	api: universe.api,
 	universe: state.universe,
 	opts: sync_opts
-): state.universe_lock
+): universe.universe_lock
 	local prev = universe.lock or { universe_id = opts.universe_id, input = api.get { universe_id = opts.universe_id } }
 
 	local api_impl = { diff = state.diff_universe, get = api.get, update = api.update }

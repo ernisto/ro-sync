@@ -1,12 +1,12 @@
 local expect = require '@test/expect'
 local fs = require '@lune/fs'
 local mock = require '@test/mock'
+local product = require '@lib/resources/product'
 local serde = require '@lune/serde'
 local sm = require '@test/sync_mock'
 local state = require '@lib/state'
 local state_fs = require '@cli/state_fs'
 local sync = require '@lib/sync'
-local types = require '@lib/types'
 
 -- defs
 local OPTS: sync.sync_opts = { universe_id = sm.UNIVERSE_ID }
@@ -25,7 +25,7 @@ local function write_files(manifest: any, lock: any)
 	fs.writeFile(TMP_LOCK, serde.encode('yaml', lock, true))
 end
 
-local function run_sync(api: sync.product_api, opts: sync.sync_opts)
+local function run_sync(api: product.api, opts: sync.sync_opts)
 	local resources = state_fs.load_resources(TMP_MANIFEST, TMP_LOCK)
 	for _, product in resources.products do
 		product.lock = sync.await_reconcile_product(api, product, opts)
@@ -52,18 +52,23 @@ function run.field_change_is_noop_on_second_sync()
 	local cloud_state = sm.make_input { name = 'Old Name', price = 100 }
 
 	local first_update = mock.fn()
-	run_sync({
+	local api: any = {
 		create = mock.never_called 'create',
 		get = function()
 			return sm.cloud_mirror(cloud_state)
 		end,
 		update = first_update,
-	}, OPTS)
+	}
+
+	run_sync(api, OPTS)
 	expect.eq(first_update.call_count, 1)
 
-	local api =
-		{ create = mock.never_called 'create', get = mock.never_called 'get', update = mock.never_called 'update' }
-	run_sync(api, OPTS)
+	local api2: any = {
+		create = mock.never_called 'create',
+		get = mock.never_called 'get',
+		update = mock.never_called 'update',
+	}
+	run_sync(api2, OPTS)
 
 	cleanup()
 end
@@ -84,18 +89,22 @@ function run.icon_hash_is_noop_on_second_sync()
 	local cloud_state = sm.make_input { icon = sm.make_icon_lock(sm.ICON_ID, nil) }
 	local first_update = mock.fn()
 
-	run_sync({
+	local api1: any = {
 		create = mock.never_called 'create',
 		get = function()
 			return sm.cloud_mirror(cloud_state)
 		end,
 		update = first_update,
-	}, OPTS)
+	}
+	run_sync(api1, OPTS)
 	expect.eq(first_update.call_count, 1)
 
-	local api =
-		{ create = mock.never_called 'create', get = mock.never_called 'get', update = mock.never_called 'update' }
-	run_sync(api, OPTS)
+	local api2: any = {
+		create = mock.never_called 'create',
+		get = mock.never_called 'get',
+		update = mock.never_called 'update',
+	}
+	run_sync(api2, OPTS)
 
 	cleanup()
 end
@@ -111,13 +120,14 @@ function run.create_writes_product_id_to_lock()
 	fs.writeFile(TMP_MANIFEST, raw_content)
 	fs.writeFile(TMP_LOCK, `version: 1\nuniverse_id: {sm.UNIVERSE_ID}\nproducts: \{\{}}\n`)
 
-	run_sync({
+	local api: any = {
 		create = function()
 			return { universe_id = sm.UNIVERSE_ID, product_id = sm.PRODUCT_ID, input = { name = 'Pack' } } :: any
 		end,
 		get = mock.never_called 'get',
 		update = mock.never_called 'update',
-	}, OPTS)
+	}
+	run_sync(api, OPTS)
 
 	local after = state_fs.load_resources(TMP_MANIFEST, TMP_LOCK)
 	local lock = after.lock.products.test_pack
@@ -138,16 +148,17 @@ function run.create_with_icon_writes_assetid_and_hash_to_lock()
 	fs.writeFile(TMP_MANIFEST, raw_content)
 	fs.writeFile(TMP_LOCK, `version: 1\nuniverse_id: {sm.UNIVERSE_ID}\nproducts: \{\{}}\n`)
 
-	run_sync({
+	local api: any = {
 		create = function(_, data)
-			return types.to_product_lock(
+			return product.to_product_lock(
 				sm.make_product_read { icon_file = { assetid = sm.ICON_ID }, name = 'Pack' },
 				data
 			)
 		end,
 		get = mock.never_called 'get',
 		update = mock.never_called 'update',
-	}, OPTS)
+	}
+	run_sync(api, OPTS)
 
 	local after = state_fs.load_resources(TMP_MANIFEST, TMP_LOCK)
 	local icon = after.lock.products.test_pack.input.icon_file
@@ -171,13 +182,14 @@ function run.conflict_is_written_to_manifest()
 		{ version = 1, universe_id = sm.UNIVERSE_ID, products = { test_pack = test_product } }
 	)
 
-	run_sync({
+	local api: any = {
 		create = mock.never_called 'create',
 		get = function()
 			return sm.cloud_mirror(sm.make_input { name = 'Cloud Name', price = 100 })
 		end,
 		update = function() end,
-	}, OPTS)
+	}
+	run_sync(api, OPTS)
 
 	local after = state_fs.load_resources(TMP_MANIFEST, TMP_LOCK)
 	local conflicts = after.products[1].input.conflicts
@@ -201,13 +213,14 @@ function run.cloud_pull_is_written_to_manifest()
 		products = { test_pack = { name = 'New Name', price = 100, description = 'Old' } },
 	}, { version = 1, universe_id = sm.UNIVERSE_ID, products = { test_pack = test_product } })
 
-	run_sync({
+	local api: any = {
 		create = mock.never_called 'create',
 		get = function()
 			return sm.cloud_mirror(sm.make_input { name = 'Old Name', price = 100, description = 'From Cloud' })
 		end,
 		update = function() end,
-	}, OPTS)
+	}
+	run_sync(api, OPTS)
 
 	local after = state_fs.load_resources(TMP_MANIFEST, TMP_LOCK)
 	expect.eq(after.products[1].input.description, 'From Cloud')

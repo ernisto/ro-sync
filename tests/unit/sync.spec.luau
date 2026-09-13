@@ -26,7 +26,7 @@ function run.should_create_product_when_no_prev_lock()
 	local input = make_input()
 	local created: any = nil
 
-	local api: sync.product_api = {
+	local api: any = {
 		create = function(_, data)
 			created = data
 			return { universe_id = UNIVERSE_ID, product_id = PRODUCT_ID, input = { name = data.name } } :: any
@@ -46,7 +46,7 @@ function run.should_skip_api_when_input_unchanged()
 	local input = make_input()
 	local prev = make_lock(table.clone(input))
 
-	local api: sync.product_api = {
+	local api: any = {
 		create = mock.never_called 'create',
 		get = mock.never_called 'get should not be called when nothing changed',
 		update = mock.never_called 'update',
@@ -62,7 +62,7 @@ function run.should_push_local_changes_to_cloud()
 	local new_input = make_input { name = 'New Name', price = 200 }
 	local update = mock.fn()
 
-	local api: sync.product_api = {
+	local api: any = {
 		create = mock.never_called 'create',
 		get = function()
 			return cloud_mirror(original_input)
@@ -83,7 +83,7 @@ function run.should_record_conflict_when_both_sides_change_same_field()
 	local prev = make_lock(table.clone(original_input))
 	local new_input = make_input { name = 'Local Name' }
 
-	local api: sync.product_api = {
+	local api: any = {
 		create = mock.never_called 'create',
 		get = function()
 			return cloud_mirror(make_input { name = 'Cloud Name' })
@@ -103,7 +103,7 @@ function run.should_not_push_fields_listed_in_conflicts()
 	local new_input = make_input { name = 'Local Name', conflicts = { name = 'Cloud Name' } }
 	local update = mock.fn()
 
-	local api: sync.product_api = {
+	local api: any = {
 		create = mock.never_called 'create',
 		get = function()
 			return cloud_mirror(make_input { name = 'Cloud Name' })
@@ -123,7 +123,7 @@ function run.should_not_pull_new_fields_into_input()
 	local prev = make_lock(make_input())
 
 	-- cloud changed an existing field (description) AND exposes an untracked field
-	local api: sync.product_api = {
+	local api: any = {
 		create = mock.never_called 'create',
 		get = function()
 			return cloud_mirror(make_input { description = 'Dashboard edit', store_page_enabled = true })
@@ -144,7 +144,7 @@ function run.icon_not_pushed_when_hash_matches_lock()
 	local input = make_input { icon_file = make_icon_input(ICON_HASH_A) }
 	local prev = make_lock(make_input { icon_file = make_icon_lock(ICON_ID, ICON_HASH_A) })
 
-	local api: sync.product_api = {
+	local api: any = {
 		create = mock.never_called 'create',
 		get = mock.never_called 'get',
 		update = mock.never_called 'update',
@@ -159,7 +159,7 @@ function run.icon_pushed_when_hash_differs_from_lock()
 	local prev = make_lock(make_input { icon_file = make_icon_lock(ICON_ID, ICON_HASH_A) })
 	local update = mock.fn()
 
-	local api: sync.product_api = {
+	local api: any = {
 		create = mock.never_called 'create',
 		get = function()
 			return cloud_mirror(make_input { icon = make_icon_lock(ICON_ID, nil) })
@@ -177,7 +177,7 @@ function run.icon_lock_updated_to_new_icon_after_push()
 	local input = make_input { icon_file = new_icon }
 	local prev = make_lock(make_input { icon_file = make_icon_lock(ICON_ID, ICON_HASH_A) })
 
-	local api: sync.product_api = {
+	local api: any = {
 		create = mock.never_called 'create',
 		get = function()
 			return cloud_mirror(make_input { icon = make_icon_lock(ICON_ID, nil) })
@@ -197,7 +197,7 @@ function run.icon_pushed_when_lock_has_no_hash()
 	local prev = make_lock(make_input { icon_file = make_icon_lock(ICON_ID, nil) })
 	local update = mock.fn()
 
-	local api: sync.product_api = {
+	local api: any = {
 		create = mock.never_called 'create',
 		get = function()
 			return cloud_mirror(make_input { icon = make_icon_lock(ICON_ID, nil) })

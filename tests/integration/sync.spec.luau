@@ -2,10 +2,10 @@ local cloud = require '@pkg/ro_cloud'
 local env = require '@utils/env'
 local expect = require '@test/expect'
 local mock = require '@test/mock'
+local product_res = require '@lib/resources/product'
 local sm = require '@test/sync_mock'
 local state_fs = require '@cli/state_fs'
 local sync = require '@lib/sync'
-local types = require '@lib/types'
 
 local LOCK_PATH = 'tests/integration/assets/cloud-state.yml'
 local MANIFEST_PATH = 'tests/integration/assets/cloud.yml'
@@ -17,17 +17,17 @@ local resources = state_fs.load_resources(MANIFEST_PATH, LOCK_PATH)
 
 -- real API adapter — mirrors cli.luau exactly
 local session = cloud.auth.apikey.login(API_KEY)
-local api: sync.product_api = {
+local api: any = {
 	get = function(product)
 		local res = cloud.product.get(session, product)
 		assert(res.ok, res.message)
-		return types.from_api_result(res.body)
+		return product_res.from_api_result(res.body)
 	end,
 	create = function()
 		error 'create should not be called in integration tests'
 	end,
 	update = function(product, patch)
-		cloud.product.update(session, product, types.to_api_params(patch))
+		cloud.product.update(session, product, product_res.to_api_params(patch))
 	end,
 }
 

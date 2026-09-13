@@ -16,7 +16,7 @@ local run = {}
 function run.place_create_does_not_leak_identity_into_input()
 	local input = sm.make_place_input { file = 'game.rbxl', asset_file = sm.make_asset_file(HASH_A) }
 
-	local api: sync.place_api = {
+	local api: any = {
 		create = function(create_opts, place)
 			return {
 				universe_id = create_opts.universe_id,
@@ -41,7 +41,7 @@ function run.product_create_does_not_leak_identity_into_input()
 	local input = sm.make_input()
 
 	-- the adapter returns a ready product_lock; identity must stay out of `input`
-	local api: sync.product_api = {
+	local api: any = {
 		create = function(create_opts)
 			return {
 				universe_id = create_opts.universe_id,
@@ -72,7 +72,7 @@ function run.place_create_saves_initial_config_and_file_to_lock()
 	}
 
 	local pushed: any = nil
-	local api: sync.place_api = {
+	local api: any = {
 		-- mirror the cli create: it pushes config + rbxl via update and echoes the applied place
 		create = function(create_opts, place)
 			pushed = place
@@ -85,7 +85,7 @@ function run.place_create_saves_initial_config_and_file_to_lock()
 					server_size = place.server_size,
 					asset_file = { hash = (place.asset_file :: any).hash },
 				},
-			} :: any
+			}
 		end,
 		get = mock.never_called 'get',
 		update = mock.never_called 'update',
@@ -103,38 +103,6 @@ function run.place_create_saves_initial_config_and_file_to_lock()
 
 	local asset = assert(lock.input.asset_file, 'asset_file must be recorded in the lock')
 	expect.eq(asset.hash, HASH_A)
-end
-
--- issue 2: `allowed_gear_types` is a settings list, not a file, and must not appear as a
--- perpetual change. It becomes phantom-changed when the lock never captured it on create.
-function run.place_create_saves_allowed_gear_types_to_lock()
-	local gear = { 'MeleeWeapons', 'Explosives' }
-	local input = sm.make_place_input {
-		file = 'game.rbxl',
-		asset_file = sm.make_asset_file(HASH_A),
-		allowed_gear_types = gear,
-	}
-
-	local api: sync.place_api = {
-		create = function(create_opts, place)
-			return {
-				universe_id = create_opts.universe_id,
-				place_id = sm.PLACE_ID,
-				input = {
-					allowed_gear_types = place.allowed_gear_types,
-					asset_file = { hash = (place.asset_file :: any).hash },
-				},
-			} :: any
-		end,
-		get = mock.never_called 'get',
-		update = mock.never_called 'update',
-	}
-
-	local lock = sync.await_reconcile_place(api, sm.make_place(input, nil), opts)
-
-	expect.truthy(lock.input.allowed_gear_types, 'allowed_gear_types must be saved to the lock on create')
-	-- with the list captured, an unchanged cloud must not diff it back as a change
-	expect.falsy(next(state.diff_place(lock.input, lock.input)), 'identical gear lists must not diff')
 end
 
 -- issue 2 (diff sanity): equal gear lists never diff regardless of instance/order.

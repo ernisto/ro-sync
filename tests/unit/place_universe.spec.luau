@@ -16,7 +16,7 @@ function run.place_pushes_settings_change()
 	local prev = sm.make_place_lock(sm.make_place_input())
 	local update = mock.fn()
 
-	local api: sync.place_api = {
+	local api: any = {
 		create = mock.never_called 'create',
 		get = function()
 			return sm.place_mirror(sm.make_place_input())
@@ -34,7 +34,7 @@ function run.place_skips_when_unchanged()
 	local input = sm.make_place_input()
 	local prev = sm.make_place_lock(sm.make_place_input())
 
-	local api: sync.place_api = {
+	local api: any = {
 		create = mock.never_called 'create',
 		get = mock.never_called 'get should not be called when nothing changed',
 		update = mock.never_called 'update',
@@ -47,7 +47,7 @@ function run.place_records_settings_conflict()
 	local input = sm.make_place_input { display_name = 'Local Name' }
 	local prev = sm.make_place_lock(sm.make_place_input())
 
-	local api: sync.place_api = {
+	local api: any = {
 		create = mock.never_called 'create',
 		get = function()
 			return sm.place_mirror(sm.make_place_input { display_name = 'Cloud Name' })
@@ -78,7 +78,7 @@ function run.place_creates_when_no_lock()
 		}
 	end)
 
-	local api: sync.place_api = {
+	local api: any = {
 		create = create,
 		get = mock.never_called 'get',
 		update = mock.never_called 'update',
@@ -99,7 +99,8 @@ function run.place_creates_without_file()
 	local create = mock.fn(function(opts)
 		return { universe_id = opts.universe_id, place_id = sm.PLACE_ID, input = {} }
 	end)
-	local api: sync.place_api = {
+
+	local api: any = {
 		create = create,
 		get = mock.never_called 'get',
 		update = mock.never_called 'update',
@@ -116,7 +117,7 @@ function run.place_file_pushed_when_hash_differs()
 	local prev = sm.make_place_lock(sm.make_place_input { asset_file = sm.make_asset_file(HASH_A) })
 	local update = mock.fn()
 
-	local api: sync.place_api = {
+	local api: any = {
 		create = mock.never_called 'create',
 		get = function()
 			return sm.place_mirror(sm.make_place_input())
@@ -132,7 +133,7 @@ function run.place_file_noop_when_hash_matches()
 	local input = sm.make_place_input { file = 'game.rbxl', asset_file = sm.make_asset_file(HASH_A) }
 	local prev = sm.make_place_lock(sm.make_place_input { asset_file = sm.make_asset_file(HASH_A) })
 
-	local api: sync.place_api = {
+	local api: any = {
 		create = mock.never_called 'create',
 		get = mock.never_called 'get should not be called when file unchanged',
 		update = mock.never_called 'update',
@@ -147,7 +148,7 @@ function run.place_file_never_conflicts()
 	local prev = sm.make_place_lock(sm.make_place_input { asset_file = sm.make_asset_file(HASH_A) })
 	local update = mock.fn()
 
-	local api: sync.place_api = {
+	local api: any = {
 		create = mock.never_called 'create',
 		get = function()
 			return sm.place_mirror(sm.make_place_input { description = 'Cloud edit' })
@@ -167,7 +168,7 @@ function run.universe_pushes_flag_change()
 	local prev = sm.make_universe_lock(sm.make_universe_input())
 	local update = mock.fn()
 
-	local api: sync.universe_api = {
+	local api: any = {
 		get = function()
 			return sm.universe_mirror(sm.make_universe_input())
 		end,
@@ -183,7 +184,7 @@ function run.universe_detects_social_link_change()
 	local prev = sm.make_universe_lock(sm.make_universe_input())
 	local update = mock.fn()
 
-	local api: sync.universe_api = {
+	local api: any = {
 		get = function()
 			return sm.universe_mirror(sm.make_universe_input())
 		end,
@@ -198,7 +199,7 @@ function run.universe_records_conflict()
 	local input = sm.make_universe_input { private_server_price = 100 }
 	local prev = sm.make_universe_lock(sm.make_universe_input())
 
-	local api: sync.universe_api = {
+	local api: any = {
 		get = function()
 			return sm.universe_mirror(sm.make_universe_input { private_server_price = 200 })
 		end,
@@ -215,7 +216,7 @@ function run.universe_baselines_from_cloud_without_lock()
 	local input = sm.make_universe_input { desktop = false }
 	local update = mock.fn()
 
-	local api: sync.universe_api = {
+	local api: any = {
 		get = function()
 			return sm.universe_mirror(sm.make_universe_input())
 		end,
@@ -232,7 +233,7 @@ function run.universe_accepted_push_updates_lock()
 	local input = sm.make_universe_input { price = 100 }
 	local prev = sm.make_universe_lock(sm.make_universe_input { price = 0 })
 
-	local api: sync.universe_api = {
+	local api: any = {
 		get = function()
 			return sm.universe_mirror(sm.make_universe_input { price = 0 })
 		end,
@@ -252,7 +253,7 @@ function run.universe_dropped_push_keeps_lock_in_sync()
 		return sm.universe_mirror(sm.make_universe_input { price = 0 }) -- price refused (e.g. not for-sale)
 	end)
 
-	local api: sync.universe_api = {
+	local api: any = {
 		get = function()
 			return sm.universe_mirror(sm.make_universe_input { price = 0 })
 		end,
@@ -269,7 +270,7 @@ function run.universe_no_echo_falls_back_to_optimistic()
 	local input = sm.make_universe_input { price = 100 }
 	local prev = sm.make_universe_lock(sm.make_universe_input { price = 0 })
 
-	local api: sync.universe_api = {
+	local api: any = {
 		get = function()
 			return sm.universe_mirror(sm.make_universe_input { price = 0 })
 		end,
@@ -291,7 +292,7 @@ function run.place_dropped_push_keeps_lock_in_sync()
 		return sm.place_mirror(sm.make_place_input { allow_copying = false }) -- refused
 	end)
 
-	local api: sync.place_api = {
+	local api: any = {
 		create = mock.never_called 'create',
 		get = function()
 			return sm.place_mirror(sm.make_place_input { allow_copying = false })

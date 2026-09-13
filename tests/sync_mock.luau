@@ -1,6 +1,6 @@
+local product_res = require '@lib/resources/product'
 local sync = require '@lib/sync'
 local tbl = require '@utils/tbl'
-local types = require '@lib/types'
 
 -- constants
 local UNIVERSE_ID = 1000
@@ -38,7 +38,7 @@ local function make_icon_lock(assetid: number, hash: string?): any
 	return { assetid = assetid, hash = hash }
 end
 
-local function cloud_mirror(input: any): types.product_read
+local function cloud_mirror(input: any): product_res.product_read
 	local icon_id = type(input.icon) == 'table' and input.icon.assetid or nil
 	return {
 		universe_id = UNIVERSE_ID,

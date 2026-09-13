@@ -10,11 +10,13 @@ local auth_guidance = require '@cli/auth_guidance'
 local prompt = require '@cli/prompt'
 local state_fs = require '@cli/state_fs'
 
-local api = require '@lib/api'
 local import = require '@lib/import'
+local place_res = require '@lib/resources/place'
+local product_res = require '@lib/resources/product'
 local state = require '@lib/state'
 local sync = require '@lib/sync'
 local sync_logger = require '@lib/sync_logger'
+local universe_res = require '@lib/resources/universe'
 
 -- cli
 -- local COOKIE = env.str 'ROBLOX_COOKIE' -- used by auth_guidance
@@ -67,12 +69,12 @@ local function state_from_cloud(input: state.manifest?)
 	local target = tostring(universe_id)
 
 	key_info = auth_guidance.grant_scope(session, key_info, 'developer-product:read', target)
-	import.await_import_products(api.build_product_api(session), universe_id, resources)
+	import.await_import_products(product_res.build_product_api(session), universe_id, resources)
 
-	import.await_import_places(api.build_place_api(session, user_session), universe_id, resources)
+	import.await_import_places(place_res.build_place_api(session, user_session), universe_id, resources)
 
 	key_info = auth_guidance.grant_scope(session, key_info, 'universe:read', target)
-	import.await_import_universe(api.build_universe_api(session, user_session), universe_id, resources)
+	import.await_import_universe(universe_res.build_universe_api(session, user_session), universe_id, resources)
 
 	state_fs.save_resources(resources, INPUT_PATH, STATE_PATH)
 	ctx_log.str(`Saved {c.green}{STATE_PATH}{c.reset} and {c.green}{INPUT_PATH}`)
@@ -125,14 +127,14 @@ local sync_opts =
 -- reconcile
 local write_target = tostring(resources.lock.universe_id)
 
-local universe_api = api.build_universe_api(session, user_session)
+local universe_api = universe_res.build_universe_api(session, user_session)
 if resources.universe then
 	key_info = auth_guidance.grant_scope(session, key_info, 'universe:write', write_target)
 	local ok, err = pcall(sync.await_reconcile_universe, universe_api, resources.universe, sync_opts)
 	if ok then resources.universe.lock = err end
 end
 
-local place_api = api.build_place_api(session, user_session)
+local place_api = place_res.build_place_api(session, user_session)
 if next(resources.places) then
 	key_info = auth_guidance.grant_scope(session, key_info, 'universe.place:write', write_target)
 end
@@ -141,7 +143,7 @@ for _, place in resources.places do
 	if ok then place.lock = err end
 end
 
-local product_api = api.build_product_api(session)
+local product_api = product_res.build_product_api(session)
 if next(resources.products) then
 	key_info = auth_guidance.grant_scope(session, key_info, 'developer-product:write', write_target)
 end
