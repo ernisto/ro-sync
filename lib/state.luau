@@ -96,7 +96,10 @@ local function encode_manifest(data: manifest): string
 	out.products = base.encode_map(data.products, product.encode_input)
 	out.places = base.encode_map(data.places, place.encode_input)
 
-	if data.universe then out.universe = universe.encode_input(data.universe) end
+	if data.universe then
+		local encoded = universe.encode_input(data.universe)
+		out.universe = if next(encoded) == nil then nil else encoded
+	end
 
 	return serde.encode('yaml', out, true)
 end

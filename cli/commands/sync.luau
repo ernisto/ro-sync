@@ -60,8 +60,8 @@ local function state_from_cloud(input: state.manifest?)
 	if not prompt.confirm_reimport(INPUT_PATH) then return end
 
 	local owner: state.owner = if universe.user
-		then { user = tonumber(universe.user) :: number, group = nil }
-		else { group = tonumber(universe.group) :: number, user = nil }
+		then { user = tonumber(universe.user:match '%d+') :: number, group = nil }
+		else { group = tonumber(universe.group:match '%d+') :: number, user = nil }
 
 	local resources = state.build_resources(input or state.create_input(owner), state.create_state(universe_id))
 
@@ -121,7 +121,7 @@ if not resources then
 end
 
 if scanned_cloud then
-	if not prompt.prompt_add_overwrite() then return process.exit(0) end
+	if not input_ok or not prompt.prompt_add_overwrite() then return process.exit(0) end
 	overwrite = true -- push local changes over the freshly-scanned cloud state
 end
 
