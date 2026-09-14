@@ -3,17 +3,18 @@ local tbl = require '@utils/tbl'
 
 local place = require './resources/place'
 local product = require './resources/product'
+local universe = require './resources/universe'
+
 local state = require './state'
 local sync_logger = require './sync_logger'
-local universe = require './resources/universe'
 
 -- defs
 export type sync_opts = { universe_id: number, overwrite: boolean?, fresh_state: boolean? }
 type resource_lock = { universe_id: number, input: { [string]: any } }
 type resource_api = {
 	diff: ({ [string]: any }, { [string]: any }) -> { [string]: any },
-	get: (any) -> { [string]: any },
-	update: (any, { [string]: any }) -> { [string]: any }?,
+	get: (any) -> { [string]: any }?,
+	update: (any, { [string]: any }) -> ({ [string]: any }, string?),
 	create: ((sync_opts, any) -> resource_lock)?,
 	validate: (({ [string]: any }) -> ())?,
 }
@@ -40,55 +41,60 @@ local function reconcile_resource<Lock>(
 		return created_lock :: any
 	end
 
-	local conflicts = input.conflicts
-	if opts.overwrite then table.clear(conflicts) end
-
+	-- guard
 	local local_changes = api.diff(prev.input, input)
-	tbl.subtract(local_changes, conflicts)
 
-	if next(local_changes) == nil then
+	if next(local_changes) == nil and not opts.fresh_state then
 		sync_logger.noop(key)
 		return prev
 	end
 
 	sync_logger.update(key, prev.input, local_changes)
 
-	-- fresh_state: lock already matches cloud (just scanned) or conflicts ignored, skip the fetch
-	local receiving_changes = if opts.fresh_state then {} else api.diff(prev.input, api.get(prev))
-	local sending_changes = tbl.changes(receiving_changes, local_changes)
+	-- refresh state
+	local cloud_state = if opts.overwrite then prev.input else api.get(prev) or {}
+	local receiving_changes = api.diff(prev.input, cloud_state)
+	local sending_changes = tbl.intersection(api.diff(cloud_state, input), local_changes)
 
-	if not opts.overwrite then tbl.apply(conflicts, tbl.intersection(receiving_changes, sending_changes)) end
-	sync_logger.print_external_changes(prev.input, receiving_changes, conflicts)
+	sync_logger.print_external_changes(prev.input, receiving_changes)
+	tbl.apply(prev.input, cloud_state)
 
-	-- resolve
+	-- conflicts
+	local conflicts = input.conflicts
+	if opts.overwrite then table.clear(conflicts) end
+
+	-- local auto_solved = tbl.intersection(matched, conflicts)
+	-- sync_logger.solved_conflicts(auto_solved)
+
+	local matched = tbl.subtraction(cloud_state, sending_changes)
+	tbl.subtract(conflicts, matched)
+
+	local conflicted_changes = tbl.intersection(sending_changes, receiving_changes)
+	tbl.apply(conflicts, conflicted_changes)
+
 	local free_sending = tbl.subtraction(sending_changes, conflicts)
-	local free_receiving = tbl.subtraction(receiving_changes, sending_changes)
+	local free_received = tbl.subtraction(receiving_changes, conflicted_changes)
 
 	-- push
-	local pushed_state: { [string]: any }? = nil
-	local successfully_pushed, applied = true, nil
-
+	local confirmed_state, push_err = cloud_state, nil
 	if next(free_sending) then
-		successfully_pushed, applied = ctx_log.pcall(api.update, prev, free_sending)
-	end
-	if successfully_pushed then
-		-- optimistically record the pushed values into the lock; echo (if any) corrects dropped fields below
-		tbl.apply(prev.input, free_sending)
-		if type(applied) == 'table' then pushed_state = applied end
+		confirmed_state, push_err = api.update(prev, free_sending)
 	end
 
-	-- save
-	tbl.apply(prev.input, tbl.subtraction(receiving_changes, free_sending))
-	tbl.apply(input, tbl.intersection(free_receiving, input))
+	confirmed_state = tbl.applied(cloud_state, confirmed_state)
+	local expected = tbl.applied(cloud_state, free_sending)
 
-	-- the cloud can silently drop a pushed field (e.g. price while not for-sale); when update echoes the
-	-- applied state, reconcile lock.input to what actually landed instead of the value we optimistically set
-	local dropped = if pushed_state then tbl.intersection(api.diff(prev.input, pushed_state), free_sending) else {}
-	tbl.apply(prev.input, dropped)
+	tbl.apply(prev.input, confirmed_state)
+	tbl.apply(input, tbl.intersection(free_received, input))
 
-	sync_logger.print_pushed_changes(free_sending)
-	sync_logger.print_dropped_changes(dropped)
-	sync_logger.update_result(successfully_pushed, free_sending, conflicts)
+	local dropped = api.diff(expected, confirmed_state)
+	local applied = api.diff(cloud_state, confirmed_state)
+
+	tbl.apply(applied, conflicts)
+	tbl.apply(applied, dropped)
+
+	sync_logger.print_pushed_changes(applied, conflicts, dropped)
+	sync_logger.update_result(push_err == nil, free_sending, conflicts)
 
 	return prev
 end
@@ -125,7 +131,7 @@ local function await_reconcile_universe(
 	local prev = universe.lock or { universe_id = opts.universe_id, input = api.get { universe_id = opts.universe_id } }
 
 	local api_impl = { diff = state.diff_universe, get = api.get, update = api.update }
-	return reconcile_resource(api_impl, universe.key, universe.input, prev, opts)
+	return reconcile_resource(api_impl :: any, universe.key, universe.input, prev, opts)
 end
 
 -- module

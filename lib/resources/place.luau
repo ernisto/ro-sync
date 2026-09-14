@@ -150,24 +150,29 @@ local function build_place_api(
 )
 	local request = if http_impl then http_impl.request else http.request
 
-	local function update(place: cloud.place_identity, patch: place_input): place_data?
+	local function update(place: cloud.place_identity, patch: place_input): (place_data, string?)
 		local config = to_place_config_params(patch)
-		local applied: { [string]: any } = {}
+		local confirmed: { [string]: any } = {}
 
-		if next(config) ~= nil then
-			applied = from_place_config(request('PATCH', `places/{place.place_id}`, function()
+		local _, err1 = pcall(function()
+			if next(config) == nil then return end
+
+			confirmed = from_place_config(request('PATCH', `places/{place.place_id}`, function()
 				return cloud.place_configuration.update(user_session, { place_id = place.place_id }, config)
 			end))
-		end
+			confirmed.asset_file = nil
+		end :: any)
 
-		if patch.asset_file then
+		local _, err2 = pcall(function()
+			if not patch.asset_file then return end
+
 			request('POST', `places/{place.place_id}/versions`, function()
 				return cloud.place.upload(session, place, patch.asset_file.content, true)
 			end)
-			applied.asset_file = { hash = patch.asset_file.hash, assetid = place.place_id }
-		end
+			confirmed.asset_file = { hash = patch.asset_file.hash, assetid = place.place_id }
+		end :: any)
 
-		return if next(applied) ~= nil then applied else nil
+		return confirmed, err1 or err2
 	end
 	local function create(opts, place: place_input): place_lock
 		local result = request('POST', 'assets (Place)', function()

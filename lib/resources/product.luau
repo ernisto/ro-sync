@@ -155,9 +155,9 @@ end
 
 -- api impl
 local function build_product_api(session: cloud.apikey_session)
-	local function update(product: cloud.product_identity, patch: product_input)
+	local function update(product: cloud.product_identity, patch: product_input): product_data
 		local path = `developer-product/{product.product_id}`
-		http.request('PATCH', path, function()
+		return http.request('PATCH', path, function()
 			return cloud.product.update(session, product, to_api_params(patch))
 		end)
 	end
