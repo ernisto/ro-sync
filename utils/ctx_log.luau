@@ -25,15 +25,15 @@ end
 
 -- vars
 local thread_ctx: { [thread]: ctx } = setmetatable({} :: any, { __mode = 'k' })
-local prev_ctx = { thread = coroutine.running(), depth = 0, pending_gap = false }
-type ctx = { depth: number, pending_gap: boolean }
+local prev_ctx = { thread = coroutine.running(), depth = 0, pending_gap = false, gapped = false }
+type ctx = { depth: number, pending_gap: boolean, gapped: boolean }
 
 -- functions
 local function ensure_ctx(): ctx
 	local thread = coroutine.running()
 	if prev_ctx.thread == thread then return prev_ctx end
 
-	local ctx = thread_ctx[thread] or { thread = thread, depth = prev_ctx.depth, pending_gap = false }
+	local ctx = thread_ctx[thread] or { thread = thread, depth = prev_ctx.depth, pending_gap = false, gapped = false }
 	prev_ctx = ctx
 
 	thread_ctx[thread] = ctx
@@ -47,15 +47,20 @@ end
 local function str(msg: string)
 	local ctx = ensure_ctx()
 	local prefix = current_prefix()
+
 	if ctx.pending_gap then
 		ctx.pending_gap = false
 		print(prefix)
 	end
+
+	ctx.gapped = false
 	print(prefix .. msg:gsub('\n', `{c.reset}\n{prefix}`) .. c.reset)
 end
 
 local function gap()
-	ensure_ctx().pending_gap = true
+	local ctx = ensure_ctx()
+	if ctx.gapped then return end
+	ctx.pending_gap = true
 end
 
 local function push_ctx(header: string)
@@ -63,11 +68,13 @@ local function push_ctx(header: string)
 
 	str(header)
 	str '╷'
+	ctx.gapped = true
 	ctx.depth += 1
 end
 local function pop_ctx(footer: string)
 	local ctx = ensure_ctx()
 	ctx.pending_gap = false
+	ctx.gapped = false
 	str ''
 	ctx.depth -= 1
 	str(`╰── {footer}`)
