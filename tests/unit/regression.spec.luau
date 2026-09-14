@@ -2,11 +2,13 @@
 -- each test encodes the *correct* behaviour; failing ones reproduce an open bug
 local expect = require '@test/expect'
 local mock = require '@test/mock'
+local place_res = require '@lib/resources/place'
 local sm = require '@test/sync_mock'
 local state = require '@lib/state'
 local sync = require '@lib/sync'
 
 local HASH_A = string.rep('a', 64)
+local HASH_B = string.rep('b', 64)
 local opts = sm.DEFAULT_OPTS
 
 local run = {}
@@ -110,6 +112,49 @@ function run.gear_types_equal_lists_do_not_diff()
 	local a = { allowed_gear_types = { 'A', 'B' }, display_name = 'X' }
 	local b = { allowed_gear_types = { 'A', 'B' }, display_name = 'X' }
 	expect.falsy(next(state.diff_place(a, b)), 'equal gear lists must produce no diff')
+end
+
+-- issue 4: a failing place asset upload must not hold back the settings push.
+-- the settings PATCH succeeds on the cloud, so sync must record them in the lock and retry
+-- only the asset on the next run - instead of treating the whole update as failed (while
+-- still reporting both fields as pushed).
+function run.place_asset_upload_failure_does_not_hold_settings()
+	local new_file = sm.make_asset_file(HASH_B)
+	local input = sm.make_place_input { file = 'game.rbxl', display_name = 'New Name', asset_file = new_file }
+	local prev = sm.make_place_lock(sm.make_place_input { asset_file = sm.make_asset_file(HASH_A) })
+
+	local stub_http: any = {
+		-- mirrors utils/http semantics: ok responses yield the body, failures surface as errors
+		request = function(method, path)
+			local response: any
+			if path == 'places/4000' then
+				if method == 'GET' then
+					-- cloud state matches the lock baseline
+					response = { ok = true, body = { name = 'Start', description = 'A place', maxPlayerCount = 50 } }
+				else
+					expect.eq(method, 'PATCH')
+					-- settings PATCH succeeds; cloud echoes the applied config
+					response = { ok = true, body = { name = 'New Name', description = 'A place', maxPlayerCount = 50 } }
+				end
+			elseif path == 'places/4000/versions' then
+				expect.eq(method, 'POST')
+				response = { ok = false, code = 500, message = 'upload failed' }
+			else
+				error(`unexpected request: {method} {path}`, 0)
+			end
+
+			if not response.ok then error(response.message, 0) end
+			return response.body
+		end,
+	}
+
+	local api: any = place_res.build_place_api({} :: any, {} :: any, stub_http)
+
+	local lock = sync.await_reconcile_place(api, sm.make_place(input, prev), opts)
+
+	expect.eq(lock.input.display_name, 'New Name', 'applied settings must be recorded in the lock')
+	local asset = lock.input.asset_file
+	expect.truthy(asset == nil or asset.hash ~= HASH_B, 'failed asset upload must not be recorded as pushed')
 end
 
 return { run = run }

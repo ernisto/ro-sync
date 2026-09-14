@@ -143,19 +143,25 @@ local function to_place_config_params(patch: place_input): cloud.place_patch
 end
 
 -- api impl
-local function build_place_api(session: cloud.apikey_session, user_session: cloud.cookie_session)
+local function build_place_api(
+	session: cloud.apikey_session,
+	user_session: cloud.cookie_session,
+	http_impl: typeof(http)?
+)
+	local request = if http_impl then http_impl.request else http.request
+
 	local function update(place: cloud.place_identity, patch: place_input): place_data?
 		local config = to_place_config_params(patch)
 		local applied: { [string]: any } = {}
 
 		if next(config) ~= nil then
-			applied = from_place_config(http.request('PATCH', `places/{place.place_id}`, function()
+			applied = from_place_config(request('PATCH', `places/{place.place_id}`, function()
 				return cloud.place_configuration.update(user_session, { place_id = place.place_id }, config)
 			end))
 		end
 
 		if patch.asset_file then
-			http.request('POST', `places/{place.place_id}/versions`, function()
+			request('POST', `places/{place.place_id}/versions`, function()
 				return cloud.place.upload(session, place, patch.asset_file.content, true)
 			end)
 			applied.asset_file = { hash = patch.asset_file.hash, assetid = place.place_id }
@@ -164,7 +170,7 @@ local function build_place_api(session: cloud.apikey_session, user_session: clou
 		return if next(applied) ~= nil then applied else nil
 	end
 	local function create(opts, place: place_input): place_lock
-		local result = http.request('POST', 'assets (Place)', function()
+		local result = request('POST', 'assets (Place)', function()
 			return cloud.place.create(
 				user_session,
 				{ universe_id = opts.universe_id },
@@ -182,7 +188,7 @@ local function build_place_api(session: cloud.apikey_session, user_session: clou
 		}
 	end
 	local function get(place: cloud.place_identity): place_data
-		return from_place_config(http.request('GET', `places/{place.place_id}`, function()
+		return from_place_config(request('GET', `places/{place.place_id}`, function()
 			return cloud.place_configuration.get(user_session, { place_id = place.place_id })
 		end))
 	end
@@ -190,7 +196,7 @@ local function build_place_api(session: cloud.apikey_session, user_session: clou
 		local places = {}
 		local cursor: string? = nil
 		repeat
-			local page = http.request('GET', `universes/{universe_id}/places`, function()
+			local page = request('GET', `universes/{universe_id}/places`, function()
 				return cloud.develop.list_universe_places(
 					user_session,
 					{ universe_id = universe_id },
