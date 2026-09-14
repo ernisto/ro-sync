@@ -68,13 +68,19 @@ local function state_from_cloud(input: state.manifest?)
 	ctx_log.gap()
 	local target = tostring(universe_id)
 
-	key_info = auth_guidance.grant_scope(session, key_info, 'developer-product:read', target)
-	import.await_import_products(product_res.build_product_api(session), universe_id, resources)
-
-	import.await_import_places(place_res.build_place_api(session, user_session), universe_id, resources)
+	pcall(function()
+		import.await_import_places(place_res.build_place_api(session, user_session), universe_id, resources)
+	end)
 
 	key_info = auth_guidance.grant_scope(session, key_info, 'universe:read', target)
-	import.await_import_universe(universe_res.build_universe_api(session, user_session), universe_id, resources)
+	pcall(function()
+		import.await_import_universe(universe_res.build_universe_api(session, user_session), universe_id, resources)
+	end)
+
+	key_info = auth_guidance.grant_scope(session, key_info, 'developer-product:read', target)
+	pcall(function()
+		import.await_import_products(product_res.build_product_api(session), universe_id, resources)
+	end)
 
 	state_fs.save_resources(resources, INPUT_PATH, STATE_PATH)
 	ctx_log.str(`Saved {c.green}{STATE_PATH}{c.reset} and {c.green}{INPUT_PATH}`)
