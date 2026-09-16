@@ -1,5 +1,4 @@
 local expect = require '@test/expect'
-local mock = require '@test/mock'
 local sm = require '@test/sync_mock'
 local sync = require '@lib/sync'
 
@@ -17,7 +16,6 @@ local make_lock = sm.make_lock
 local make_product = sm.make_product
 local make_icon_input = sm.make_icon_input
 local make_icon_lock = sm.make_icon_lock
-local cloud_mirror = sm.cloud_mirror
 
 -- tests
 local run = {}
@@ -26,14 +24,11 @@ function run.should_create_product_when_no_prev_lock()
 	local input = make_input()
 	local created: any = nil
 
-	local api: any = {
-		create = function(_, data)
-			created = data
-			return { universe_id = UNIVERSE_ID, product_id = PRODUCT_ID, input = { name = data.name } } :: any
-		end,
-		get = mock.never_called 'get should not be called on create',
-		update = mock.never_called 'update should not be called on create',
-	}
+	local api = sm.make_product_api(nil, { 'get', 'update' })
+	api.create = function(_, data)
+		created = data
+		return { universe_id = UNIVERSE_ID, product_id = PRODUCT_ID, input = { name = data.name } } :: any
+	end
 
 	local lock = sync.await_reconcile_product(api, make_product(input), opts)
 
@@ -46,11 +41,7 @@ function run.should_skip_api_when_input_unchanged()
 	local input = make_input()
 	local prev = make_lock(table.clone(input))
 
-	local api: any = {
-		create = mock.never_called 'create',
-		get = mock.never_called 'get should not be called when nothing changed',
-		update = mock.never_called 'update',
-	}
+	local api = sm.make_product_api(nil, { 'create', 'get', 'update' })
 
 	local result = sync.await_reconcile_product(api, make_product(input, prev), opts)
 	expect.eq(result, prev)
@@ -60,20 +51,13 @@ function run.should_push_local_changes_to_cloud()
 	local original_input = make_input()
 	local prev = make_lock(table.clone(original_input))
 	local new_input = make_input { name = 'New Name', price = 200 }
-	local update = mock.fn()
 
-	local api: any = {
-		create = mock.never_called 'create',
-		get = function()
-			return cloud_mirror(original_input)
-		end,
-		update = update,
-	}
+	local api = sm.make_product_api()
 
 	sync.await_reconcile_product(api, make_product(new_input, prev), opts)
 
-	expect.eq(update.call_count, 1)
-	local patch = update.calls[1][2]
+	expect.eq(api.update.call_count, 1)
+	local patch = api.update.calls[1][2]
 	expect.eq(patch.name, 'New Name')
 	expect.eq(patch.price, 200)
 end
@@ -83,13 +67,7 @@ function run.should_record_conflict_when_both_sides_change_same_field()
 	local prev = make_lock(table.clone(original_input))
 	local new_input = make_input { name = 'Local Name' }
 
-	local api: any = {
-		create = mock.never_called 'create',
-		get = function()
-			return cloud_mirror(make_input { name = 'Cloud Name' })
-		end,
-		update = function() end,
-	}
+	local api = sm.make_product_api { name = 'Cloud Name' }
 
 	sync.await_reconcile_product(api, make_product(new_input, prev), opts)
 
@@ -101,19 +79,12 @@ function run.should_not_push_fields_listed_in_conflicts()
 	local original_input = make_input()
 	local prev = make_lock(table.clone(original_input))
 	local new_input = make_input { name = 'Local Name', conflicts = { name = 'Cloud Name' } }
-	local update = mock.fn()
 
-	local api: any = {
-		create = mock.never_called 'create',
-		get = function()
-			return cloud_mirror(make_input { name = 'Cloud Name' })
-		end,
-		update = update,
-	}
+	local api = sm.make_product_api { name = 'Cloud Name' }
 
 	sync.await_reconcile_product(api, make_product(new_input, prev), opts)
 
-	local patch = update.calls[1] and update.calls[1][2]
+	local patch = api.update.calls[1] and api.update.calls[1][2]
 	expect.falsy(patch and patch.name, 'conflicted field should not be pushed')
 end
 
@@ -123,13 +94,7 @@ function run.should_not_pull_new_fields_into_input()
 	local prev = make_lock(make_input())
 
 	-- cloud changed an existing field (description) AND exposes an untracked field
-	local api: any = {
-		create = mock.never_called 'create',
-		get = function()
-			return cloud_mirror(make_input { description = 'Dashboard edit', store_page_enabled = true })
-		end,
-		update = function() end,
-	}
+	local api = sm.make_product_api { description = 'Dashboard edit', store_page_enabled = true }
 
 	sync.await_reconcile_product(api, make_product(input, prev), opts)
 
@@ -144,11 +109,7 @@ function run.icon_not_pushed_when_hash_matches_lock()
 	local input = make_input { icon_file = make_icon_input(ICON_HASH_A) }
 	local prev = make_lock(make_input { icon_file = make_icon_lock(ICON_ID, ICON_HASH_A) })
 
-	local api: any = {
-		create = mock.never_called 'create',
-		get = mock.never_called 'get',
-		update = mock.never_called 'update',
-	}
+	local api = sm.make_product_api(nil, { 'create', 'get', 'update' })
 
 	sync.await_reconcile_product(api, make_product(input, prev), opts)
 end
@@ -157,19 +118,12 @@ function run.icon_pushed_when_hash_differs_from_lock()
 	local new_icon = make_icon_input(ICON_HASH_B)
 	local input = make_input { icon_file = new_icon }
 	local prev = make_lock(make_input { icon_file = make_icon_lock(ICON_ID, ICON_HASH_A) })
-	local update = mock.fn()
 
-	local api: any = {
-		create = mock.never_called 'create',
-		get = function()
-			return cloud_mirror(make_input { icon = make_icon_lock(ICON_ID, nil) })
-		end,
-		update = update,
-	}
+	local api = sm.make_product_api { icon = make_icon_lock(ICON_ID, nil) }
 
 	sync.await_reconcile_product(api, make_product(input, prev), opts)
 
-	expect.eq(update.calls[1][2].icon_file, new_icon)
+	expect.eq(api.update.calls[1][2].icon_file, new_icon)
 end
 
 function run.icon_lock_updated_to_new_icon_after_push()
@@ -177,38 +131,25 @@ function run.icon_lock_updated_to_new_icon_after_push()
 	local input = make_input { icon_file = new_icon }
 	local prev = make_lock(make_input { icon_file = make_icon_lock(ICON_ID, ICON_HASH_A) })
 
-	local api: any = {
-		create = mock.never_called 'create',
-		get = function()
-			return cloud_mirror(make_input { icon = make_icon_lock(ICON_ID, nil) })
-		end,
-		update = function() end,
-	}
+	local api = sm.make_product_api { icon = make_icon_lock(ICON_ID, nil) }
 
 	sync.await_reconcile_product(api, make_product(input, prev), opts)
 
 	-- lock icon updated so next run detects no hash change
-	expect.eq(prev.input.icon_file, new_icon)
+	expect.eq(prev.input.icon_file.hash, ICON_HASH_B)
 end
 
 function run.icon_pushed_when_lock_has_no_hash()
 	-- lock has only assetid (e.g. imported via detect-new), no hash baseline
 	local input = make_input { icon_file = make_icon_input(ICON_HASH_A) }
 	local prev = make_lock(make_input { icon_file = make_icon_lock(ICON_ID, nil) })
-	local update = mock.fn()
 
-	local api: any = {
-		create = mock.never_called 'create',
-		get = function()
-			return cloud_mirror(make_input { icon = make_icon_lock(ICON_ID, nil) })
-		end,
-		update = update,
-	}
+	local api = sm.make_product_api { icon = make_icon_lock(ICON_ID, nil) }
 
 	sync.await_reconcile_product(api, make_product(input, prev), opts)
 
 	-- nil hash in lock != local hash → treated as change
-	expect.eq(update.call_count, 1) -- icon should be pushed when lock has no hash baseline
+	expect.eq(api.update.call_count, 1) -- icon should be pushed when lock has no hash baseline
 end
 
 return run

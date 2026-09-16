@@ -27,7 +27,9 @@ local api: any = {
 		error 'create should not be called in integration tests'
 	end,
 	update = function(product, patch)
-		cloud.product.update(session, product, product_res.to_api_params(patch))
+		local res = cloud.product.update(session, product, product_res.to_api_params(patch))
+		assert(res.ok, res.message)
+		return patch
 	end,
 }
 

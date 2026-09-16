@@ -1,7 +1,6 @@
 -- regression tests for reported sync bugs
 -- each test encodes the *correct* behaviour; failing ones reproduce an open bug
 local expect = require '@test/expect'
-local mock = require '@test/mock'
 local place_res = require '@lib/resources/place'
 local sm = require '@test/sync_mock'
 local state = require '@lib/state'
@@ -18,17 +17,14 @@ local run = {}
 function run.place_create_does_not_leak_identity_into_input()
 	local input = sm.make_place_input { file = 'game.rbxl', asset_file = sm.make_asset_file(HASH_A) }
 
-	local api: any = {
-		create = function(create_opts, place)
-			return {
-				universe_id = create_opts.universe_id,
-				place_id = sm.PLACE_ID,
-				input = { display_name = place.display_name, asset_file = { hash = (place.asset_file :: any).hash } },
-			} :: any
-		end,
-		get = mock.never_called 'get',
-		update = mock.never_called 'update',
-	}
+	local api = sm.make_place_api(nil, { 'get', 'update' })
+	api.create = function(create_opts, place)
+		return {
+			universe_id = create_opts.universe_id,
+			place_id = sm.PLACE_ID,
+			input = { display_name = place.display_name, asset_file = { hash = (place.asset_file :: any).hash } },
+		} :: any
+	end
 
 	local lock = sync.await_reconcile_place(api, sm.make_place(input, nil), opts)
 
@@ -43,17 +39,14 @@ function run.product_create_does_not_leak_identity_into_input()
 	local input = sm.make_input()
 
 	-- the adapter returns a ready product_lock; identity must stay out of `input`
-	local api: any = {
-		create = function(create_opts)
-			return {
-				universe_id = create_opts.universe_id,
-				product_id = sm.PRODUCT_ID,
-				input = { name = 'Pack' },
-			} :: any
-		end,
-		get = mock.never_called 'get',
-		update = mock.never_called 'update',
-	}
+	local api = sm.make_product_api(nil, { 'get', 'update' })
+	api.create = function(create_opts)
+		return {
+			universe_id = create_opts.universe_id,
+			product_id = sm.PRODUCT_ID,
+			input = { name = 'Pack' },
+		} :: any
+	end
 
 	local lock = sync.await_reconcile_product(api, sm.make_product(input), opts)
 
@@ -74,24 +67,21 @@ function run.place_create_saves_initial_config_and_file_to_lock()
 	}
 
 	local pushed: any = nil
-	local api: any = {
-		-- mirror the cli create: it pushes config + rbxl via update and echoes the applied place
-		create = function(create_opts, place)
-			pushed = place
-			return {
-				universe_id = create_opts.universe_id,
-				place_id = sm.PLACE_ID,
-				input = {
-					display_name = place.display_name,
-					description = place.description,
-					server_size = place.server_size,
-					asset_file = { hash = (place.asset_file :: any).hash },
-				},
-			}
-		end,
-		get = mock.never_called 'get',
-		update = mock.never_called 'update',
-	}
+	local api = sm.make_place_api(nil, { 'get', 'update' })
+	-- mirror the cli create: it pushes config + rbxl via update and echoes the applied place
+	api.create = function(create_opts, place)
+		pushed = place
+		return {
+			universe_id = create_opts.universe_id,
+			place_id = sm.PLACE_ID,
+			input = {
+				display_name = place.display_name,
+				description = place.description,
+				server_size = place.server_size,
+				asset_file = { hash = (place.asset_file :: any).hash },
+			},
+		}
+	end
 
 	local lock = sync.await_reconcile_place(api, sm.make_place(input, nil), opts)
 

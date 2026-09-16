@@ -34,6 +34,7 @@
   "luau-lsp.bytecode.vectorCtor": "create",
   "luau-lsp.bytecode.vectorLib": "vector",
   "luau-lsp.bytecode.vectorType": "vector",
+  "luau-lsp.sourcemap.enabled": false,
   "luau-lsp.completion.imports.requireStyle": "alwaysAbsolute",
   "luau-lsp.completion.imports.stringRequires.enabled": true,
   "luau-lsp.completion.imports.ignoreGlobs": [
