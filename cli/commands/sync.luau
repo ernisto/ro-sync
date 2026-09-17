@@ -25,7 +25,8 @@ local INTERACTIVE = not env.str 'CI' -- used bu prompt
 
 local API_KEY = cli.str('api-key', { value = 'KEY', help = 'Open Cloud API key (default: $API_KEY)' })
 	or env.str 'API_KEY'
-local INPUT_PATH = cli.str('push', { value = 'FILE', default = 'cloud.yml', help = 'manifest to sync' }) or 'cloud.yml'
+local pushes = cli.list('push', { value = 'FILE', help = 'manifest to sync (default: cloud.yml)' })
+local INPUT_PATH = if pushes and pushes[1] then pushes[1] else 'cloud.yml'
 local STATE_PATH = cli.str 'cache' or 'cloud-state.yml'
 local SCAN_CLOUD = cli.bool('scan-roblox', { help = 'rescan the whole universe from Roblox' })
 local overwrite = cli.bool('overwrite-roblox', { help = 'push local changes over Roblox state' })
@@ -36,6 +37,27 @@ cli.strict()
 
 local state_ok, state_result = pcall(state_fs.load_state, STATE_PATH)
 local input_ok, input_result = pcall(state_fs.load_input, INPUT_PATH)
+
+local function merge_input(base: any, extra: any)
+	for k, v in extra do
+		if type(v) == 'table' and type(base[k]) == 'table' and v[1] == nil then
+			merge_input(base[k], v)
+		else
+			base[k] = v
+		end
+	end
+end
+if input_ok and pushes then
+	for i = 2, #pushes do
+		local ok, extra = pcall(state_fs.load_input, pushes[i])
+		if ok then
+			merge_input(input_result, extra)
+			ctx_log.str(`Merged {c.green}{pushes[i]}{c.reset} into {c.green}{INPUT_PATH}`)
+		else
+			ctx_log.warn(`Couldnt read {pushes[i]}, {(tostring(extra):gsub('^.-:%d+: ', ''))}`)
+		end
+	end
+end
 local resources
 
 -- login

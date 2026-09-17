@@ -19,6 +19,7 @@ type ArgSpec = {
 }
 
 local options: { [string]: string } = {}
+local multi: { [string]: { string } } = {}
 local flags: { [string]: boolean } = {}
 local positional: { string } = {}
 local forwarded: { string } = {}
@@ -29,6 +30,21 @@ local by_alias: { [string]: ArgSpec } = {}
 local about: string?
 
 local ESCAPES: { [string]: string } = { ['\\'] = '\\', ['"'] = '"', ["'"] = "'", n = '\n', t = '\t' }
+
+-- repeated occurrences of an option keep the first in `options` (so `value`
+-- stays first-wins) and collect the rest here for `list`
+local function set_opt(key: string, val: string): ()
+	if options[key] == nil then
+		options[key] = val
+	else
+		local m = multi[key]
+		if not m then
+			m = {}
+			multi[key] = m
+		end
+		table.insert(m, val)
+	end
+end
 
 local function unquote(s: string): string
 	local first = string.sub(s, 1, 1)
@@ -72,14 +88,14 @@ local function ensure(): ()
 			local rest = string.sub(a, 3)
 			local eq = string.find(rest, '=', 1, true)
 			if eq then
-				options[string.sub(rest, 1, eq - 1)] = unquote(string.sub(rest, eq + 1))
+				set_opt(string.sub(rest, 1, eq - 1), unquote(string.sub(rest, eq + 1)))
 			else
 				local spec = spec_of(rest)
 				local next = raw[i + 1]
 				if spec and spec.kind == 'flag' then
 					flags[rest] = true
 				elseif next and string.sub(next, 1, 1) ~= '-' then
-					options[rest] = unquote(next)
+					set_opt(rest, unquote(next))
 					i += 1
 				else
 					flags[rest] = true
@@ -94,11 +110,11 @@ local function ensure(): ()
 				if spec and spec.kind == 'option' then
 					local inline = string.sub(a, j + 1)
 					if #inline > 0 then
-						options[ch] = unquote(inline)
+						set_opt(ch, unquote(inline))
 					else
 						local next = raw[i + 1]
 						if next then
-							options[ch] = unquote(next)
+							set_opt(ch, unquote(next))
 							i += 1
 						end
 					end
@@ -143,6 +159,23 @@ local function raised(name: string): boolean
 		end
 	end
 	return false
+end
+
+-- every occurrence of an option, in order, across its canonical name/aliases
+local function values(name: string): { string }
+	local out = {}
+	local function take(k: string)
+		if options[k] ~= nil then table.insert(out, options[k]) end
+		for _, v in multi[k] or {} :: { string } do
+			table.insert(out, v)
+		end
+	end
+	take(name)
+	local spec = by_name[name]
+	for _, a in spec and spec.options.aliases or {} :: { string } do
+		take(a)
+	end
+	return out
 end
 
 -- how many leading positionals were matched as command words (see `cmd`)
@@ -252,6 +285,18 @@ end
 -- alias of `str` that names a filesystem path (intent + help rendering)
 local function path(key: string, opts: ArgOptions?): string?
 	return str(key, opts)
+end
+-- every value passed to an option, in order; nil when never passed.
+-- unlike `str`, a bare `--key` without a value is not an error: it simply
+-- yields no occurrences, letting callers fall back to their own default
+local function list(key: string, opts: ArgOptions?): { string }?
+	ensure()
+	used[key] = true
+	if opts then declare(key, if opts.positional then 'positional' else 'option', opts) end
+	local name = canon(key)
+	if not opts then infer(name, 'option') end
+	local v = values(name)
+	return if #v > 0 then v else nil
 end
 local function bool(key: string, opts: ArgOptions?): boolean
 	ensure()
@@ -502,6 +547,7 @@ return table.freeze {
 	num = num,
 	uint = uint,
 	path = path,
+	list = list,
 	bool = bool,
 	cmd = cmd,
 	some = some,
