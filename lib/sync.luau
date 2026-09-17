@@ -81,20 +81,20 @@ local function reconcile_resource<Lock>(
 		tbl.apply(conflicts, conflicted_changes)
 	end
 
-	local free_sending = tbl.subtraction(sending_changes, conflicts)
-	local free_received = tbl.subtraction(receiving_changes, conflicted_changes)
-
 	-- push
+	local free_sending = tbl.subtraction(sending_changes, conflicts)
+	local expected = tbl.applied(cloud_state, free_sending)
+
 	local confirmed_state, push_err = cloud_state, nil
 	if next(free_sending) then
 		confirmed_state, push_err = api.update(prev, free_sending)
 	end
 
 	confirmed_state = tbl.applied(cloud_state, confirmed_state)
-	local expected = tbl.applied(cloud_state, free_sending)
-
 	tbl.apply(prev.input, confirmed_state)
-	tbl.apply(input, tbl.intersection(free_received, input))
+
+	local confirmed_received = tbl.subtraction(confirmed_state, conflicted_changes)
+	tbl.apply(input, tbl.intersection(confirmed_received, input))
 
 	local dropped = api.diff(expected, confirmed_state)
 	local applied = api.diff(cloud_state, confirmed_state)
