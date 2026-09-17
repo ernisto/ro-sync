@@ -151,7 +151,6 @@ local function describe(cookie: string): string?
 end
 
 local function prompt_user_auth(): cloud.cookie_session?
-	if AUTO_ACCEPT then return COOKIE and cloud.auth.cookie.login(COOKIE) end
 	if not INTERACTIVE_MODE then return nil end
 
 	local options: { { label: string, kind: string } } = {
@@ -171,6 +170,11 @@ local function prompt_user_auth(): cloud.cookie_session?
 			then `{c.green}Log in from ROBLOX_COOKIE as {env_who}`
 			else `{c.green}Log in from ROBLOX_COOKIE{c.reset}`
 		table.insert(options, 1, { label = env_label, kind = 'env' })
+	end
+
+	if AUTO_ACCEPT then
+		local cookie = COOKIE or local_cookie
+		return cookie and cloud.auth.cookie.login(cookie)
 	end
 
 	local labels = {}
