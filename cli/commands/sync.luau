@@ -29,8 +29,11 @@ local pushes = cli.list('push', { value = 'FILE', help = 'manifest to sync (defa
 local INPUT_PATH = if pushes and pushes[1] then pushes[1] else 'cloud.yml'
 local STATE_PATH = cli.str 'cache' or 'cloud-state.yml'
 local SCAN_CLOUD = cli.bool('scan-roblox', { help = 'rescan the whole universe from Roblox' })
-local overwrite = cli.bool('overwrite-roblox', { help = 'push local changes over Roblox state' })
-local fresh_state = cli.bool('ignore-conflicts', { help = 'skip fetching Roblox state for conflict checks' })
+
+local sync_all = cli.bool('all', { help = 'fetch even unchanged resources' })
+local overwrite = cli.bool('overwrite-cloud', { help = 'push local changes over Roblox cloud' })
+local ignore_cloud = cli.bool('ignore-cloud', { help = 'skip fetching Roblox cloud to update cache/conflicts' })
+
 local scanned_cloud = false
 
 cli.strict()
@@ -149,8 +152,12 @@ end
 
 ctx_log.gap()
 
-local sync_opts =
-	{ universe_id = resources.lock.universe_id, overwrite = overwrite, fresh_state = scanned_cloud or fresh_state }
+local sync_opts = {
+	universe_id = resources.lock.universe_id,
+	overwrite = overwrite,
+	sync_all = sync_all,
+	ignore_cloud = ignore_cloud,
+}
 
 -- reconcile
 local write_target = tostring(resources.lock.universe_id)

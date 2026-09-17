@@ -9,7 +9,12 @@ local state = require './state'
 local sync_logger = require './sync_logger'
 
 -- defs
-export type sync_opts = { universe_id: number, overwrite: boolean?, fresh_state: boolean? }
+export type sync_opts = {
+	universe_id: number,
+	ignore_cloud: boolean?,
+	overwrite: boolean?,
+	sync_all: boolean?,
+}
 type resource_lock = { universe_id: number, input: { [string]: any } }
 type resource_api = {
 	diff: ({ [string]: any }, { [string]: any }) -> { [string]: any },
@@ -44,7 +49,7 @@ local function reconcile_resource<Lock>(
 	-- guard
 	local local_changes = api.diff(prev.input, input)
 
-	if next(local_changes) == nil and not opts.fresh_state then
+	if next(local_changes) == nil and not opts.sync_all then
 		sync_logger.noop(key)
 		return prev
 	end
@@ -52,7 +57,7 @@ local function reconcile_resource<Lock>(
 	sync_logger.update(key, prev.input, local_changes)
 
 	-- refresh state
-	local cloud_state = if opts.overwrite then prev.input else api.get(prev) or {}
+	local cloud_state = if opts.ignore_cloud then prev.input else api.get(prev) or {}
 	local receiving_changes = api.diff(prev.input, cloud_state)
 	local sending_changes = tbl.intersection(api.diff(cloud_state, input), local_changes)
 
@@ -61,7 +66,7 @@ local function reconcile_resource<Lock>(
 
 	-- conflicts
 	local conflicts = input.conflicts
-	if opts.overwrite then table.clear(conflicts) end
+	local conflicted_changes = {}
 
 	-- local auto_solved = tbl.intersection(matched, conflicts)
 	-- sync_logger.solved_conflicts(auto_solved)
@@ -69,8 +74,12 @@ local function reconcile_resource<Lock>(
 	local matched = tbl.subtraction(cloud_state, sending_changes)
 	tbl.subtract(conflicts, matched)
 
-	local conflicted_changes = tbl.intersection(sending_changes, receiving_changes)
-	tbl.apply(conflicts, conflicted_changes)
+	if opts.overwrite then
+		tbl.subtract(conflicts, sending_changes)
+	else
+		conflicted_changes = tbl.intersection(sending_changes, receiving_changes)
+		tbl.apply(conflicts, conflicted_changes)
+	end
 
 	local free_sending = tbl.subtraction(sending_changes, conflicts)
 	local free_received = tbl.subtraction(receiving_changes, conflicted_changes)
