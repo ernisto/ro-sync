@@ -58,7 +58,7 @@ local function print_logs(session, identity)
 end
 
 -- run
-local session = cloud.auth.apikey.login(api_key)
+local session = cloud.auth.new:api_key(api_key)
 local identity = { universe_id = ref.universe_id, place_id = ref.place_id, version = version }
 
 stdio.write(`{stdio.style 'dim'}running on {name} ({ref.place_id})...{stdio.style 'reset'}\n`)

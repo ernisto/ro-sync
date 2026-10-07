@@ -23,7 +23,7 @@ local INTROSPECT_URL = 'https://apis.roblox.com/api-keys/v1/introspect'
 -- functions
 local function introspect(session: cloud.apikey_session): (introspection?, string?)
 	local ok, result = pcall(http.request, 'POST', 'api-keys/introspect', function()
-		return cloud.auth.request_json(session, 'POST', INTROSPECT_URL, nil, { apiKey = session.api_key })
+		return cloud.auth.request_json(session, 'POST', INTROSPECT_URL, nil, { apiKey = session.api_key_state.key })
 	end)
 	if not ok then return nil, result :: string end
 	return result :: introspection

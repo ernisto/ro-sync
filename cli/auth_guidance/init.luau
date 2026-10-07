@@ -146,8 +146,8 @@ local function confirm_save_api_key(): boolean
 end
 
 local function describe(cookie: string): string?
-	local me = cloud.auth.get_user_info(cloud.auth.cookie.login(cookie))
-	return if me.ok then `@{me.body.name}{c.reset} {c.dim}({me.body.id}){c.reset}` else nil
+	local ok, me = pcall(cloud.auth.cookie.await_info, cloud.auth.new:cookie(cookie))
+	return if ok then `@{me.name}{c.reset} {c.dim}({me.id}){c.reset}` else nil
 end
 
 local function prompt_user_auth(): cloud.cookie_session?
@@ -174,7 +174,7 @@ local function prompt_user_auth(): cloud.cookie_session?
 
 	if AUTO_ACCEPT then
 		local cookie = COOKIE or local_cookie
-		return cookie and cloud.auth.cookie.login(cookie)
+		return cookie and cloud.auth.new:cookie(cookie)
 	end
 
 	local labels = {}
@@ -193,12 +193,12 @@ local function prompt_user_auth(): cloud.cookie_session?
 		end
 
 		if kind == 'local' then
-			return cloud.auth.cookie.login(local_cookie :: string)
+			return cloud.auth.new:cookie(local_cookie :: string)
 		elseif kind == 'env' then
-			return cloud.auth.cookie.login(COOKIE :: string)
+			return cloud.auth.new:cookie(COOKIE :: string)
 		elseif kind == 'paste' then
 			local cookie = ctx_log.prompt('text', 'Paste your .ROBLOSECURITY cookie')
-			if cookie ~= '' then return cloud.auth.cookie.login(cookie) end
+			if cookie ~= '' then return cloud.auth.new:cookie(cookie) end
 		elseif kind == 'why' then
 			ctx_log.str(`{c.dim}Endpoints for universe config and place config, arent covered by the Open Cloud API`)
 			ctx_log.str(`{c.dim}So ro-sync acts {c.green}as you{c.reset}{c.dim} via a Roblox cookie`)
@@ -249,7 +249,7 @@ local function prompt_valid_api_key(
 	local session, key_info, key_err
 	repeat
 		if api_key then
-			session = cloud.auth.apikey.login(api_key)
+			session = cloud.auth.new:api_key(api_key)
 			key_info, key_err = introspect.introspect(session)
 		end
 
@@ -279,11 +279,11 @@ end
 local function authenticate_user(): cloud.cookie_session?
 	local user_session = prompt_user_auth()
 	if user_session then
-		local me = cloud.auth.get_user_info(user_session)
-		if me.ok then
-			ctx_log.str(`Authenticated as {c.green}@{me.body.name} {c.dim}({me.body.id})`)
+		local ok, me = pcall(cloud.auth.cookie.await_info, user_session)
+		if ok then
+			ctx_log.str(`Authenticated as {c.green}@{me.name} {c.dim}({me.id})`)
 		else
-			ctx_log.warn(`Couldnt authenticate, {me.message}`)
+			ctx_log.warn(`Couldnt authenticate, {me}`)
 		end
 	end
 	return user_session

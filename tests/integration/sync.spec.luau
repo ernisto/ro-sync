@@ -16,7 +16,7 @@ local API_KEY = env.str 'API_KEY'
 local resources = state_fs.load_resources(MANIFEST_PATH, LOCK_PATH)
 
 -- real API adapter — mirrors cli.luau exactly
-local session = cloud.auth.apikey.login(API_KEY)
+local session = cloud.auth.new:api_key(API_KEY)
 local api: any = {
 	get = function(product)
 		local res = cloud.product.get(session, product)

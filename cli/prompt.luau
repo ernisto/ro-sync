@@ -50,8 +50,7 @@ local function prompt_creator(session: cloud.cookie_session): creator?
 	local groups_res = cloud.develop.get_groups(session)
 	assert(groups_res.ok, groups_res.message)
 
-	local user_res = cloud.auth.get_user_info(session)
-	local user = assert(user_res.ok and user_res.body, user_res.message)
+	local user = cloud.auth.cookie.await_info(session)
 
 	local groups = groups_res.body.data
 	local options = { `@{user.name} {c.dim}({user.id}){c.reset}` }

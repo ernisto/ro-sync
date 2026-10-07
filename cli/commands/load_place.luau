@@ -15,7 +15,7 @@ local name, ref = place_ref.resolve()
 local api_key = place_ref.api_key()
 
 -- run
-local session = cloud.auth.apikey.login(api_key)
+local session = cloud.auth.new:api_key(api_key)
 local res = cloud.place.download(session, { place_id = ref.place_id })
 assert(res.ok, res.message)
 

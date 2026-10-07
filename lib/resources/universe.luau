@@ -172,7 +172,7 @@ local function from_universe_api(data: cloud.universe): universe_data
 	}
 end
 
-local function from_universe_config(data: cloud.universe_configuration_data): universe_data
+local function from_universe_config(data: cloud.universe_settings_data_v1): universe_data
 	local any: any = data
 	return {
 		is_for_sale = data.isForSale,

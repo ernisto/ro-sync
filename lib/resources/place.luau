@@ -126,7 +126,7 @@ local function from_place_config(data: cloud.place_data): place_data
 		is_all_genres_allowed = data.isAllGenresAllowed,
 		custom_social_slots_count = data.customSocialSlotsCount,
 		-- allowed_gear_types = data.allowedGearTypes,
-	} :: any -- TODO: update rocloud types
+	}
 end
 
 local function to_place_config_params(patch: place_input): cloud.place_patch
