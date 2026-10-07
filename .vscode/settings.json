@@ -3,6 +3,8 @@
   "editor.formatOnSave": true,
   "files.eol": "\n",
   "files.exclude": {
+    "CLAUDE.md": true,
+    "AGENTS.md": true,
     "**/*.lock": true,
     "**/*.lock.*": true,
     "**/*-lock.*": true,
