@@ -2,17 +2,21 @@ local ctx_log = require '@utils/ctx_log'
 local tbl = require '@utils/tbl'
 
 local base = require './resources/base'
+local pass = require './resources/pass'
 local place = require './resources/place'
 local product = require './resources/product'
+local thumbnail = require './resources/thumbnail'
 local universe = require './resources/universe'
 
 local state = require './state'
 local sync_logger = require './sync_logger'
 
 -- defs
+type thumbnail_api = typeof(thumbnail)
 type universe_api = typeof(universe)
 type product_api = typeof(product)
 type place_api = typeof(place)
+type pass_api = typeof(pass)
 
 export type sync_opts = {
 	universe_id: number,
@@ -136,6 +140,30 @@ local function await_reconcile_place(api: place_api, place: state.place, opts: s
 	return reconcile_resource(api_impl :: any, place :: any, opts)
 end
 
+local function await_reconcile_pass(api: pass_api, pass: state.pass, opts: sync_opts): pass.pass_lock
+	local function validate(input)
+		if input.icon and not input.icon_file then ctx_log.warn(`couldnt find icon '{input.icon}'`) end
+	end
+
+	local api_impl =
+		{ diff = state.diff_pass, get = api.get, update = api.update, create = api.create, validate = validate }
+	return reconcile_resource(api_impl :: any, pass :: any, opts)
+end
+
+local function await_reconcile_thumbnail(
+	api: thumbnail_api,
+	thumbnail: state.thumbnail,
+	opts: sync_opts
+): thumbnail.thumbnail_lock
+	local function validate(input)
+		if input.file and not input.image_file then ctx_log.warn(`couldnt find thumbnail '{input.file}'`) end
+	end
+
+	local api_impl =
+		{ diff = state.diff_thumbnail, get = api.get, update = api.update, create = api.create, validate = validate }
+	return reconcile_resource(api_impl :: any, thumbnail :: any, opts)
+end
+
 local function await_reconcile_universe(
 	api: universe_api,
 	universe: state.universe,
@@ -150,7 +178,9 @@ end
 
 -- module
 return table.freeze {
+	await_reconcile_thumbnail = await_reconcile_thumbnail,
+	await_reconcile_universe = await_reconcile_universe,
 	await_reconcile_product = await_reconcile_product,
 	await_reconcile_place = await_reconcile_place,
-	await_reconcile_universe = await_reconcile_universe,
+	await_reconcile_pass = await_reconcile_pass,
 }

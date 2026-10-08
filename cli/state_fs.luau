@@ -23,6 +23,12 @@ local function resolve_manifest_files(manifest: state.manifest)
 	for _, product in manifest.products do
 		if product.icon then product.icon_file = resolve_file(product.icon) end
 	end
+	for _, pass in manifest.passes do
+		if pass.icon then pass.icon_file = resolve_file(pass.icon) end
+	end
+	for _, thumbnail in manifest.thumbnails do
+		if thumbnail.file then thumbnail.image_file = resolve_file(thumbnail.file) end
+	end
 	for _, place in manifest.places do
 		if place.file then place.asset_file = resolve_file(place.file) end
 	end
@@ -42,12 +48,17 @@ local function load_lock(lock_path: string): state.lock
 end
 
 local function resources_from_lock(lock: state.lock, owner: state.owner): state.resources
-	local manifest: state.manifest = { owner = owner, products = {}, places = {} }
+	local manifest: state.manifest = state.create_input(owner)
 
 	for key, product in lock.products do
 		local input: any = table.clone(product.input)
 		input.icon_file, input.conflicts = nil, {}
 		manifest.products[key] = input
+	end
+	for key, pass in lock.passes do
+		local input: any = table.clone(pass.input)
+		input.icon_file, input.conflicts = nil, {}
+		manifest.passes[key] = input
 	end
 	for key, place in lock.places do
 		local input: any = table.clone(place.input)
@@ -77,6 +88,12 @@ end
 local function save_resources(resources: state.resources, manifest_path: string, lock_path: string)
 	for _, product in resources.products do
 		if product.lock then resources.lock.products[product.key] = product.lock end
+	end
+	for _, pass in resources.passes do
+		if pass.lock then resources.lock.passes[pass.key] = pass.lock end
+	end
+	for _, thumbnail in resources.thumbnails do
+		if thumbnail.lock then resources.lock.thumbnails[thumbnail.key] = thumbnail.lock end
 	end
 	for _, place in resources.places do
 		if place.lock then resources.lock.places[place.key] = place.lock end

@@ -1,13 +1,15 @@
 local base = require '@lib/resources/base'
+local pass = require '@lib/resources/pass'
 local place = require '@lib/resources/place'
 local product = require '@lib/resources/product'
 local state = require '@lib/state'
 local sync_logger = require '@lib/sync_logger'
 local universe = require '@lib/resources/universe'
 
+type universe_api = typeof(universe)
 type product_api = typeof(product)
 type place_api = typeof(place)
-type universe_api = typeof(universe)
+type pass_api = typeof(pass)
 
 -- functions
 local function await_import_products(
@@ -38,6 +40,36 @@ local function await_import_products(
 			else { name = raw.name, conflicts = {} }
 
 		sync_logger.imported(key, raw.productId)
+	end
+end
+
+local function await_import_passes(
+	api: pass_api,
+	session: base.session,
+	universe_id: number,
+	resources: state.resources
+)
+	local passid_keys: { [number]: string } = {}
+	for key, pass_lock in resources.lock.passes do
+		passid_keys[pass_lock.pass_id] = key
+	end
+
+	for _, raw in api.list(session, { universe_id = universe_id }) do
+		local read = pass.from_api_result(raw, universe_id)
+		local key = passid_keys[read.pass_id] or `pass_{read.pass_id}`
+
+		resources.lock.passes[key] = {
+			universe_id = universe_id,
+			pass_id = read.pass_id,
+			input = read,
+		}
+
+		local input = resources.manifest.passes[key]
+		resources.manifest.passes[key] = if input
+			then state.mask_pass(read :: any, input)
+			else { name = read.name, conflicts = {} }
+
+		sync_logger.imported(key, read.pass_id)
 	end
 end
 
@@ -91,7 +123,8 @@ end
 
 -- module
 return table.freeze {
-	await_import_products = await_import_products,
-	await_import_places = await_import_places,
 	await_import_universe = await_import_universe,
+	await_import_products = await_import_products,
+	await_import_passes = await_import_passes,
+	await_import_places = await_import_places,
 }

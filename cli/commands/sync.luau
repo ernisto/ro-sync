@@ -10,13 +10,16 @@ local auth_guidance = require '@cli/auth_guidance'
 local prompt = require '@cli/prompt'
 local state_fs = require '@cli/state_fs'
 
-local base = require '@lib/resources/base'
 local import = require '@lib/import'
-local place_res = require '@lib/resources/place'
-local product_res = require '@lib/resources/product'
 local state = require '@lib/state'
 local sync = require '@lib/sync'
 local sync_logger = require '@lib/sync_logger'
+
+local base = require '@lib/resources/base'
+local pass_res = require '@lib/resources/pass'
+local place_res = require '@lib/resources/place'
+local product_res = require '@lib/resources/product'
+local thumbnail_res = require '@lib/resources/thumbnail'
 local universe_res = require '@lib/resources/universe'
 
 -- cli
@@ -111,6 +114,11 @@ local function state_from_cloud(input: state.manifest?)
 		import.await_import_products(product_res, session, universe_id, resources)
 	end)
 
+	key_info = auth_guidance.grant_scope(session, key_info, 'game-pass:read', target)
+	pcall(function()
+		import.await_import_passes(pass_res, session, universe_id, resources)
+	end)
+
 	state_fs.save_resources(resources, INPUT_PATH, STATE_PATH)
 	ctx_log.str(`Saved {c.green}{STATE_PATH}{c.reset} and {c.green}{INPUT_PATH}`)
 
@@ -186,6 +194,19 @@ if next(resources.products) then
 end
 for _, resource in resources.products do
 	local ok, err = pcall(sync.await_reconcile_product, product_res, resource, sync_opts)
+	if ok then resource.lock = err end
+end
+
+if next(resources.passes) then
+	key_info = auth_guidance.grant_scope(session, key_info, 'game-pass:write', write_target)
+end
+for _, resource in resources.passes do
+	local ok, err = pcall(sync.await_reconcile_pass, pass_res, resource, sync_opts)
+	if ok then resource.lock = err end
+end
+
+for _, resource in resources.thumbnails do
+	local ok, err = pcall(sync.await_reconcile_thumbnail, thumbnail_res, resource, sync_opts)
 	if ok then resource.lock = err end
 end
 
