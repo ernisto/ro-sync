@@ -7,7 +7,7 @@ local roblox = require '@lune/roblox'
 local serde = require '@lune/serde'
 local c = ctx_log.colors
 
-local introspect = require '@self/introspect'
+local apikey = cloud.auth.api_key
 
 -- defs
 local CREDENTIALS_URL = 'https://create.roblox.com/dashboard/credentials'
@@ -26,12 +26,12 @@ local USED_SCOPES = {
 
 export type session = {
 	session: cloud.apikey_session,
-	key_info: introspect.introspection,
+	key_info: cloud.api_key_introspection,
 	user_session: cloud.cookie_session?,
 }
 
 -- helpers
-local function print_status(key_info: introspect.introspection?, api_key: string?, universe_id: number?): string
+local function print_status(key_info: cloud.api_key_introspection?, api_key: string?, universe_id: number?): string
 	if not key_info then return 'unexisting' end
 
 	local status = if not key_info.enabled then 'disabled' elseif key_info.expired then 'expired' else 'active'
@@ -104,7 +104,7 @@ local function print_status(key_info: introspect.introspection?, api_key: string
 	local missing, missing_index = {}, {}
 	local target = if universe_id then tostring(universe_id) else nil
 	for _, scope in USED_SCOPES do
-		if introspect.has_scope(key_info, scope, target) then continue end
+		if apikey.has_scope(key_info, scope, target) then continue end
 		local name, op = string.match(scope, '^(.*):([^:]+)$')
 
 		local group = missing_index[name]
@@ -212,11 +212,11 @@ end
 -- functions
 local function grant_scope(
 	session: cloud.apikey_session,
-	info: introspect.introspection,
+	info: cloud.api_key_introspection,
 	scope: string,
 	target: string?
-): introspect.introspection
-	if introspect.has_scope(info, scope, target) then return info end
+): cloud.api_key_introspection
+	if apikey.has_scope(info, scope, target) then return info end
 	local label = if target then `({target})` else ''
 
 	if not INTERACTIVE_MODE then
@@ -230,13 +230,13 @@ local function grant_scope(
 	repeat
 		if not ctx_log.prompt('confirm', 'Granted?') then return info end
 
-		local next_info, err = introspect.introspect(session)
-		if not next_info then
-			ctx_log.warn(`Failed to re-check key: {err}`)
+		local ok, next_info = pcall(apikey.await_refresh_introspection, session)
+		if not ok then
+			ctx_log.warn(`Failed to re-check key: {next_info}`)
 			return info
 		end
 		info = next_info
-	until introspect.has_scope(info, scope, target)
+	until apikey.has_scope(info, scope, target)
 
 	ctx_log.str(`{c.green}Scope {c.bold}{label}{c.reset}{c.green} granted`)
 	return info
@@ -245,12 +245,12 @@ end
 local function prompt_valid_api_key(
 	api_key: string?,
 	universe_id: number?
-): (cloud.apikey_session?, introspect.introspection?, string?)
+): (cloud.apikey_session?, cloud.api_key_introspection?, string?)
 	local session, key_info, key_err
 	repeat
 		if api_key then
 			session = cloud.auth.new:api_key(api_key)
-			key_info, key_err = introspect.introspect(session)
+			key_info, key_err = apikey.introspect(session)
 		end
 
 		if not api_key then
@@ -293,7 +293,7 @@ local function authenticate_key(
 	api_key: string?,
 	provided: boolean,
 	universe_id: number?
-): (cloud.apikey_session?, introspect.introspection?)
+): (cloud.apikey_session?, cloud.api_key_introspection?)
 	local api_session, key_info, resolved = prompt_valid_api_key(api_key, universe_id)
 	if not api_session or not key_info or not resolved then return nil end
 
