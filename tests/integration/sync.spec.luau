@@ -14,27 +14,10 @@ local ICON_PATH = 'tests/integration/assets/placeholder.png'
 local API_KEY = env.str 'API_KEY'
 
 local resources = state_fs.load_resources(MANIFEST_PATH, LOCK_PATH)
-
--- real API adapter — mirrors cli.luau exactly
-local session = cloud.auth.new:api_key(API_KEY)
-local api: any = {
-	get = function(product)
-		local res = cloud.product.get(session, product)
-		assert(res.ok, res.message)
-		return product_res.from_api_result(res.body)
-	end,
-	create = function()
-		error 'create should not be called in integration tests'
-	end,
-	update = function(product, patch)
-		local res = cloud.product.update(session, product, product_res.to_api_params(patch))
-		assert(res.ok, res.message)
-		return patch
-	end,
-}
+local session: any = cloud.auth.new:api_key(API_KEY)
 
 local function get_product()
-	return api.get(resources.lock.products.money_pack1)
+	return product_res.get(session, resources.lock.products.money_pack1)
 end
 
 -- tests
@@ -62,11 +45,11 @@ function run.should_return_prev_unchanged_when_no_local_changes()
 	input.icon = nil
 	input.icon_file = nil
 
-	local guarded_api = table.clone(api)
+	local guarded_api: any = table.clone(product_res)
 	guarded_api.get = mock.never_called 'get should not be reached for a no-op'
 	guarded_api.update = mock.never_called 'update should not be reached for a no-op'
 
-	local opts: sync.sync_opts = { universe_id = prev.universe_id }
+	local opts: sync.sync_opts = { universe_id = prev.universe_id, session = session }
 	local result = sync.await_reconcile_product(guarded_api, sm.make_product(input, prev), opts)
 
 	expect.eq(result, prev)
@@ -83,8 +66,8 @@ function run.should_push_description_change_and_revert()
 	local patched_prev = table.clone(prev)
 	patched_prev.input = table.clone(prev.input)
 
-	local opts: sync.sync_opts = { universe_id = prev.universe_id }
-	sync.await_reconcile_product(api, sm.make_product(input, patched_prev), opts)
+	local opts: sync.sync_opts = { universe_id = prev.universe_id, session = session }
+	sync.await_reconcile_product(product_res, sm.make_product(input, patched_prev), opts)
 
 	local ok, err = pcall(function()
 		local after = get_product()
@@ -107,10 +90,10 @@ function run.should_push_icon_change_and_revert()
 	patched_prev.input = table.clone(prev.input)
 	patched_prev.input.icon_file = { assetid = prev.input.icon_file and prev.input.icon_file.assetid, hash = 'stale' }
 
-	local opts: sync.sync_opts = { universe_id = prev.universe_id }
-	sync.await_reconcile_product(api, sm.make_product(input, patched_prev), opts)
+	local opts: sync.sync_opts = { universe_id = prev.universe_id, session = session }
+	sync.await_reconcile_product(product_res, sm.make_product(input, patched_prev), opts)
 
-	local after_lock = sync.await_reconcile_product(api, sm.make_product(input, patched_prev), opts)
+	local after_lock = sync.await_reconcile_product(product_res, sm.make_product(input, patched_prev), opts)
 	expect.truthy(after_lock.product_id)
 end
 

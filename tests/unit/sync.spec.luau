@@ -25,7 +25,7 @@ function run.should_create_product_when_no_prev_lock()
 	local created: any = nil
 
 	local api = sm.make_product_api(nil, { 'get', 'update' })
-	api.create = function(_, data)
+	api.create = function(_, _, data)
 		created = data
 		return { universe_id = UNIVERSE_ID, product_id = PRODUCT_ID, input = { name = data.name } } :: any
 	end
@@ -57,7 +57,7 @@ function run.should_push_local_changes_to_cloud()
 	sync.await_reconcile_product(api, make_product(new_input, prev), opts)
 
 	expect.eq(api.update.call_count, 1)
-	local patch = api.update.calls[1][2]
+	local patch = api.update.calls[1][3]
 	expect.eq(patch.name, 'New Name')
 	expect.eq(patch.price, 200)
 end
@@ -84,7 +84,7 @@ function run.should_not_push_fields_listed_in_conflicts()
 
 	sync.await_reconcile_product(api, make_product(new_input, prev), opts)
 
-	local patch = api.update.calls[1] and api.update.calls[1][2]
+	local patch = api.update.calls[1] and api.update.calls[1][3]
 	expect.falsy(patch and patch.name, 'conflicted field should not be pushed')
 end
 
@@ -123,7 +123,7 @@ function run.icon_pushed_when_hash_differs_from_lock()
 
 	sync.await_reconcile_product(api, make_product(input, prev), opts)
 
-	expect.eq(api.update.calls[1][2].icon_file, new_icon)
+	expect.eq(api.update.calls[1][3].icon_file, new_icon)
 end
 
 function run.icon_lock_updated_to_new_icon_after_push()

@@ -224,46 +224,44 @@ local function to_universe_config_params(patch: universe_input): cloud.universe_
 	}
 end
 
-local function build_universe_api(session: cloud.apikey_session, user_session: cloud.cookie_session)
-	local function update(u: cloud.universe_identity, patch: universe_input): universe_data
-		local applied: { [string]: any } = {}
+type session = base.session
 
-		local open_params = to_universe_params(patch)
-		pcall(function()
-			if next(open_params) == nil then return end
+local function update(session: session, game: cloud.universe_identity, patch: universe_input): universe_data
+	local applied: { [string]: any } = {}
 
-			local res = http.request('PATCH', `universe/{u.universe_id}`, function()
-				return cloud.universe.update(session, u, open_params)
-			end)
-			tbl.apply(applied, from_universe_api(res))
+	local open_params = to_universe_params(patch)
+	pcall(function()
+		if next(open_params) == nil then return end
+
+		local res = http.request('PATCH', `universe/{game.universe_id}`, function()
+			return cloud.universe.update(session, game, open_params)
 		end)
+		tbl.apply(applied, from_universe_api(res))
+	end)
 
-		local config_params = to_universe_config_params(patch)
-		pcall(function()
-			if next(config_params) == nil then return end
+	local config_params = to_universe_config_params(patch)
+	pcall(function()
+		if next(config_params) == nil then return end
 
-			local res = http.request('PATCH', `universes/{u.universe_id}/configuration`, function()
-				return cloud.universe_configuration.update(user_session, u, config_params)
-			end)
-			tbl.apply(applied, from_universe_config(res))
+		local res = http.request('PATCH', `universes/{game.universe_id}/configuration`, function()
+			return cloud.universe_configuration.update(session, game, config_params)
 		end)
+		tbl.apply(applied, from_universe_config(res))
+	end)
 
-		return applied
-	end
-	local function get(u: cloud.universe_identity): universe_data
-		local open = from_universe_api(http.request('GET', `universe/{u.universe_id}`, function()
-			return cloud.universe.get(session, u)
-		end))
-		local config = from_universe_config(http.request('GET', `universes/{u.universe_id}/configuration`, function()
-			return cloud.universe_configuration.get(user_session, u)
-		end))
-
-		return tbl.apply(open, config)
-	end
-	return { get = get, update = update }
+	return applied
 end
 
-export type api = typeof(build_universe_api(_G, _G))
+local function get(session: session, game: cloud.universe_identity): universe_data
+	local open = from_universe_api(http.request('GET', `universe/{game.universe_id}`, function()
+		return cloud.universe.get(session, game)
+	end))
+	local config = from_universe_config(http.request('GET', `universes/{game.universe_id}/configuration`, function()
+		return cloud.universe_configuration.get(session, game)
+	end))
+
+	return tbl.apply(open, config)
+end
 
 -- module
 return table.freeze {
@@ -282,5 +280,7 @@ return table.freeze {
 	to_universe_params = to_universe_params,
 	from_universe_config = from_universe_config,
 	to_universe_config_params = to_universe_config_params,
-	build_universe_api = build_universe_api,
+
+	get = get,
+	update = update,
 }

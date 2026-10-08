@@ -1,6 +1,8 @@
+local cloud = require '@pkg/ro_cloud'
 local serde = require '@lune/serde'
 
 -- types
+export type session = cloud.apikey_session & cloud.cookie_session
 export type owner = { user: nil, group: number } | { user: number, group: nil }
 export type input_file = { hash: string, content: buffer, assetid: nil }
 export type lock_file = { hash: string?, content: nil, assetid: number? }

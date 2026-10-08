@@ -1,6 +1,7 @@
 local ctx_log = require '@utils/ctx_log'
 local tbl = require '@utils/tbl'
 
+local base = require './resources/base'
 local place = require './resources/place'
 local product = require './resources/product'
 local universe = require './resources/universe'
@@ -9,18 +10,24 @@ local state = require './state'
 local sync_logger = require './sync_logger'
 
 -- defs
+type universe_api = typeof(universe)
+type product_api = typeof(product)
+type place_api = typeof(place)
+
 export type sync_opts = {
 	universe_id: number,
 	ignore_cloud: boolean?,
 	overwrite: boolean?,
 	sync_all: boolean?,
+	session: base.session,
 }
+
 type resource_lock = { universe_id: number, input: { [string]: any } }
 type resource_api = {
 	diff: ({ [string]: any }, { [string]: any }) -> { [string]: any },
-	get: (any) -> { [string]: any }?,
-	update: (any, { [string]: any }) -> ({ [string]: any }, string?),
-	create: ((sync_opts, any) -> resource_lock)?,
+	get: (any, any) -> { [string]: any }?,
+	update: (any, any, { [string]: any }) -> ({ [string]: any }, string?),
+	create: ((any, sync_opts, any) -> resource_lock)?,
 	validate: (({ [string]: any }) -> ())?,
 }
 
@@ -38,7 +45,7 @@ local function reconcile_resource<Lock>(
 		sync_logger.creation(key)
 		local create = api.create or error 'resource has no create'
 
-		local ok, created_lock = ctx_log.pcall(create, opts, input)
+		local ok, created_lock = ctx_log.pcall(create, opts.session, opts, input)
 		if ok then sync_logger.print_pushed_changes(api.diff({}, created_lock.input)) end
 
 		sync_logger.creation_result(ok)
@@ -57,7 +64,7 @@ local function reconcile_resource<Lock>(
 	sync_logger.update(key, prev.input, local_changes)
 
 	-- refresh state
-	local cloud_state = if opts.ignore_cloud then prev.input else api.get(prev) or {}
+	local cloud_state = if opts.ignore_cloud then prev.input else api.get(opts.session, prev) or {}
 	local receiving_changes = api.diff(prev.input, cloud_state)
 	local sending_changes = tbl.intersection(api.diff(cloud_state, input), local_changes)
 
@@ -87,7 +94,7 @@ local function reconcile_resource<Lock>(
 
 	local confirmed_state, push_err = cloud_state, nil
 	if next(free_sending) then
-		confirmed_state, push_err = api.update(prev, free_sending)
+		confirmed_state, push_err = api.update(opts.session, prev, free_sending)
 	end
 
 	confirmed_state = tbl.applied(cloud_state, confirmed_state)
@@ -108,7 +115,7 @@ local function reconcile_resource<Lock>(
 	return prev
 end
 
-local function await_reconcile_product(api: product.api, product: state.product, opts: sync_opts): product.product_lock
+local function await_reconcile_product(api: product_api, product: state.product, opts: sync_opts): product.product_lock
 	local prev = product.lock
 
 	local function validate(input)
@@ -120,7 +127,7 @@ local function await_reconcile_product(api: product.api, product: state.product,
 	return reconcile_resource(api_impl :: any, product.key, product.input, prev, opts)
 end
 
-local function await_reconcile_place(api: place.api, place: state.place, opts: sync_opts): place.place_lock
+local function await_reconcile_place(api: place_api, place: state.place, opts: sync_opts): place.place_lock
 	local prev = place.lock
 
 	local function validate(input)
@@ -133,11 +140,12 @@ local function await_reconcile_place(api: place.api, place: state.place, opts: s
 end
 
 local function await_reconcile_universe(
-	api: universe.api,
+	api: universe_api,
 	universe: state.universe,
 	opts: sync_opts
 ): universe.universe_lock
-	local prev = universe.lock or { universe_id = opts.universe_id, input = api.get { universe_id = opts.universe_id } }
+	local prev = universe.lock
+		or { universe_id = opts.universe_id, input = api.get(opts.session, { universe_id = opts.universe_id }) }
 
 	local api_impl = { diff = state.diff_universe, get = api.get, update = api.update }
 	return reconcile_resource(api_impl :: any, universe.key, universe.input, prev, opts)

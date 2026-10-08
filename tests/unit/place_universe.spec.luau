@@ -20,7 +20,7 @@ function run.place_pushes_settings_change()
 	sync.await_reconcile_place(api, sm.make_place(input, prev), opts)
 
 	expect.eq(api.update.call_count, 1)
-	expect.eq(api.update.calls[1][2].display_name, 'New Name')
+	expect.eq(api.update.calls[1][3].display_name, 'New Name')
 end
 
 function run.place_skips_when_unchanged()
@@ -47,7 +47,7 @@ function run.place_creates_when_no_lock()
 	local input = sm.make_place_input { file = 'game.rbxl', asset_file = file }
 
 	local api = sm.make_place_api(nil, { 'get', 'update' })
-	api.create = mock.fn(function(opts, place)
+	api.create = mock.fn(function(_, opts, place)
 		return {
 			universe_id = opts.universe_id,
 			place_id = sm.PLACE_ID,
@@ -74,7 +74,7 @@ function run.place_creates_without_file()
 	local input = sm.make_place_input()
 
 	local api = sm.make_place_api(nil, { 'get', 'update' })
-	api.create = mock.fn(function(opts)
+	api.create = mock.fn(function(_, opts)
 		return { universe_id = opts.universe_id, place_id = sm.PLACE_ID, input = {} }
 	end)
 
@@ -91,7 +91,7 @@ function run.place_file_pushed_when_hash_differs()
 	local api = sm.make_place_api()
 
 	sync.await_reconcile_place(api, sm.make_place(input, prev), opts)
-	expect.eq(api.update.calls[1][2].asset_file, new_file)
+	expect.eq(api.update.calls[1][3].asset_file, new_file)
 end
 
 function run.place_file_noop_when_hash_matches()
@@ -113,7 +113,7 @@ function run.place_file_never_conflicts()
 	sync.await_reconcile_place(api, sm.make_place(input, prev), opts)
 
 	expect.falsy(next(input.conflicts), 'file vs settings should not conflict')
-	expect.eq(api.update.calls[1][2].asset_file, new_file) -- file still pushed
+	expect.eq(api.update.calls[1][3].asset_file, new_file) -- file still pushed
 	expect.eq(input.description, 'Cloud edit') -- cloud settings pulled in
 end
 
@@ -124,7 +124,7 @@ function run.universe_pushes_flag_change()
 	local api = sm.make_universe_api()
 
 	sync.await_reconcile_universe(api, sm.make_universe(input, prev), opts)
-	expect.eq(api.update.calls[1][2].desktop, false)
+	expect.eq(api.update.calls[1][3].desktop, false)
 end
 
 function run.universe_detects_social_link_change()
@@ -134,7 +134,7 @@ function run.universe_detects_social_link_change()
 	local api = sm.make_universe_api()
 
 	sync.await_reconcile_universe(api, sm.make_universe(input, prev), opts)
-	expect.eq(api.update.calls[1][2].discord.uri, 'https://discord.gg/x')
+	expect.eq(api.update.calls[1][3].discord.uri, 'https://discord.gg/x')
 end
 
 function run.universe_records_conflict()
@@ -155,7 +155,7 @@ function run.universe_baselines_from_cloud_without_lock()
 	local lock = sync.await_reconcile_universe(api, sm.make_universe(input, nil), opts)
 
 	expect.eq(lock.universe_id, sm.UNIVERSE_ID)
-	expect.eq(api.update.calls[1][2].desktop, false) -- manifest change pushed against pulled baseline
+	expect.eq(api.update.calls[1][3].desktop, false) -- manifest change pushed against pulled baseline
 end
 
 function run.universe_accepted_push_updates_lock()
@@ -179,7 +179,7 @@ function run.universe_dropped_push_keeps_lock_in_sync()
 	end)
 
 	local lock = sync.await_reconcile_universe(api, sm.make_universe(input, prev), opts)
-	expect.eq(api.update.calls[1][2].price, 100) -- we did push 100
+	expect.eq(api.update.calls[1][3].price, 100) -- we did push 100
 	expect.eq(lock.input.price, 0) -- but lock reflects the dropped result
 end
 
@@ -209,7 +209,7 @@ function run.place_dropped_push_keeps_lock_in_sync()
 	end)
 
 	local lock = sync.await_reconcile_place(api, sm.make_place(input, prev), opts)
-	expect.eq(api.update.calls[1][2].allow_copying, true) -- pushed true
+	expect.eq(api.update.calls[1][3].allow_copying, true) -- pushed true
 	expect.eq(lock.input.allow_copying, false) -- but cloud kept false
 end
 

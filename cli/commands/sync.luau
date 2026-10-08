@@ -10,6 +10,7 @@ local auth_guidance = require '@cli/auth_guidance'
 local prompt = require '@cli/prompt'
 local state_fs = require '@cli/state_fs'
 
+local base = require '@lib/resources/base'
 local import = require '@lib/import'
 local place_res = require '@lib/resources/place'
 local product_res = require '@lib/resources/product'
@@ -72,8 +73,11 @@ local universe_id = if state_ok
 	elseif INTERACTIVE then prompt.prompt_subject(user_session).universe.universe_id
 	else error 'universe expected'
 
-local session, key_info = auth_guidance.authenticate_key(API_KEY, API_KEY ~= nil, universe_id)
-if not session or not key_info then return process.exit(1) end
+local api_session, key_info = auth_guidance.authenticate_key(API_KEY, API_KEY ~= nil, universe_id)
+if not api_session or not key_info then return process.exit(1) end
+
+local session: base.session = api_session :: any
+session.cookie_state = user_session and user_session.cookie_state
 
 local universe = http.request('GET', `universe/{universe_id}`, function()
 	return cloud.universe.get(session, { universe_id = universe_id })
@@ -94,17 +98,17 @@ local function state_from_cloud(input: state.manifest?)
 	local target = tostring(universe_id)
 
 	pcall(function()
-		import.await_import_places(place_res.build_place_api(session, user_session), universe_id, resources)
+		import.await_import_places(place_res, session, universe_id, resources)
 	end)
 
 	key_info = auth_guidance.grant_scope(session, key_info, 'universe:read', target)
 	pcall(function()
-		import.await_import_universe(universe_res.build_universe_api(session, user_session), universe_id, resources)
+		import.await_import_universe(universe_res, session, universe_id, resources)
 	end)
 
 	key_info = auth_guidance.grant_scope(session, key_info, 'developer-product:read', target)
 	pcall(function()
-		import.await_import_products(product_res.build_product_api(session), universe_id, resources)
+		import.await_import_products(product_res, session, universe_id, resources)
 	end)
 
 	state_fs.save_resources(resources, INPUT_PATH, STATE_PATH)
@@ -157,33 +161,31 @@ local sync_opts = {
 	overwrite = overwrite,
 	sync_all = sync_all,
 	ignore_cloud = ignore_cloud,
+	session = session,
 }
 
 -- reconcile
 local write_target = tostring(resources.lock.universe_id)
 
-local universe_api = universe_res.build_universe_api(session, user_session)
 if resources.universe then
 	key_info = auth_guidance.grant_scope(session, key_info, 'universe:write', write_target)
-	local ok, err = pcall(sync.await_reconcile_universe, universe_api, resources.universe, sync_opts)
+	local ok, err = pcall(sync.await_reconcile_universe, universe_res, resources.universe, sync_opts)
 	if ok then resources.universe.lock = err end
 end
 
-local place_api = place_res.build_place_api(session, user_session)
 if next(resources.places) then
 	key_info = auth_guidance.grant_scope(session, key_info, 'universe.place:write', write_target)
 end
 for _, place in resources.places do
-	local ok, err = pcall(sync.await_reconcile_place, place_api, place, sync_opts)
+	local ok, err = pcall(sync.await_reconcile_place, place_res, place, sync_opts)
 	if ok then place.lock = err end
 end
 
-local product_api = product_res.build_product_api(session)
 if next(resources.products) then
 	key_info = auth_guidance.grant_scope(session, key_info, 'developer-product:write', write_target)
 end
 for _, resource in resources.products do
-	local ok, err = pcall(sync.await_reconcile_product, product_api, resource, sync_opts)
+	local ok, err = pcall(sync.await_reconcile_product, product_res, resource, sync_opts)
 	if ok then resource.lock = err end
 end
 

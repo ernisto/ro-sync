@@ -143,85 +143,71 @@ local function to_place_config_params(patch: place_input): cloud.place_patch
 end
 
 -- api impl
-local function build_place_api(
-	session: cloud.apikey_session,
-	user_session: cloud.cookie_session,
-	http_impl: typeof(http)?
-)
-	local request = if http_impl then http_impl.request else http.request
+type session = base.session
 
-	local function update(place: cloud.place_identity, patch: place_input): (place_data, string?)
-		local config = to_place_config_params(patch)
-		local confirmed: { [string]: any } = {}
+local function update(session: session, place: cloud.place_identity, patch: place_input): (place_data, string?)
+	local config = to_place_config_params(patch)
+	local confirmed: { [string]: any } = {}
 
-		local _, err1 = pcall(function()
-			if next(config) == nil then return end
+	local _, err1 = pcall(function()
+		if next(config) == nil then return end
 
-			confirmed = from_place_config(request('PATCH', `places/{place.place_id}`, function()
-				return cloud.place_configuration.update(user_session, { place_id = place.place_id }, config)
-			end))
-			confirmed.asset_file = nil
-		end :: any)
-
-		local _, err2 = pcall(function()
-			if not patch.asset_file then return end
-
-			request('POST', `places/{place.place_id}/versions`, function()
-				return cloud.place.upload(session, place, patch.asset_file.content, true)
-			end)
-			confirmed.asset_file = { hash = patch.asset_file.hash, assetid = place.place_id }
-		end :: any)
-
-		return confirmed, err1 or err2
-	end
-	local function create(opts, place: place_input): place_lock
-		local result = request('POST', 'assets (Place)', function()
-			return cloud.place.create(
-				user_session,
-				{ universe_id = opts.universe_id },
-				{ templatePlaceId = BASEPLATE_PLACE_ID }
-			)
-		end)
-
-		local identity = { universe_id = opts.universe_id, place_id = result.placeId }
-		local data = update(identity, place)
-
-		return {
-			universe_id = identity.universe_id,
-			place_id = identity.place_id,
-			input = data or {} :: any,
-		}
-	end
-	local function get(place: cloud.place_identity): place_data
-		return from_place_config(request('GET', `places/{place.place_id}`, function()
-			return cloud.place_configuration.get(user_session, { place_id = place.place_id })
+		confirmed = from_place_config(http.request('PATCH', `places/{place.place_id}`, function()
+			return cloud.place_configuration.update(session, { place_id = place.place_id }, config)
 		end))
-	end
-	local function list(universe_id: number): { cloud.place_data }
-		local places = {}
-		local cursor: string? = nil
-		repeat
-			local page = request('GET', `universes/{universe_id}/places`, function()
-				return cloud.develop.list_universe_places(
-					user_session,
-					{ universe_id = universe_id },
-					{ cursor = cursor }
-				)
-			end)
+		confirmed.asset_file = nil
+	end :: any)
 
-			for _, place in page.data do
-				table.insert(places, place)
-			end
-			local next_cursor = page.nextPageCursor
-			cursor = if next_cursor == '' or next_cursor == cursor then nil else next_cursor
-		until cursor == nil
+	local _, err2 = pcall(function()
+		if not patch.asset_file then return end
 
-		return places
-	end
-	return { create = create, get = get, update = update, list = list }
+		http.request('POST', `places/{place.place_id}/versions`, function()
+			return cloud.place.upload(session, place, patch.asset_file.content, true)
+		end)
+		confirmed.asset_file = { hash = patch.asset_file.hash, assetid = place.place_id }
+	end :: any)
+
+	return confirmed, err1 or err2
 end
 
-export type api = typeof(build_place_api(_G, _G))
+local function create(session: session, game: cloud.universe_identity, place: place_input): place_lock
+	local result = http.request('POST', 'assets (Place)', function()
+		return cloud.place.create(session, { universe_id = game.universe_id }, { templatePlaceId = BASEPLATE_PLACE_ID })
+	end)
+
+	local identity = { universe_id = game.universe_id, place_id = result.placeId }
+	local data = update(session, identity, place)
+
+	return {
+		universe_id = identity.universe_id,
+		place_id = identity.place_id,
+		input = data or {} :: any,
+	}
+end
+
+local function get(session: session, place: cloud.place_identity): place_data
+	return from_place_config(http.request('GET', `places/{place.place_id}`, function()
+		return cloud.place_configuration.get(session, { place_id = place.place_id })
+	end))
+end
+
+local function list(session: session, universe: cloud.universe_identity): { cloud.place_data }
+	local places = {}
+	local cursor: string? = nil
+	repeat
+		local page = http.request('GET', `universes/{universe.universe_id}/places`, function()
+			return cloud.develop.list_universe_places(session, universe, { cursor = cursor })
+		end)
+
+		for _, place in page.data do
+			table.insert(places, place)
+		end
+		local next_cursor = page.nextPageCursor
+		cursor = if next_cursor == '' or next_cursor == cursor then nil else next_cursor
+	until cursor == nil
+
+	return places
+end
 
 -- module
 return table.freeze {
@@ -236,5 +222,9 @@ return table.freeze {
 
 	from_place_config = from_place_config,
 	to_place_config_params = to_place_config_params,
-	build_place_api = build_place_api,
+
+	create = create,
+	get = get,
+	update = update,
+	list = list,
 }

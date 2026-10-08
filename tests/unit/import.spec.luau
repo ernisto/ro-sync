@@ -49,7 +49,7 @@ function run.imports_new_product_into_lock_and_manifest()
 		update = mock.never_called 'update',
 	}
 
-	import.await_import_products(api, UNIVERSE_ID, resources)
+	import.await_import_products(api, nil :: any, UNIVERSE_ID, resources)
 
 	local lock = resources.lock.products.product_2000
 	expect.truthy(lock, 'lock entry created under product_<id> key')
@@ -74,7 +74,7 @@ function run.masks_existing_manifest_product_by_matching_id()
 		update = mock.never_called 'update',
 	}
 
-	import.await_import_products(api, UNIVERSE_ID, resources)
+	import.await_import_products(api, nil :: any, UNIVERSE_ID, resources)
 
 	-- keeps the existing key, does not create a product_<id> duplicate
 	expect.falsy(resources.manifest.products.product_2000, 'known id must reuse existing key')
@@ -96,7 +96,7 @@ function run.imports_new_place_into_lock_and_manifest()
 		update = mock.never_called 'update',
 	}
 
-	import.await_import_places(api, UNIVERSE_ID, resources)
+	import.await_import_places(api, nil :: any, UNIVERSE_ID, resources)
 
 	local key = `place_{PLACE_ID}`
 	local lock = resources.lock.places[key]
@@ -118,7 +118,7 @@ function run.imports_universe_from_merged_read()
 		update = mock.never_called 'update',
 	}
 
-	import.await_import_universe(api, UNIVERSE_ID, resources)
+	import.await_import_universe(api, nil :: any, UNIVERSE_ID, resources)
 
 	expect.eq(resources.lock.universe.input, read)
 	expect.truthy(resources.manifest.universe.conflicts, 'default manifest carries empty conflicts')
@@ -129,7 +129,7 @@ function run.skips_universe_when_lock_present()
 	resources.lock.universe = { universe_id = UNIVERSE_ID, input = {} }
 	local api: any = { get = mock.never_called 'get should not run when lock exists', update = function() end }
 
-	import.await_import_universe(api, UNIVERSE_ID, resources)
+	import.await_import_universe(api, nil :: any, UNIVERSE_ID, resources)
 end
 
 return run

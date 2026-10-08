@@ -1,17 +1,27 @@
+local base = require '@lib/resources/base'
 local place = require '@lib/resources/place'
 local product = require '@lib/resources/product'
 local state = require '@lib/state'
 local sync_logger = require '@lib/sync_logger'
 local universe = require '@lib/resources/universe'
 
+type product_api = typeof(product)
+type place_api = typeof(place)
+type universe_api = typeof(universe)
+
 -- functions
-local function await_import_products(api: product.api, universe_id: number, resources: state.resources)
+local function await_import_products(
+	api: product_api,
+	session: base.session,
+	universe_id: number,
+	resources: state.resources
+)
 	local assetid_keys: { [number]: string } = {}
 	for key, product_lock in resources.lock.products do
 		assetid_keys[product_lock.product_id] = key
 	end
 
-	for _, raw in api.list(universe_id) do
+	for _, raw in api.list(session, { universe_id = universe_id }) do
 		local known_key = assetid_keys[raw.productId]
 		local read = product.from_api_result(raw)
 		local key = known_key or `product_{raw.productId}`
@@ -31,13 +41,18 @@ local function await_import_products(api: product.api, universe_id: number, reso
 	end
 end
 
-local function await_import_places(api: place.api, universe_id: number, resources: state.resources)
+local function await_import_places(
+	api: place_api,
+	session: base.session,
+	universe_id: number,
+	resources: state.resources
+)
 	local placeid_keys: { [number]: string } = {}
 	for key, place_lock in resources.lock.places do
 		placeid_keys[place_lock.place_id] = key
 	end
 
-	for _, raw in api.list(universe_id) do
+	for _, raw in api.list(session, { universe_id = universe_id }) do
 		local known_key = placeid_keys[raw.id]
 		local read = place.from_place_config(raw)
 		local key = known_key or `place_{raw.id}`
@@ -57,10 +72,15 @@ local function await_import_places(api: place.api, universe_id: number, resource
 	end
 end
 
-local function await_import_universe(api: universe.api, universe_id: number, resources: state.resources)
+local function await_import_universe(
+	api: universe_api,
+	session: base.session,
+	universe_id: number,
+	resources: state.resources
+)
 	if resources.lock.universe then return end
 
-	local read = api.get { universe_id = universe_id }
+	local read = api.get(session, { universe_id = universe_id })
 	resources.lock.universe = { universe_id = universe_id, input = read }
 
 	local input = resources.manifest.universe

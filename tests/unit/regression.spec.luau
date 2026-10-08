@@ -1,6 +1,7 @@
 -- regression tests for reported sync bugs
 -- each test encodes the *correct* behaviour; failing ones reproduce an open bug
 local expect = require '@test/expect'
+local http = require '@utils/http'
 local place_res = require '@lib/resources/place'
 local sm = require '@test/sync_mock'
 local state = require '@lib/state'
@@ -18,7 +19,7 @@ function run.place_create_does_not_leak_identity_into_input()
 	local input = sm.make_place_input { file = 'game.rbxl', asset_file = sm.make_asset_file(HASH_A) }
 
 	local api = sm.make_place_api(nil, { 'get', 'update' })
-	api.create = function(create_opts, place)
+	api.create = function(_, create_opts, place)
 		return {
 			universe_id = create_opts.universe_id,
 			place_id = sm.PLACE_ID,
@@ -40,7 +41,7 @@ function run.product_create_does_not_leak_identity_into_input()
 
 	-- the adapter returns a ready product_lock; identity must stay out of `input`
 	local api = sm.make_product_api(nil, { 'get', 'update' })
-	api.create = function(create_opts)
+	api.create = function(_, create_opts)
 		return {
 			universe_id = create_opts.universe_id,
 			product_id = sm.PRODUCT_ID,
@@ -69,7 +70,7 @@ function run.place_create_saves_initial_config_and_file_to_lock()
 	local pushed: any = nil
 	local api = sm.make_place_api(nil, { 'get', 'update' })
 	-- mirror the cli create: it pushes config + rbxl via update and echoes the applied place
-	api.create = function(create_opts, place)
+	api.create = function(_, create_opts, place)
 		pushed = place
 		return {
 			universe_id = create_opts.universe_id,
@@ -113,34 +114,33 @@ function run.place_asset_upload_failure_does_not_hold_settings()
 	local input = sm.make_place_input { file = 'game.rbxl', display_name = 'New Name', asset_file = new_file }
 	local prev = sm.make_place_lock(sm.make_place_input { asset_file = sm.make_asset_file(HASH_A) })
 
-	local stub_http: any = {
-		-- mirrors utils/http semantics: ok responses yield the body, failures surface as errors
-		request = function(method, path)
-			local response: any
-			if path == 'places/4000' then
-				if method == 'GET' then
-					-- cloud state matches the lock baseline
-					response = { ok = true, body = { name = 'Start', description = 'A place', maxPlayerCount = 50 } }
-				else
-					expect.eq(method, 'PATCH')
-					-- settings PATCH succeeds; cloud echoes the applied config
-					response = { ok = true, body = { name = 'New Name', description = 'A place', maxPlayerCount = 50 } }
-				end
-			elseif path == 'places/4000/versions' then
-				expect.eq(method, 'POST')
-				response = { ok = false, code = 500, message = 'upload failed' }
+	-- mirrors utils/http semantics: ok responses yield the body, failures surface as errors
+	local real_request = http.request
+	http.request = function(method, path): any
+		local response: any
+		if path == 'places/4000' then
+			if method == 'GET' then
+				-- cloud state matches the lock baseline
+				response = { ok = true, body = { name = 'Start', description = 'A place', maxPlayerCount = 50 } }
 			else
-				error(`unexpected request: {method} {path}`, 0)
+				expect.eq(method, 'PATCH')
+				-- settings PATCH succeeds; cloud echoes the applied config
+				response = { ok = true, body = { name = 'New Name', description = 'A place', maxPlayerCount = 50 } }
 			end
+		elseif path == 'places/4000/versions' then
+			expect.eq(method, 'POST')
+			response = { ok = false, code = 500, message = 'upload failed' }
+		else
+			error(`unexpected request: {method} {path}`, 0)
+		end
 
-			if not response.ok then error(response.message, 0) end
-			return response.body
-		end,
-	}
+		if not response.ok then error(response.message, 0) end
+		return response.body
+	end
 
-	local api: any = place_res.build_place_api({} :: any, {} :: any, stub_http)
-
-	local lock = sync.await_reconcile_place(api, sm.make_place(input, prev), opts)
+	local ok, lock = pcall(sync.await_reconcile_place, place_res, sm.make_place(input, prev), opts)
+	http.request = real_request
+	assert(ok, lock)
 
 	expect.eq(lock.input.display_name, 'New Name', 'applied settings must be recorded in the lock')
 	local asset = lock.input.asset_file

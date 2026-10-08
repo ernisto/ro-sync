@@ -64,4 +64,4 @@ local function request<T>(method: string, path: string, fn: () -> cloud.http_res
 end
 
 -- module
-return table.freeze { request = request }
+return { request = request } -- not frozen: specs stub `request`

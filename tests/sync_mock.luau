@@ -9,7 +9,7 @@ local PRODUCT_ID = 2000
 local ICON_ID = 3000
 local PLACE_ID = 4000
 
-local DEFAULT_OPTS: sync.sync_opts = { universe_id = UNIVERSE_ID }
+local DEFAULT_OPTS: sync.sync_opts = { universe_id = UNIVERSE_ID, session = nil :: any }
 
 -- product builders
 local function make_input(overrides: { [string]: any }?): any
@@ -154,7 +154,7 @@ local function make_api(cloud: { [string]: any }, echo: (any, any) -> any, never
 		get = mock.fn(function()
 			return table.clone(cloud)
 		end),
-		update = mock.fn(function(_, patch)
+		update = mock.fn(function(_, _, patch)
 			return tbl.applied(table.clone(cloud), echo(nil, patch))
 		end),
 	}
