@@ -22,6 +22,12 @@ export type sync_opts = {
 	session: base.session,
 }
 
+type resource<Lock = any> = {
+	key: string,
+	lock: (Lock & resource_lock)??,
+	input: { [string]: any, conflicts: { [string]: any } },
+}
+
 type resource_lock = { universe_id: number, input: { [string]: any } }
 type resource_api = {
 	diff: ({ [string]: any }, { [string]: any }) -> { [string]: any },
@@ -32,13 +38,8 @@ type resource_api = {
 }
 
 -- functions
-local function reconcile_resource<Lock>(
-	api: resource_api,
-	key: string,
-	input: any,
-	prev: (Lock & resource_lock)?,
-	opts: sync_opts
-): Lock
+local function reconcile_resource<Lock>(api: resource_api, resource: resource<Lock>, opts: sync_opts): Lock
+	local key, input, prev = resource.key, resource.input, resource.lock
 	if api.validate then api.validate(input) end
 
 	if not prev then
@@ -116,27 +117,23 @@ local function reconcile_resource<Lock>(
 end
 
 local function await_reconcile_product(api: product_api, product: state.product, opts: sync_opts): product.product_lock
-	local prev = product.lock
-
 	local function validate(input)
 		if input.icon and not input.icon_file then ctx_log.warn(`couldnt find icon '{input.icon}'`) end
 	end
 
 	local api_impl =
 		{ diff = state.diff_product, get = api.get, update = api.update, create = api.create, validate = validate }
-	return reconcile_resource(api_impl :: any, product.key, product.input, prev, opts)
+	return reconcile_resource(api_impl :: any, product :: any, opts)
 end
 
 local function await_reconcile_place(api: place_api, place: state.place, opts: sync_opts): place.place_lock
-	local prev = place.lock
-
 	local function validate(input)
 		if input.file and not input.asset_file then ctx_log.warn(`couldnt find place file '{input.file}'`) end
 	end
 
 	local api_impl =
 		{ diff = state.diff_place, get = api.get, update = api.update, create = api.create, validate = validate }
-	return reconcile_resource(api_impl :: any, place.key, place.input, prev, opts)
+	return reconcile_resource(api_impl :: any, place :: any, opts)
 end
 
 local function await_reconcile_universe(
@@ -144,11 +141,11 @@ local function await_reconcile_universe(
 	universe: state.universe,
 	opts: sync_opts
 ): universe.universe_lock
-	local prev = universe.lock
+	universe.lock = universe.lock
 		or { universe_id = opts.universe_id, input = api.get(opts.session, { universe_id = opts.universe_id }) }
 
 	local api_impl = { diff = state.diff_universe, get = api.get, update = api.update }
-	return reconcile_resource(api_impl :: any, universe.key, universe.input, prev, opts)
+	return reconcile_resource(api_impl :: any, universe, opts)
 end
 
 -- module
