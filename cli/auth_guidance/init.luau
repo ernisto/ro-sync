@@ -3,6 +3,7 @@ local cloud = require '@pkg/ro_cloud'
 local ctx_log = require '@utils/ctx_log'
 local env = require '@utils/env'
 local fs = require '@lune/fs'
+local http = require '@utils/http'
 local roblox = require '@lune/roblox'
 local serde = require '@lune/serde'
 local c = ctx_log.colors
@@ -27,9 +28,9 @@ local USED_SCOPES = {
 }
 
 export type session = {
-	session: cloud.apikey_session,
+	session: cloud.session,
 	key_info: cloud.api_key_introspection,
-	user_session: cloud.cookie_session?,
+	user_session: cloud.session?,
 }
 
 -- helpers
@@ -148,11 +149,11 @@ local function confirm_save_api_key(): boolean
 end
 
 local function describe(cookie: string): string?
-	local ok, me = pcall(cloud.auth.cookie.await_info, cloud.auth.new:cookie(cookie))
+	local ok, me = pcall(http.call, cloud.auth.cookie.get_info, cloud.auth.new:cookie(cookie), nil, nil)
 	return if ok then `@{me.name}{c.reset} {c.dim}({me.id}){c.reset}` else nil
 end
 
-local function prompt_user_auth(): cloud.cookie_session?
+local function prompt_user_auth(): cloud.session?
 	if not INTERACTIVE_MODE then return nil end
 
 	local options: { { label: string, kind: string } } = {
@@ -213,7 +214,7 @@ end
 
 -- functions
 local function grant_scope(
-	session: cloud.apikey_session,
+	session: cloud.session,
 	info: cloud.api_key_introspection,
 	scope: string,
 	target: string?
@@ -232,7 +233,7 @@ local function grant_scope(
 	repeat
 		if not ctx_log.prompt('confirm', 'Granted?') then return info end
 
-		local ok, next_info = pcall(apikey.await_refresh_introspection, session)
+		local ok, next_info = pcall(http.call, apikey.introspect, session, nil, nil)
 		if not ok then
 			ctx_log.warn(`Failed to re-check key: {next_info}`)
 			return info
@@ -247,12 +248,13 @@ end
 local function prompt_valid_api_key(
 	api_key: string?,
 	universe_id: number?
-): (cloud.apikey_session?, cloud.api_key_introspection?, string?)
+): (cloud.session?, cloud.api_key_introspection?, string?)
 	local session, key_info, key_err
 	repeat
 		if api_key then
 			session = cloud.auth.new:api_key(api_key)
-			key_info, key_err = apikey.introspect(session)
+			local ok, res = pcall(http.call, apikey.introspect, session, nil, nil)
+			key_info, key_err = if ok then res else nil, if ok then nil else res
 		end
 
 		if not api_key then
@@ -278,10 +280,10 @@ local function prompt_valid_api_key(
 	return session, key_info, api_key
 end
 
-local function authenticate_user(): cloud.cookie_session?
+local function authenticate_user(): cloud.session?
 	local user_session = prompt_user_auth()
 	if user_session then
-		local ok, me = pcall(cloud.auth.cookie.await_info, user_session)
+		local ok, me = pcall(http.call, cloud.auth.cookie.get_info, user_session, nil, nil)
 		if ok then
 			ctx_log.str(`Authenticated as {c.green}@{me.name} {c.dim}({me.id})`)
 		else
@@ -295,7 +297,7 @@ local function authenticate_key(
 	api_key: string?,
 	provided: boolean,
 	universe_id: number?
-): (cloud.apikey_session?, cloud.api_key_introspection?)
+): (cloud.session?, cloud.api_key_introspection?)
 	local api_session, key_info, resolved = prompt_valid_api_key(api_key, universe_id)
 	if not api_session or not key_info or not resolved then return nil end
 

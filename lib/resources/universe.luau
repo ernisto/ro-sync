@@ -190,7 +190,7 @@ local function from_universe_config(data: cloud.universe_settings_data_v1): univ
 	}
 end
 
-local function to_universe_params(patch: universe_input): cloud.universe
+local function to_universe_params(patch: universe_input) --: cloud.universe_patch
 	return {
 		privateServerPriceRobux = patch.private_server_price,
 
@@ -208,7 +208,7 @@ local function to_universe_params(patch: universe_input): cloud.universe
 		discordSocialLink = patch.discord,
 		robloxGroupSocialLink = patch.roblox_group,
 		guildedSocialLink = patch.guilded,
-	} :: any -- weird cloud type
+	}
 end
 
 local function to_universe_config_params(patch: universe_input): cloud.universe_settings_patch
@@ -226,16 +226,15 @@ end
 
 type session = base.session
 
-local function update(session: session, game: cloud.universe_identity, patch: universe_input): universe_data
+local function update(session: session, game: { universe_id: number }, patch: universe_input): universe_data
+	local universe = { universe_id = game.universe_id }
 	local applied: { [string]: any } = {}
 
 	local open_params = to_universe_params(patch)
 	pcall(function()
 		if next(open_params) == nil then return end
 
-		local res = http.request('PATCH', `universe/{game.universe_id}`, function()
-			return cloud.universe.update(session, game, open_params)
-		end)
+		local res = http.call(cloud.universe.update, session, universe, open_params)
 		tbl.apply(applied, from_universe_api(res))
 	end)
 
@@ -243,22 +242,17 @@ local function update(session: session, game: cloud.universe_identity, patch: un
 	pcall(function()
 		if next(config_params) == nil then return end
 
-		local res = http.request('PATCH', `universes/{game.universe_id}/configuration`, function()
-			return cloud.universe_configuration.update(session, game, config_params)
-		end)
+		local res = http.call(cloud.universe_configuration.update, session, universe, config_params)
 		tbl.apply(applied, from_universe_config(res))
 	end)
 
 	return applied
 end
 
-local function get(session: session, game: cloud.universe_identity): universe_data
-	local open = from_universe_api(http.request('GET', `universe/{game.universe_id}`, function()
-		return cloud.universe.get(session, game)
-	end))
-	local config = from_universe_config(http.request('GET', `universes/{game.universe_id}/configuration`, function()
-		return cloud.universe_configuration.get(session, game)
-	end))
+local function get(session: session, game: { universe_id: number }): universe_data
+	local universe = { universe_id = game.universe_id }
+	local open = from_universe_api(http.call(cloud.universe.get, session, universe, nil))
+	local config = from_universe_config(http.call(cloud.universe_configuration.get, session, universe, nil))
 
 	return tbl.apply(open, config)
 end

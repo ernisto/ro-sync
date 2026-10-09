@@ -82,9 +82,7 @@ if not api_session or not key_info then return process.exit(1) end
 local session: base.session = api_session :: any
 session.cookie_state = user_session and user_session.cookie_state
 
-local universe = http.request('GET', `universe/{universe_id}`, function()
-	return cloud.universe.get(session, { universe_id = universe_id })
-end)
+local universe = http.call(cloud.universe.get, session, { universe_id = universe_id }, nil)
 ctx_log.str(`Target universe {c.green}{universe.displayName}{c.reset} {c.dim}({universe_id})`)
 
 -- ensure resources
@@ -93,7 +91,7 @@ local function state_from_cloud(input: state.manifest?)
 
 	local owner: state.owner = if universe.user
 		then { user = tonumber(universe.user:match '%d+') :: number, group = nil }
-		else { group = tonumber(universe.group:match '%d+') :: number, user = nil }
+		else { group = tonumber((universe.group :: string):match '%d+') :: number, user = nil }
 
 	local resources = state.build_resources(input or state.create_input(owner), state.create_state(universe_id))
 

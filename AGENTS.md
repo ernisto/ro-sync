@@ -42,7 +42,7 @@ Global flags (`cli/args.luau`): `--cache` (lock file, default `cloud-state.yml`)
 - `cli/init.luau` — dispatcher; `cli/commands/` holds `sync` and `place load|play|edit|run`. `place_ref.luau` resolves a `<name>` positional to `{ place_id, universe_id }` from the `--cache` lock file. `play`/`edit` open Roblox deep links; `run` executes a script via `luau_task_exec` and streams logs.
 - `lib/state/` — types + YAML I/O split into `parser`, `encoder`, `diff`; `cli/state_fs.luau` loads/saves manifest + lock together. **Manifest** (`cloud.yml`) is user-edited; **lock file** (`cloud-state.yml`) is auto-generated (`product_id`, `icon_id`, `icon_hash`, last-pushed `input` snapshot — never edit its `input` block by hand).
 - `lib/sync.luau` — `sync_product` 3-way merge: diff local vs lock → `sending`; diff cloud vs lock → `receiving`; fields changed on both sides are recorded as `input.conflicts` and persisted back into the manifest; then push/pull non-conflicting changes. `icon_hash` (SHA-256) avoids re-uploading identical icons.
-- `lib/api.luau` wraps the Open Cloud calls; `lune_packages/` is pesde-managed (`@pkg` alias) — don't hand-edit.
+- `lib/api.luau` wraps the Open Cloud calls; `luau_packages/` is pesde-managed (`@pkg` alias) — don't hand-edit.
 
 ## Conventions
 

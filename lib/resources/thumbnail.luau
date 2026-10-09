@@ -63,16 +63,14 @@ end
 type session = base.session
 
 local function upload(session: session, universe_id: number, file: input_file): number
-	local result = http.request('POST', `games/{universe_id}/thumbnail/image`, function()
-		return cloud.universe_media.upload_thumbnail(session, { universe_id = universe_id }, file.content)
-	end)
+	local result =
+		http.call(cloud.universe_media.upload_thumbnail, session, { universe_id = universe_id }, file.content)
 	return result.targetId
 end
 
 local function get(session: session, thumbnail: thumbnail_lock): thumbnail_data?
-	local result = http.request('GET', `games/{thumbnail.universe_id}/media`, function()
-		return cloud.universe_media.list_thumbnails(session, { universe_id = thumbnail.universe_id })
-	end)
+	local path = { universe_id = thumbnail.universe_id }
+	local result = http.call(cloud.universe_media.list_thumbnails, session, path, nil)
 	for _, item in result.data do
 		if item.imageId == thumbnail.thumbnail_id then return { image_file = { assetid = item.imageId } } end
 	end
@@ -80,9 +78,8 @@ local function get(session: session, thumbnail: thumbnail_lock): thumbnail_data?
 end
 
 local function remove(session: session, universe_id: number, thumbnail_id: number)
-	http.request('DELETE', `universes/{universe_id}/thumbnails/{thumbnail_id}`, function()
-		return cloud.universe_media.delete_thumbnail(session, { universe_id = universe_id }, thumbnail_id)
-	end)
+	local path = { universe_id = universe_id, thumbnail_id = thumbnail_id }
+	http.call(cloud.universe_media.delete_thumbnail, session, path, nil)
 end
 
 local function update(session: session, thumbnail: thumbnail_lock, patch: thumbnail_input): thumbnail_data
@@ -97,7 +94,7 @@ local function update(session: session, thumbnail: thumbnail_lock, patch: thumbn
 	return { image_file = { hash = patch.image_file.hash, assetid = id } }
 end
 
-local function create(session: session, game: cloud.universe_identity, input: thumbnail_input): thumbnail_lock
+local function create(session: session, game: { universe_id: number }, input: thumbnail_input): thumbnail_lock
 	local file = input.image_file or error 'thumbnail has no image file'
 	local id = upload(session, game.universe_id, file)
 

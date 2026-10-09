@@ -69,7 +69,7 @@ local function from_api_result(data: any, universe_id: number): pass_read
 	}
 end
 
-local function to_api_params(data: pass_input): cloud.pass
+local function to_api_params(data: pass_input)
 	return {
 		name = data.name,
 		price = data.price,
@@ -91,11 +91,11 @@ end
 
 -- api impl
 type session = base.session
+type pass_path = { universe_id: number, pass_id: number }
+type universe_path = { universe_id: number }
 
-local function update(session: session, pass: cloud.pass_identity, patch: pass_input): pass_data
-	http.request('PATCH', `game-pass/{pass.pass_id}`, function()
-		return cloud.pass.update(session, pass, to_api_params(patch) :: any)
-	end)
+local function update(session: session, pass: pass_path, patch: pass_input): pass_data
+	http.call(cloud.pass.update, session, pass, to_api_params(patch))
 
 	-- PATCH has no body: echo the applied patch
 	local confirmed: any = tbl.subtraction(patch, { icon = true, icon_file = true, conflicts = true, addons = true })
@@ -104,34 +104,23 @@ local function update(session: session, pass: cloud.pass_identity, patch: pass_i
 	return confirmed
 end
 
-local function create(session: session, game: cloud.universe_identity, data: pass_input): pass_lock
-	local path = `universes/{game.universe_id}/game-passes`
-	local result = from_api_result(
-		http.request('POST', path, function()
-			return cloud.pass.create(session, game.universe_id, to_api_params(data))
-		end),
-		game.universe_id
-	)
+local function create(session: session, game: universe_path, data: pass_input): pass_lock
+	local universe = { universe_id = game.universe_id }
+	local result =
+		from_api_result(http.call(cloud.pass.create, session, universe, to_api_params(data)), game.universe_id)
 
 	return to_pass_lock(result, data)
 end
 
-local function get(session: session, pass: cloud.pass_identity): pass_read
-	return from_api_result(
-		http.request('GET', `game-pass/{pass.pass_id}`, function()
-			return cloud.pass.get(session, pass)
-		end),
-		pass.universe_id
-	)
+local function get(session: session, pass: pass_path): pass_read
+	return from_api_result(http.call(cloud.pass.get, session, pass, nil), pass.universe_id)
 end
 
-local function list(session: session, universe: cloud.universe_identity): { any }
+local function list(session: session, universe: universe_path): { any }
 	local passes = {}
 	local token: string? = nil
 	repeat
-		local page: any = http.request('GET', `universes/{universe.universe_id}/game-passes/creator`, function()
-			return cloud.pass.list(session, universe, { pageToken = token })
-		end)
+		local page = http.call(cloud.pass.list, session, universe, nil, { pageToken = token })
 
 		for _, pass in page.gamePasses do
 			table.insert(passes, pass)

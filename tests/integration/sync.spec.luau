@@ -1,6 +1,7 @@
 local cloud = require '@pkg/ro_cloud'
 local env = require '@utils/env'
 local expect = require '@test/expect'
+local http = require '@utils/http'
 local mock = require '@test/mock'
 local product_res = require '@lib/resources/product'
 local sm = require '@test/sync_mock'
@@ -74,7 +75,7 @@ function run.should_push_description_change_and_revert()
 		expect.eq(after.description, '__integration_test__')
 	end)
 
-	cloud.product.update(session, prev, { name = prev.input.name, description = original })
+	http.call(cloud.product.update, session, prev, { name = prev.input.name, description = original })
 
 	if not ok then error(err, 0) end
 end

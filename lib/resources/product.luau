@@ -155,11 +155,11 @@ end
 
 -- api impl
 type session = base.session
+type product_path = { universe_id: number, product_id: number }
+type universe_path = { universe_id: number }
 
-local function update(session: session, product: cloud.product_identity, patch: product_input): product_data
-	http.request('PATCH', `developer-product/{product.product_id}`, function()
-		return cloud.product.update(session, product, to_api_params(patch))
-	end)
+local function update(session: session, product: product_path, patch: product_input): product_data
+	http.call(cloud.product.update, session, product, to_api_params(patch))
 
 	-- PATCH has no body: echo the applied patch
 	local confirmed: any = tbl.subtraction(patch, { icon = true, icon_file = true, conflicts = true, addons = true })
@@ -167,28 +167,22 @@ local function update(session: session, product: cloud.product_identity, patch: 
 	return confirmed
 end
 
-local function create(session: session, game: cloud.product_identity, data: product_input): product_lock
-	local path = `universes/{game.universe_id}/developer-products`
-	local result = from_api_result(http.request('POST', path, function()
-		return cloud.product.create(session, { universe_id = game.universe_id }, to_api_params(data))
-	end))
+local function create(session: session, game: universe_path, data: product_input): product_lock
+	local params: any = to_api_params(data)
+	local result = from_api_result(http.call(cloud.product.create, session, { universe_id = game.universe_id }, params))
 
 	return to_product_lock(result, data)
 end
 
-local function get(session: session, product: cloud.product_identity): product_read
-	return from_api_result(http.request('GET', `developer-product/{product.product_id}`, function()
-		return cloud.product.get(session, product)
-	end))
+local function get(session: session, product: product_path): product_read
+	return from_api_result(http.call(cloud.product.get, session, product, nil))
 end
 
-local function list(session: session, universe: cloud.universe_identity): { cloud.product }
+local function list(session: session, universe: universe_path): { cloud.product }
 	local products = {}
 	local token: string? = nil
 	repeat
-		local page = http.request('GET', `universes/{universe.universe_id}/developer-products/creator`, function()
-			return cloud.product.list(session, universe, { pageToken = token })
-		end)
+		local page = http.call(cloud.product.list, session, universe, nil, { pageToken = token })
 
 		for _, product in page.developerProducts do
 			table.insert(products, product)

@@ -144,36 +144,34 @@ end
 
 -- api impl
 type session = base.session
+type place_path = { universe_id: number, place_id: number }
+type universe_path = { universe_id: number }
 
-local function update(session: session, place: cloud.place_identity, patch: place_input): (place_data, string?)
+local function update(session: session, place: place_path, patch: place_input): (place_data, string?)
 	local config = to_place_config_params(patch)
 	local confirmed: { [string]: any } = {}
 
 	local _, err1 = pcall(function()
 		if next(config) == nil then return end
 
-		confirmed = from_place_config(http.request('PATCH', `places/{place.place_id}`, function()
-			return cloud.place_configuration.update(session, { place_id = place.place_id }, config)
-		end))
+		confirmed = from_place_config(http.call(cloud.place_configuration.update, session, place, config))
 		confirmed.asset_file = nil
 	end :: any)
 
 	local _, err2 = pcall(function()
 		if not patch.asset_file then return end
 
-		http.request('POST', `places/{place.place_id}/versions`, function()
-			return cloud.place.upload(session, place, patch.asset_file.content, true)
-		end)
+		local path = { universe_id = place.universe_id, place_id = place.place_id }
+		http.call(cloud.place.upload, session, path, patch.asset_file.content, { versionType = 'Published' })
 		confirmed.asset_file = { hash = patch.asset_file.hash, assetid = place.place_id }
 	end :: any)
 
 	return confirmed, err1 or err2
 end
 
-local function create(session: session, game: cloud.universe_identity, place: place_input): place_lock
-	local result = http.request('POST', 'assets (Place)', function()
-		return cloud.place.create(session, { universe_id = game.universe_id }, { templatePlaceId = BASEPLATE_PLACE_ID })
-	end)
+local function create(session: session, game: universe_path, place: place_input): place_lock
+	local universe = { universe_id = game.universe_id }
+	local result = http.call(cloud.place.create, session, universe, { templatePlaceId = BASEPLATE_PLACE_ID })
 
 	local identity = { universe_id = game.universe_id, place_id = result.placeId }
 	local data = update(session, identity, place)
@@ -185,19 +183,16 @@ local function create(session: session, game: cloud.universe_identity, place: pl
 	}
 end
 
-local function get(session: session, place: cloud.place_identity): place_data
-	return from_place_config(http.request('GET', `places/{place.place_id}`, function()
-		return cloud.place_configuration.get(session, { place_id = place.place_id })
-	end))
+local function get(session: session, place: place_path): place_data
+	return from_place_config(http.call(cloud.place_configuration.get, session, { place_id = place.place_id }, nil))
 end
 
-local function list(session: session, universe: cloud.universe_identity): { cloud.place_data }
+local function list(session: session, universe: universe_path): { cloud.place_data }
 	local places = {}
 	local cursor: string? = nil
 	repeat
-		local page = http.request('GET', `universes/{universe.universe_id}/places`, function()
-			return cloud.develop.list_universe_places(session, universe, { cursor = cursor })
-		end)
+		local path = { universe_id = universe.universe_id }
+		local page = http.call(cloud.develop.list_universe_places, session, path, nil, { cursor = cursor })
 
 		for _, place in page.data do
 			table.insert(places, place)

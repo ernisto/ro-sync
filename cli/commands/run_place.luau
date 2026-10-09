@@ -1,6 +1,7 @@
 local cli = require '@utils/cli'
 local cloud = require '@pkg/ro_cloud'
 local fs = require '@lune/fs'
+local http = require '@utils/http'
 local place_ref = require './place_ref'
 local process = require '@lune/process'
 local stdio = require '@lune/stdio'
@@ -31,13 +32,11 @@ local function poll(session, identity)
 	while true do
 		task.wait(poll_rate)
 
-		local res = cloud.luau_task_exec.get(session, identity)
-		if not res.ok then
-			print(`{stdio.color 'yellow'}failed to poll task ({res.code}): {res.message}{stdio.color 'reset'}`)
+		local ok, data = pcall(http.call, cloud.luau_task_exec.get, session, identity, nil)
+		if not ok then
+			print(`{stdio.color 'yellow'}failed to poll task: {data}{stdio.color 'reset'}`)
 			continue
 		end
-
-		local data = res.body
 		if data.state ~= 'PROCESSING' and data.state ~= 'QUEUED' then return data end
 
 		if data.state ~= last_state then
@@ -47,10 +46,10 @@ local function poll(session, identity)
 	end
 end
 local function print_logs(session, identity)
-	local res = cloud.luau_task_exec.list_logs(session, identity, { view = 'FLAT', max_page_size = 10_000 })
-	assert(res.ok, res.message)
+	local page =
+		http.call(cloud.luau_task_exec.list_logs, session, identity, nil, { view = 'FLAT', maxPageSize = 10_000 })
 
-	for _, log in res.body.luauExecutionSessionTaskLogs do
+	for _, log: any in page.luauExecutionSessionTaskLogs do
 		for _, msg in log.messages do
 			print(msg)
 		end
@@ -62,16 +61,17 @@ local session = cloud.auth.new:api_key(api_key)
 local identity = { universe_id = ref.universe_id, place_id = ref.place_id, version = version }
 
 stdio.write(`{stdio.style 'dim'}running on {name} ({ref.place_id})...{stdio.style 'reset'}\n`)
-local create = cloud.luau_task_exec.create(session, identity, { script = code, timeout = timeout })
-if not create.ok then
-	print(`{stdio.color 'red'}failed to create task ({create.code}): {create.message}{stdio.color 'reset'}`)
+local ok, created =
+	pcall(http.call, cloud.luau_task_exec.create, session, identity, { script = code, timeout = timeout })
+if not ok then
+	print(`{stdio.color 'red'}failed to create task: {created}{stdio.color 'reset'}`)
 	return process.exit(1)
 end
 
-last_state = create.body.state
-local done = poll(session, create.body)
+last_state = created.state
+local done = poll(session, { path = created.path })
 
-print_logs(session, done)
+print_logs(session, { path = done.path })
 if done.state == 'FAILED' then
 	local err = done.error
 	print(`{stdio.color 'red'}[{err.code}] {err.message or ''}{stdio.color 'reset'}`)

@@ -5,19 +5,9 @@ name = "ernisto/ro_sync"
 version = "0.0.0-alpha.0"
 target = "lune"
 
-[graph."ernisto/ro_cloud@0.1.0-alpha.15 lune"]
-direct = ["ro_cloud", { name = "ernisto/ro_cloud", version = "=0.1.0-alpha.15", index = "default" }, "standard"]
+[graph."ernisto/ro_cloud@0.1.0-beta.1 luau"]
+direct = ["ro_cloud", { name = "ernisto/ro_cloud", version = "=0.1.0-beta.1", index = "default", target = "luau" }, "standard"]
 
-[graph."ernisto/ro_cloud@0.1.0-alpha.15 lune".dependencies]
-base64 = ["synpixel/base64@3.0.1 lune", "standard"]
-
-[graph."ernisto/ro_cloud@0.1.0-alpha.15 lune".pkg_ref]
-ref_ty = "pesde"
-index_url = "https://github.com/pesde-pkg/index"
-
-[graph."ernisto/ro_cloud@0.1.0-alpha.15 lune".pkg_ref.dependencies]
-base64 = [{ name = "synpixel/base64", version = "^3.0.1", index = "https://github.com/pesde-pkg/index" }, "standard"]
-
-[graph."synpixel/base64@3.0.1 lune".pkg_ref]
+[graph."ernisto/ro_cloud@0.1.0-beta.1 luau".pkg_ref]
 ref_ty = "pesde"
 index_url = "https://github.com/pesde-pkg/index"

@@ -5,7 +5,7 @@
   ],
   "aliases": {
     "lune": "~/.lune/.typedefs/0.10.4/",
-    "pkg": "./lune_packages",
+    "pkg": "./luau_packages",
     "utils": "./utils",
     "test": "./tests",
     "cli": "./cli",

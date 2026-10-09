@@ -118,7 +118,7 @@ function run.place_asset_upload_failure_does_not_hold_settings()
 	local real_request = http.request
 	http.request = function(method, path): any
 		local response: any
-		if path == 'places/4000' then
+		if path == 'develop.roblox.com/v2/places/4000' then
 			if method == 'GET' then
 				-- cloud state matches the lock baseline
 				response = { ok = true, body = { name = 'Start', description = 'A place', maxPlayerCount = 50 } }
@@ -127,7 +127,7 @@ function run.place_asset_upload_failure_does_not_hold_settings()
 				-- settings PATCH succeeds; cloud echoes the applied config
 				response = { ok = true, body = { name = 'New Name', description = 'A place', maxPlayerCount = 50 } }
 			end
-		elseif path == 'places/4000/versions' then
+		elseif string.find(path, '/places/4000/versions$') then
 			expect.eq(method, 'POST')
 			response = { ok = false, code = 500, message = 'upload failed' }
 		else

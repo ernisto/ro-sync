@@ -1,6 +1,8 @@
 local cli = require '@utils/cli'
 local cloud = require '@pkg/ro_cloud'
 local fs = require '@lune/fs'
+local http = require '@utils/http'
+local net = require '@lune/net'
 local place_ref = require './place_ref'
 local process = require '@lune/process'
 
@@ -16,8 +18,9 @@ local api_key = place_ref.api_key()
 
 -- run
 local session = cloud.auth.new:api_key(api_key)
-local res = cloud.place.download(session, { place_id = ref.place_id })
-assert(res.ok, res.message)
+local download = http.call(cloud.asset.download, session, { asset_id = ref.place_id }, nil)
+local res = net.request(download.location)
+assert(res.ok, `{res.statusCode} {res.statusMessage}`)
 
 local dir = output:match '(.*)[/\\].+$'
 if dir then fs.writeDir(dir) end
