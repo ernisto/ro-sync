@@ -29,6 +29,7 @@ local function resolve_manifest_files(manifest: state.manifest)
 	for _, thumbnail in manifest.thumbnails do
 		if thumbnail.file then thumbnail.image_file = resolve_file(thumbnail.file) end
 	end
+	if manifest.icon and manifest.icon.file then manifest.icon.image_file = resolve_file(manifest.icon.file) end
 	for _, place in manifest.places do
 		if place.file then place.asset_file = resolve_file(place.file) end
 	end
@@ -95,6 +96,7 @@ local function save_resources(resources: state.resources, manifest_path: string,
 	for _, thumbnail in resources.thumbnails do
 		if thumbnail.lock then resources.lock.thumbnails[thumbnail.key] = thumbnail.lock end
 	end
+	if resources.icon and resources.icon.lock then resources.lock.icon = resources.icon.lock end
 	for _, place in resources.places do
 		if place.lock then resources.lock.places[place.key] = place.lock end
 	end

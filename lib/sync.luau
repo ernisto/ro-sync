@@ -2,6 +2,7 @@ local ctx_log = require '@utils/ctx_log'
 local tbl = require '@utils/tbl'
 
 local base = require './resources/base'
+local icon = require './resources/icon'
 local pass = require './resources/pass'
 local place = require './resources/place'
 local product = require './resources/product'
@@ -13,6 +14,7 @@ local sync_logger = require './sync_logger'
 
 -- defs
 type thumbnail_api = typeof(thumbnail)
+type icon_api = typeof(icon)
 type universe_api = typeof(universe)
 type product_api = typeof(product)
 type place_api = typeof(place)
@@ -164,6 +166,16 @@ local function await_reconcile_thumbnail(
 	return reconcile_resource(api_impl :: any, thumbnail :: any, opts)
 end
 
+local function await_reconcile_icon(api: icon_api, icon: state.icon, opts: sync_opts): icon.icon_lock
+	local function validate(input)
+		if input.file and not input.image_file then ctx_log.warn(`couldnt find icon '{input.file}'`) end
+	end
+
+	local api_impl =
+		{ diff = state.diff_icon, get = api.get, update = api.update, create = api.create, validate = validate }
+	return reconcile_resource(api_impl :: any, icon :: any, opts)
+end
+
 local function await_reconcile_universe(
 	api: universe_api,
 	universe: state.universe,
@@ -179,6 +191,7 @@ end
 -- module
 return table.freeze {
 	await_reconcile_thumbnail = await_reconcile_thumbnail,
+	await_reconcile_icon = await_reconcile_icon,
 	await_reconcile_universe = await_reconcile_universe,
 	await_reconcile_product = await_reconcile_product,
 	await_reconcile_place = await_reconcile_place,

@@ -2,6 +2,7 @@ local serde = require '@lune/serde'
 local tbl = require '@utils/tbl'
 
 local base = require '@lib/resources/base'
+local icon = require '@lib/resources/icon'
 local pass = require '@lib/resources/pass'
 local place = require '@lib/resources/place'
 local product = require '@lib/resources/product'
@@ -21,6 +22,7 @@ export type input = {
 	places: { [string]: place.place_input },
 	products: { [string]: product.product_input },
 	thumbnails: { [string]: thumbnail.thumbnail_input },
+	icon: icon.icon_input?,
 }
 export type lock = {
 	universe_id: number,
@@ -29,16 +31,19 @@ export type lock = {
 	places: { [string]: place.place_lock },
 	products: { [string]: product.product_lock },
 	thumbnails: { [string]: thumbnail.thumbnail_lock },
+	icon: icon.icon_lock?,
 }
 export type manifest = input
 
 export type product = { key: string, lock: product.product_lock?, input: product.product_input }
 export type pass = { key: string, lock: pass.pass_lock?, input: pass.pass_input }
 export type thumbnail = { key: string, lock: thumbnail.thumbnail_lock?, input: thumbnail.thumbnail_input }
+export type icon = { key: string, lock: icon.icon_lock?, input: icon.icon_input }
 export type place = { key: string, lock: place.place_lock?, input: place.place_input }
 export type universe = { key: string, lock: universe.universe_lock?, input: universe.universe_input }
 export type resources = {
 	thumbnails: { thumbnail },
+	icon: icon?,
 	products: { product },
 	places: { place },
 	passes: { pass },
@@ -76,6 +81,7 @@ local function parse_manifest(content: buffer): manifest
 	for key, entry in data.thumbnails do
 		thumbnail.validate_input(entry, `manifest.thumbnails.{key}`)
 	end
+	if data.icon ~= nil then icon.validate_input(data.icon, 'manifest.icon') end
 
 	data.places = base.string_map(data.places, 'manifest.places')
 	for key, entry in data.places do
@@ -105,6 +111,10 @@ local function parse_lock(content: buffer): lock
 	for key, entry in data.thumbnails do
 		thumbnail.validate_lock(entry, `lock.thumbnails.{key}`)
 	end
+	if data.icon ~= nil then
+		base.req(data.icon, 'table', 'lock.icon')
+		icon.validate_lock(data.icon, 'lock.icon')
+	end
 
 	data.places = base.string_map(data.places, 'lock.places')
 	for key, entry in data.places do
@@ -124,6 +134,7 @@ local function encode_manifest(data: manifest): string
 	local out: any = tbl.applied(data, { version = 1, products = {}, places = {} })
 
 	out.thumbnails = base.encode_map(data.thumbnails, thumbnail.encode_input)
+	out.icon = data.icon and icon.encode_input(data.icon)
 	out.products = base.encode_map(data.products, product.encode_input)
 	out.places = base.encode_map(data.places, place.encode_input)
 	out.passes = base.encode_map(data.passes, pass.encode_input)
@@ -141,6 +152,7 @@ local function encode_lock(data: lock): string
 	out.products = base.encode_map(data.products, product.encode_lock_entry)
 	out.passes = base.encode_map(data.passes, pass.encode_lock_entry)
 	out.thumbnails = base.encode_map(data.thumbnails, thumbnail.encode_lock_entry)
+	out.icon = data.icon and icon.encode_lock_entry(data.icon)
 	out.places = base.encode_map(data.places, place.encode_lock_entry)
 
 	return serde.encode('yaml', out, true)
@@ -172,11 +184,13 @@ local function build_resources(inputs: manifest, locks: lock): resources
 	for key, input in inputs.thumbnails do
 		table.insert(thumbnails, { key = key, input = input, lock = locks.thumbnails[key] })
 	end
+	local icon_entry = inputs.icon and { key = 'icon', input = inputs.icon, lock = locks.icon }
 
 	return {
 		products = products,
 		passes = passes,
 		thumbnails = thumbnails,
+		icon = icon_entry,
 		places = places,
 		universe = universe_entry,
 		manifest = inputs,
@@ -197,6 +211,7 @@ return table.freeze {
 	build_resources = build_resources,
 
 	diff_thumbnail = thumbnail.diff,
+	diff_icon = icon.diff,
 	diff_universe = universe.diff,
 	diff_product = product.diff,
 	diff_place = place.diff,

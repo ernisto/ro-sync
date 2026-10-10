@@ -16,6 +16,7 @@ local sync = require '@lib/sync'
 local sync_logger = require '@lib/sync_logger'
 
 local base = require '@lib/resources/base'
+local icon_res = require '@lib/resources/icon'
 local pass_res = require '@lib/resources/pass'
 local place_res = require '@lib/resources/place'
 local product_res = require '@lib/resources/product'
@@ -189,6 +190,11 @@ end
 for _, resource in resources.thumbnails do
 	local ok, err = pcall(sync.await_reconcile_thumbnail, thumbnail_res, resource, sync_opts)
 	if ok then resource.lock = err end
+end
+
+if resources.icon then
+	local ok, err = pcall(sync.await_reconcile_icon, icon_res, resources.icon, sync_opts)
+	if ok then resources.icon.lock = err end
 end
 
 if SCAN_CLOUD and not scanned_cloud then state_from_cloud(resources.manifest) end

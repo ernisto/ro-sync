@@ -17,10 +17,13 @@ version: 1
 owner: { user: 1 }
 thumbnails:
   main: { file: main.png }
+icon:
+  file: icon.png
 ]])
 	local out = state.encode_manifest(manifest)
 
 	expect.truthy(out:find 'main.png', 'thumbnail kept')
+	expect.truthy(out:find 'icon.png', 'icon kept')
 end
 
 function run.reuploads_only_on_hash_change()

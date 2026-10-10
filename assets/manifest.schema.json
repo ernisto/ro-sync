@@ -32,6 +32,10 @@
       "description": "Map of thumbnail key -> universe thumbnail image. Upload-only: removed/replaced images stay on Roblox.",
       "type": "object",
       "additionalProperties": { "$ref": "#/definitions/thumbnail" }
+    },
+    "icon": {
+      "description": "Universe (game) icon image.",
+      "$ref": "#/definitions/thumbnail"
     }
   },
   "definitions": {
