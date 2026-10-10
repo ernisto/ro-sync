@@ -29,9 +29,9 @@
       "additionalProperties": { "$ref": "#/definitions/pass" }
     },
     "thumbnails": {
-      "description": "Map of thumbnail key -> universe thumbnail image. Upload-only: removed/replaced images stay on Roblox.",
-      "type": "object",
-      "additionalProperties": { "$ref": "#/definitions/thumbnail" }
+      "description": "Ordered list of universe thumbnail images. When set, images removed from the list are deleted from Roblox (only ones uploaded by ro-sync). Omit to leave thumbnails unmanaged.",
+      "type": "array",
+      "items": { "$ref": "#/definitions/thumbnail" }
     },
     "icon": {
       "description": "Universe (game) icon image.",

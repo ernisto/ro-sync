@@ -192,6 +192,33 @@ for _, resource in resources.thumbnails do
 	if ok then resource.lock = err end
 end
 
+if resources.manifest.thumbnails then
+	local kept = {}
+	for _, resource in resources.thumbnails do
+		local file = resource.lock and resource.lock.input.image_file
+		if file then kept[file.hash] = true end
+	end
+	for hash, lock in resources.lock.thumbnails do
+		if kept[hash] then continue end
+		local ok, err = pcall(thumbnail_res.delete, session, lock)
+		if ok then
+			resources.lock.thumbnails[hash] = nil
+			ctx_log.str(`deleted thumbnail {lock.thumbnail_id}`)
+		else
+			ctx_log.warn(`couldnt delete thumbnail {lock.thumbnail_id}: {err}`)
+		end
+	end
+end
+
+if #resources.thumbnails > 0 then
+	local ids = {}
+	for _, resource in resources.thumbnails do
+		if resource.lock then table.insert(ids, resource.lock.thumbnail_id) end
+	end
+	local ok, err = pcall(thumbnail_res.reorder, session, sync_opts.universe_id, ids)
+	if not ok then ctx_log.warn(`couldnt reorder thumbnails: {err}`) end
+end
+
 if resources.icon then
 	local ok, err = pcall(sync.await_reconcile_icon, icon_res, resources.icon, sync_opts)
 	if ok then resources.icon.lock = err end

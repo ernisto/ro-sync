@@ -26,7 +26,7 @@ local function resolve_manifest_files(manifest: state.manifest)
 	for _, pass in manifest.passes do
 		if pass.icon then pass.icon_file = resolve_file(pass.icon) end
 	end
-	for _, thumbnail in manifest.thumbnails do
+	for _, thumbnail in (manifest.thumbnails or {}) :: { any } do
 		if thumbnail.file then thumbnail.image_file = resolve_file(thumbnail.file) end
 	end
 	if manifest.icon and manifest.icon.file then manifest.icon.image_file = resolve_file(manifest.icon.file) end
@@ -94,7 +94,9 @@ local function save_resources(resources: state.resources, manifest_path: string,
 		if pass.lock then resources.lock.passes[pass.key] = pass.lock end
 	end
 	for _, thumbnail in resources.thumbnails do
-		if thumbnail.lock then resources.lock.thumbnails[thumbnail.key] = thumbnail.lock end
+		local lock = thumbnail.lock
+		local hash = lock and lock.input.image_file.hash
+		if lock and hash then resources.lock.thumbnails[hash] = lock end
 	end
 	if resources.icon and resources.icon.lock then resources.lock.icon = resources.icon.lock end
 	for _, place in resources.places do

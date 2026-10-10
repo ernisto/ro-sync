@@ -21,7 +21,7 @@ export type input = {
 	passes: { [string]: pass.pass_input },
 	places: { [string]: place.place_input },
 	products: { [string]: product.product_input },
-	thumbnails: { [string]: thumbnail.thumbnail_input },
+	thumbnails: { thumbnail.thumbnail_input }?, -- nil = unmanaged, rosync never deletes
 	icon: icon.icon_input?,
 }
 export type lock = {
@@ -30,7 +30,7 @@ export type lock = {
 	passes: { [string]: pass.pass_lock },
 	places: { [string]: place.place_lock },
 	products: { [string]: product.product_lock },
-	thumbnails: { [string]: thumbnail.thumbnail_lock },
+	thumbnails: { [string]: thumbnail.thumbnail_lock }, -- keyed by image hash
 	icon: icon.icon_lock?,
 }
 export type manifest = input
@@ -54,7 +54,7 @@ export type resources = {
 
 -- constructors
 local function create_input(owner: owner): manifest
-	return { owner = owner, products = {}, passes = {}, thumbnails = {}, places = {} }
+	return { owner = owner, products = {}, passes = {}, places = {} }
 end
 local function create_state(universe_id: number): lock
 	return { universe_id = universe_id, products = {}, passes = {}, thumbnails = {}, places = {} }
@@ -77,9 +77,11 @@ local function parse_manifest(content: buffer): manifest
 		pass.validate_input(entry, `manifest.passes.{key}`)
 	end
 
-	data.thumbnails = base.string_map(data.thumbnails, 'manifest.thumbnails')
-	for key, entry in data.thumbnails do
-		thumbnail.validate_input(entry, `manifest.thumbnails.{key}`)
+	if data.thumbnails ~= nil then
+		data.thumbnails = base.list(data.thumbnails, 'manifest.thumbnails')
+		for i, entry in data.thumbnails do
+			thumbnail.validate_input(entry, `manifest.thumbnails[{i}]`)
+		end
 	end
 	if data.icon ~= nil then icon.validate_input(data.icon, 'manifest.icon') end
 
@@ -108,8 +110,8 @@ local function parse_lock(content: buffer): lock
 	end
 
 	data.thumbnails = base.string_map(data.thumbnails, 'lock.thumbnails')
-	for key, entry in data.thumbnails do
-		thumbnail.validate_lock(entry, `lock.thumbnails.{key}`)
+	for hash, entry in data.thumbnails do
+		thumbnail.validate_lock(entry, `lock.thumbnails.{hash}`)
 	end
 	if data.icon ~= nil then
 		base.req(data.icon, 'table', 'lock.icon')
@@ -133,7 +135,7 @@ end
 local function encode_manifest(data: manifest): string
 	local out: any = tbl.applied(data, { version = 1, products = {}, places = {} })
 
-	out.thumbnails = base.encode_map(data.thumbnails, thumbnail.encode_input)
+	out.thumbnails = data.thumbnails and (base.encode_map(data.thumbnails, thumbnail.encode_input) or {})
 	out.icon = data.icon and icon.encode_input(data.icon)
 	out.products = base.encode_map(data.products, product.encode_input)
 	out.places = base.encode_map(data.places, place.encode_input)
@@ -161,7 +163,7 @@ end
 -- resources
 local function build_resources(inputs: manifest, locks: lock): resources
 	inputs.passes, locks.passes = inputs.passes or {}, locks.passes or {}
-	inputs.thumbnails, locks.thumbnails = inputs.thumbnails or {}, locks.thumbnails or {}
+	locks.thumbnails = locks.thumbnails or {}
 
 	local universe_entry = inputs.universe and { key = 'universe', input = inputs.universe, lock = locks.universe }
 
@@ -181,8 +183,9 @@ local function build_resources(inputs: manifest, locks: lock): resources
 	end
 
 	local thumbnails = {}
-	for key, input in inputs.thumbnails do
-		table.insert(thumbnails, { key = key, input = input, lock = locks.thumbnails[key] })
+	for i, input in inputs.thumbnails or {} :: { thumbnail.thumbnail_input } do
+		local lock = input.image_file and locks.thumbnails[input.image_file.hash]
+		table.insert(thumbnails, { key = input.file or `thumbnail {i}`, input = input, lock = lock })
 	end
 	local icon_entry = inputs.icon and { key = 'icon', input = inputs.icon, lock = locks.icon }
 

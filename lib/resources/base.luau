@@ -33,6 +33,17 @@ local function string_map(value: any, label: string): { [string]: any }
 	return value
 end
 
+local function list(value: any, label: string): { any }
+	if value == nil then return {} end
+	req(value, 'table', label)
+
+	for i, entry in value do
+		check(type(i) == 'number', `{label} must be a list`)
+		req(entry, 'table', `{label}[{i}]`)
+	end
+	return value
+end
+
 local function validate_owner(owner: any, label: string)
 	req(owner, 'table', label)
 
@@ -85,7 +96,7 @@ local function json_of(v: any): string?
 end
 
 -- encoding
-local function encode_map(map: { [string]: any }, encode: (any) -> any)
+local function encode_map(map: { [any]: any }, encode: (any) -> any)
 	local out = {}
 	for key, entry in map do
 		out[key] = encode(entry)
@@ -99,6 +110,7 @@ return table.freeze {
 	req = req,
 	opt = opt,
 	string_map = string_map,
+	list = list,
 	validate_owner = validate_owner,
 	flatten_group = flatten_group,
 

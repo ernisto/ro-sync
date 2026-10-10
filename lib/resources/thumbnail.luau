@@ -71,27 +71,47 @@ end
 local function get(session: session, thumbnail: thumbnail_lock): thumbnail_data?
 	local path = { universe_id = thumbnail.universe_id }
 	local result = http.call(cloud.universe_media.list_thumbnails, session, path, nil)
+
 	for _, item in result.data do
-		if item.imageId == thumbnail.thumbnail_id then return { image_file = { assetid = item.imageId } } end
+		local hash = thumbnail.input.image_file and thumbnail.input.image_file.hash
+		if item.imageId == thumbnail.thumbnail_id then
+			return { image_file = { assetid = item.imageId, hash = hash } }
+		end
 	end
 	return nil
-end
-
-local function remove(session: session, universe_id: number, thumbnail_id: number)
-	local path = { universe_id = universe_id, thumbnail_id = thumbnail_id }
-	http.call(cloud.universe_media.delete_thumbnail, session, path, nil)
 end
 
 local function update(session: session, thumbnail: thumbnail_lock, patch: thumbnail_input): thumbnail_data
 	if not patch.image_file then return {} :: any end
 
 	local id = upload(session, thumbnail.universe_id, patch.image_file)
-
-	local ok = pcall(remove, session, thumbnail.universe_id, thumbnail.thumbnail_id)
-	if not ok then ctx_log.warn(`couldnt delete old thumbnail {thumbnail.thumbnail_id}`) end
-
 	thumbnail.thumbnail_id = id
 	return { image_file = { hash = patch.image_file.hash, assetid = id } }
+end
+
+local function reorder(session: session, universe_id: number, ids: { number }): boolean
+	local path = { universe_id = universe_id }
+	local media = http.call(cloud.universe_media.list_thumbnails, session, path, nil)
+
+	local wanted = {}
+	for _, id in ids do
+		wanted[id] = true
+	end
+
+	local current = {}
+	for _, item in media.data do
+		if item.imageId and wanted[item.imageId] then table.insert(current, item.imageId) end
+	end
+	if table.concat(current, ',') == table.concat(ids, ',') then return false end
+
+	http.call(cloud.universe_media.set_thumbnail_order, session, path, { thumbnailIds = ids })
+	ctx_log.str 'reordered thumbnails'
+	return true
+end
+
+local function delete(session: session, thumbnail: thumbnail_lock)
+	local path = { universe_id = thumbnail.universe_id, thumbnail_id = thumbnail.thumbnail_id }
+	return http.call(cloud.universe_media.delete_thumbnail, session, path, nil)
 end
 
 local function create(session: session, game: { universe_id: number }, input: thumbnail_input): thumbnail_lock
@@ -101,7 +121,7 @@ local function create(session: session, game: { universe_id: number }, input: th
 	return {
 		universe_id = game.universe_id,
 		thumbnail_id = id,
-		input = { image_file = { hash = file.hash, assetid = id } },
+		input = { image_file = { hash = file.hash } },
 	}
 end
 
@@ -118,4 +138,6 @@ return table.freeze {
 	create = create,
 	get = get,
 	update = update,
+	delete = delete,
+	reorder = reorder,
 }

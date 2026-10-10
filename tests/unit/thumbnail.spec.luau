@@ -16,7 +16,7 @@ function run.manifest_round_trips_thumbnails()
 version: 1
 owner: { user: 1 }
 thumbnails:
-  main: { file: main.png }
+  - file: main.png
 icon:
   file: icon.png
 ]])
