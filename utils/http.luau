@@ -121,4 +121,4 @@ function module.call<P, Q, B, R>(endpoint: cloud.endpoint<P, Q, B, R, any>, sess
 	end)
 end
 
-return module -- not frozen: specs stub `request`
+return module -- not frozen: specs stub `request`, cli wraps `call`

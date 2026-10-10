@@ -96,23 +96,18 @@ local function state_from_cloud(input: state.manifest?)
 	local resources = state.build_resources(input or state.create_input(owner), state.create_state(universe_id))
 
 	ctx_log.gap()
-	local target = tostring(universe_id)
-
 	pcall(function()
 		import.await_import_places(place_res, session, universe_id, resources)
 	end)
 
-	key_info = auth_guidance.grant_scope(session, key_info, 'universe:read', target)
 	pcall(function()
 		import.await_import_universe(universe_res, session, universe_id, resources)
 	end)
 
-	key_info = auth_guidance.grant_scope(session, key_info, 'developer-product:read', target)
 	pcall(function()
 		import.await_import_products(product_res, session, universe_id, resources)
 	end)
 
-	key_info = auth_guidance.grant_scope(session, key_info, 'game-pass:read', target)
 	pcall(function()
 		import.await_import_passes(pass_res, session, universe_id, resources)
 	end)
@@ -171,33 +166,21 @@ local sync_opts = {
 }
 
 -- reconcile
-local write_target = tostring(resources.lock.universe_id)
-
 if resources.universe then
-	key_info = auth_guidance.grant_scope(session, key_info, 'universe:write', write_target)
 	local ok, err = pcall(sync.await_reconcile_universe, universe_res, resources.universe, sync_opts)
 	if ok then resources.universe.lock = err end
 end
 
-if next(resources.places) then
-	key_info = auth_guidance.grant_scope(session, key_info, 'universe.place:write', write_target)
-end
 for _, place in resources.places do
 	local ok, err = pcall(sync.await_reconcile_place, place_res, place, sync_opts)
 	if ok then place.lock = err end
 end
 
-if next(resources.products) then
-	key_info = auth_guidance.grant_scope(session, key_info, 'developer-product:write', write_target)
-end
 for _, resource in resources.products do
 	local ok, err = pcall(sync.await_reconcile_product, product_res, resource, sync_opts)
 	if ok then resource.lock = err end
 end
 
-if next(resources.passes) then
-	key_info = auth_guidance.grant_scope(session, key_info, 'game-pass:write', write_target)
-end
 for _, resource in resources.passes do
 	local ok, err = pcall(sync.await_reconcile_pass, pass_res, resource, sync_opts)
 	if ok then resource.lock = err end

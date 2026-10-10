@@ -1,7 +1,11 @@
 local cli = require '@utils/cli'
+local env = require '@utils/env'
 local process = require '@lune/process'
 local c = require('@utils/ctx_log').colors
+local authed_http = require '@cli/auth_guidance/http'
+local http = require '@utils/http'
 
+if not env.str 'CI' then http.call = authed_http.call end
 require '@cli/args' -- declare shared/global options before any dispatch/read
 
 local ABOUT = 'Sync Roblox developer products with a YAML manifest'

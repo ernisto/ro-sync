@@ -23,6 +23,7 @@ local USED_SCOPES = {
 	'game-pass:read',
 	'game-pass:write',
 	'universe.place:write',
+	'universe-places:write',
 	'developer-product:read',
 	'developer-product:write',
 }
@@ -213,38 +214,6 @@ local function prompt_user_auth(): cloud.session?
 end
 
 -- functions
-local function grant_scope(
-	session: cloud.session,
-	info: cloud.api_key_introspection,
-	scope: string,
-	target: string?
-): cloud.api_key_introspection
-	if apikey.has_scope(info, scope, target) then return info end
-	local label = if target then `({target})` else ''
-
-	if not INTERACTIVE_MODE then
-		ctx_log.warn(`API Key missing scope {c.bold}{scope}{label}`)
-		return info
-	end
-
-	ctx_log.warn(`API Key missing scope {c.bold}{scope}{label}`)
-	ctx_log.str(`Grant it at {c.green}{CREDENTIALS_URL}{c.reset}, then continue`)
-
-	repeat
-		if not ctx_log.prompt('confirm', 'Granted?') then return info end
-
-		local ok, next_info = pcall(http.call, apikey.introspect, session, nil, nil)
-		if not ok then
-			ctx_log.warn(`Failed to re-check key: {next_info}`)
-			return info
-		end
-		info = next_info
-	until apikey.has_scope(info, scope, target)
-
-	ctx_log.str(`{c.green}Scope {c.bold}{label}{c.reset}{c.green} granted`)
-	return info
-end
-
 local function prompt_valid_api_key(
 	api_key: string?,
 	universe_id: number?
@@ -315,5 +284,4 @@ end
 return table.freeze {
 	authenticate_user = authenticate_user,
 	authenticate_key = authenticate_key,
-	grant_scope = grant_scope,
 }
