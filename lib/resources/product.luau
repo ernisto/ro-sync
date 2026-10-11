@@ -109,7 +109,7 @@ end
 -- api type
 export type product_read = product_data & { universe_id: number, product_id: number }
 
-local function from_api_result(data: cloud.product): product_read
+local function from_api_result(data: cloud.product_data): product_read
 	local price_info = data.priceInformation
 	return {
 		universe_id = data.universeId,
@@ -124,7 +124,7 @@ local function from_api_result(data: cloud.product): product_read
 	}
 end
 
-local function to_api_params(data: product_input)
+local function to_api_params(data: product_input): cloud.product_patch
 	return {
 		name = data.name,
 		price = data.price,
@@ -178,7 +178,7 @@ local function get(session: session, product: product_path): product_read
 	return from_api_result(http.call(cloud.product.get, session, product, nil))
 end
 
-local function list(session: session, universe: universe_path): { cloud.product }
+local function list(session: session, universe: universe_path): { cloud.product_data }
 	local products = {}
 	local token: string? = nil
 	repeat

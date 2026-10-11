@@ -115,7 +115,7 @@ export type place_read = place_data & { universe_id: number, place_id: number }
 
 local BASEPLATE_PLACE_ID = 95206881
 
-local function from_place_config(data: cloud.place_data): place_data
+local function from_place_config(data: cloud.place_configuration_data): place_data
 	return {
 		display_name = data.name,
 		asset_file = { assetid = data.id },
@@ -129,7 +129,7 @@ local function from_place_config(data: cloud.place_data): place_data
 	}
 end
 
-local function to_place_config_params(patch: place_input): cloud.place_patch
+local function to_place_config_params(patch: place_input): cloud.place_configuration_patch
 	return {
 		name = patch.display_name,
 		description = patch.description,
@@ -183,11 +183,11 @@ local function create(session: session, game: universe_path, place: place_input)
 	}
 end
 
-local function get(session: session, place: place_path): place_data
-	return from_place_config(http.call(cloud.place_configuration.get, session, { place_id = place.place_id }, nil))
+local function get(session: session, path: place_path): place_data
+	return from_place_config(http.call(cloud.place_configuration.get, session, path, nil))
 end
 
-local function list(session: session, universe: universe_path): { cloud.place_data }
+local function list(session: session, universe: universe_path): { cloud.place_configuration_data }
 	local places = {}
 	local cursor: string? = nil
 	repeat

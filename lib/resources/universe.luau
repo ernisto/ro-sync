@@ -151,7 +151,7 @@ local function mask(read: universe_data, input: universe_input): universe_input
 end
 
 -- api impl
-local function from_universe_api(data: cloud.universe): universe_data
+local function from_universe_api(data: cloud.universe_data): universe_data
 	return {
 		private_server_price = data.privateServerPriceRobux,
 		voice_chat = data.voiceChatEnabled,
@@ -190,7 +190,7 @@ local function from_universe_config(data: cloud.universe_settings_data_v1): univ
 	}
 end
 
-local function to_universe_params(patch: universe_input) --: cloud.universe_patch
+local function to_universe_params(patch: universe_input): cloud.universe_patch
 	return {
 		privateServerPriceRobux = patch.private_server_price,
 

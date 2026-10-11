@@ -18,10 +18,10 @@ bin = "cli/init.luau"
 
 [engines]
 pesde = "^0.7.4"
-lune = "^0.10.5"
+lune = "^0.11.0"
 
 [indices]
 default = "https://github.com/pesde-pkg/index"
 
 [dependencies]
-ro_cloud = { name = "ernisto/ro_cloud", version = "=0.1.0-beta.1", target = "luau" }
+ro_cloud = { name = "ernisto/ro_cloud", version = "=0.1.0-beta.2", target = "luau" }

@@ -12,11 +12,11 @@ local AUTO_ACCEPT = cli.bool 'yes' or cli.bool 'y'
 local INTERACTIVE_MODE = not env.str 'CI'
 
 type universe_path = { universe_id: number }
-type creator = { user: nil, group: cloud.dev_group } | { user: { id: number, name: string }, group: nil }
+type creator = { user: nil, group: cloud.dev_group_data } | { user: { id: number, name: string }, group: nil }
 
 -- helpers
-local function fetch_universes(session: cloud.session, group: cloud.dev_group?): { cloud.dev_universe }
-	local universes: { cloud.dev_universe } = {}
+local function fetch_universes(session: cloud.session, group: cloud.dev_group_data?): { cloud.dev_universe_data }
+	local universes: { cloud.dev_universe_data } = {}
 	local cursor: string?
 
 	repeat
@@ -65,7 +65,7 @@ end
 local function prompt_universe(
 	session: cloud.session,
 	creator: creator,
-	universes: { cloud.dev_universe }
+	universes: { cloud.dev_universe_data }
 ): universe_path
 	assert(INTERACTIVE_MODE, 'not possible to choice a subject')
 
