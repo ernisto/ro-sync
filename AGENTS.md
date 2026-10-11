@@ -48,4 +48,4 @@ Global flags (`cli/args.luau`): `--cache` (lock file, default `cloud-state.yml`)
 
 - Path aliases (`.luaurc`): `@pkg`, `@utils`, `@lib`, `@cli`, `@test`, `@lune`. Strict language mode — `luau-lsp analyze` must pass.
 - StyLua (`stylua.toml`): single quotes, no call parens for single-arg calls, sorted requires.
-- Releases read git tags (`scripts/bump_version.luau` syncs the version in `pesde.toml` before `pesde publish`). There is no README.md in the repo.
+- Releases read git tags (`scripts/bump_version.luau` syncs the version in `pesde.toml` before `pesde publish`). The release workflow also bundles `cli/init.luau` with darklua (`.darklua.json`) and `lune build`s it into `ro-sync-<tag>-<os>-<arch>.zip` assets for aftman/rokit. There is no README.md in the repo.

@@ -229,4 +229,4 @@ if SCAN_CLOUD and not scanned_cloud then state_from_cloud(resources.manifest) en
 sync_logger.print_summary()
 state_fs.save_resources(resources, INPUT_PATH, STATE_PATH)
 
-process.exit(sync_logger.summary.errors)
+return process.exit(sync_logger.summary.errors)
