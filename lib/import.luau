@@ -121,10 +121,26 @@ local function await_import_universe(
 	sync_logger.imported('universe', universe_id)
 end
 
+local function await_import_all(session: base.session, resources: state.resources, universe_id: number)
+	pcall(function()
+		await_import_places(place, session, universe_id, resources)
+	end)
+	pcall(function()
+		await_import_universe(universe, session, universe_id, resources)
+	end)
+	pcall(function()
+		await_import_products(product, session, universe_id, resources)
+	end)
+	pcall(function()
+		await_import_passes(pass, session, universe_id, resources)
+	end)
+end
+
 -- module
 return table.freeze {
 	await_import_universe = await_import_universe,
 	await_import_products = await_import_products,
 	await_import_passes = await_import_passes,
 	await_import_places = await_import_places,
+	await_import_all = await_import_all,
 }

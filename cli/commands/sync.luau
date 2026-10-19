@@ -15,24 +15,19 @@ local state = require '@lib/state'
 local sync = require '@lib/sync'
 local sync_logger = require '@lib/sync_logger'
 
-local base = require '@lib/resources/base'
-local pass_res = require '@lib/resources/pass'
-local place_res = require '@lib/resources/place'
-local product_res = require '@lib/resources/product'
-local universe_res = require '@lib/resources/universe'
-
 -- cli
--- local COOKIE = env.str 'ROBLOX_COOKIE' -- used by auth_guidance
--- local AUTO_ACCEPT = cli.str 'yes' or cli.str 'y' -- used by prompt
 local INTERACTIVE = not env.str 'CI' -- used bu prompt
+-- local AUTO_ACCEPT = cli.str 'yes' or cli.str 'y' -- used by prompt
 
+-- local COOKIE = env.str 'ROBLOX_COOKIE' -- used by auth_guidance
 local API_KEY = cli.str('api-key', { value = 'KEY', help = 'Open Cloud API key (default: $API_KEY)' })
 	or env.str 'API_KEY'
-local pushes = cli.list('push', { value = 'FILE', help = 'manifest to sync (default: cloud.yml)' })
-local INPUT_PATH = if pushes and pushes[1] then pushes[1] else 'cloud.yml'
-local STATE_PATH = cli.str 'cache' or 'cloud-state.yml'
-local SCAN_CLOUD = cli.bool('scan-roblox', { help = 'rescan the whole universe from Roblox' })
 
+local PUSHES = cli.list('push', { value = 'FILE', help = 'manifest to sync (default: cloud.yml)' })
+local INPUT_PATH = if PUSHES and PUSHES[1] then PUSHES[1] else 'cloud.yml'
+local STATE_PATH = cli.str 'cache' or 'cloud-state.yml'
+
+local scan_cloud = cli.bool('scan-roblox', { help = 'rescan the whole universe from Roblox' })
 local sync_all = cli.bool('all', { help = 'fetch even unchanged resources' })
 local overwrite = cli.bool('overwrite-cloud', { help = 'push local changes over Roblox cloud' })
 local ignore_cloud = cli.bool('ignore-cloud', { help = 'skip fetching Roblox cloud to update cache/conflicts' })
@@ -53,14 +48,14 @@ local function merge_input(base: any, extra: any)
 		end
 	end
 end
-if input_ok and pushes then
-	for i = 2, #pushes do
-		local ok, extra = pcall(state_fs.load_input, pushes[i])
+if input_ok and PUSHES then
+	for i = 2, #PUSHES do
+		local ok, extra = pcall(state_fs.load_input, PUSHES[i])
 		if ok then
 			merge_input(input_result, extra)
-			ctx_log.str(`Merged {c.green}{pushes[i]}{c.reset} into {c.green}{INPUT_PATH}`)
+			ctx_log.str(`Merged {c.green}{PUSHES[i]}{c.reset} into {c.green}{INPUT_PATH}`)
 		else
-			ctx_log.warn(`Couldnt read {pushes[i]}, {(tostring(extra):gsub('^.-:%d+: ', ''))}`)
+			ctx_log.warn(`Couldnt read {PUSHES[i]}, {(tostring(extra):gsub('^.-:%d+: ', ''))}`)
 		end
 	end
 end
@@ -78,7 +73,7 @@ local universe_id = if state_ok
 local api_session, key_info = auth_guidance.authenticate_key(API_KEY, API_KEY ~= nil, universe_id)
 if not api_session or not key_info then return process.exit(1) end
 
-local session: base.session = api_session :: any
+local session: cloud.session = api_session :: any
 session.cookie_state = user_session and user_session.cookie_state
 
 local universe = http.call(cloud.universe.get, session, { universe_id = universe_id }, nil)
@@ -86,7 +81,7 @@ ctx_log.str(`Target universe {c.green}{universe.displayName}{c.reset} {c.dim}({u
 
 -- ensure resources
 local function state_from_cloud(input: state.manifest?)
-	if not prompt.confirm_reimport(INPUT_PATH) then return end
+	if not scan_cloud and not prompt.confirm_reimport(INPUT_PATH) then return end
 
 	local owner: state.owner = if universe.user
 		then { user = tonumber(universe.user:match '%d+') :: number, group = nil }
@@ -95,21 +90,7 @@ local function state_from_cloud(input: state.manifest?)
 	local resources = state.build_resources(input or state.create_input(owner), state.create_state(universe_id))
 
 	ctx_log.gap()
-	pcall(function()
-		import.await_import_places(place_res, session, universe_id, resources)
-	end)
-
-	pcall(function()
-		import.await_import_universe(universe_res, session, universe_id, resources)
-	end)
-
-	pcall(function()
-		import.await_import_products(product_res, session, universe_id, resources)
-	end)
-
-	pcall(function()
-		import.await_import_passes(pass_res, session, universe_id, resources)
-	end)
+	import.await_import_all(session, resources, universe_id)
 
 	state_fs.save_resources(resources, INPUT_PATH, STATE_PATH)
 	ctx_log.str(`Saved {c.green}{STATE_PATH}{c.reset} and {c.green}{INPUT_PATH}`)
@@ -150,7 +131,7 @@ if not resources then
 end
 
 if scanned_cloud then
-	if not input_ok or not prompt.prompt_add_overwrite() then return process.exit(0) end
+	if not input_ok or not (overwrite or prompt.prompt_add_overwrite()) then return process.exit(0) end
 	overwrite = true -- push local changes over the freshly-scanned cloud state
 end
 
@@ -162,9 +143,9 @@ sync.await_reconcile_all(resources, {
 	session = session,
 })
 
-if SCAN_CLOUD and not scanned_cloud then state_from_cloud(resources.manifest) end
+if scan_cloud and not scanned_cloud then state_from_cloud(resources.manifest) end
 
 sync_logger.print_summary()
 state_fs.save_resources(resources, INPUT_PATH, STATE_PATH)
 
-return process.exit(sync_logger.summary.errors)
+return if sync_logger.summary.errors == 0 then process.exit(0) else process.exit(1)

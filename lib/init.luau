@@ -1,4 +1,5 @@
 return table.freeze {
+	import = require '@lib/import',
 	state = require '@lib/state',
 	sync = require '@lib/sync',
 	resources = table.freeze {
