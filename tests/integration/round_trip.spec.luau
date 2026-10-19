@@ -8,7 +8,7 @@ local state_fs = require '@cli/state_fs'
 local sync = require '@lib/sync'
 
 -- defs
-local OPTS: sync.sync_opts = { universe_id = sm.UNIVERSE_ID, session = nil :: any }
+local OPTS: sync.sync_ctx = { universe_id = sm.UNIVERSE_ID, session = nil :: any }
 local ICON_PATH = 'tests/integration/assets/placeholder.png'
 local TMP_MANIFEST = 'tests/integration/assets/tmp_manifest.yml'
 local TMP_LOCK = 'tests/integration/assets/tmp_lock.yml'
@@ -24,7 +24,7 @@ local function write_files(manifest: any, lock: any)
 	fs.writeFile(TMP_LOCK, serde.encode('yaml', lock, true))
 end
 
-local function run_sync(api: typeof(product), opts: sync.sync_opts)
+local function run_sync(api: typeof(product), opts: sync.sync_ctx)
 	local resources = state_fs.load_resources(TMP_MANIFEST, TMP_LOCK)
 	for _, product in resources.products do
 		product.lock = sync.await_reconcile_product(api, product, opts)

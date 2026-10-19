@@ -9,7 +9,7 @@ local PRODUCT_ID = 2000
 local ICON_ID = 3000
 local PLACE_ID = 4000
 
-local DEFAULT_OPTS: sync.sync_opts =
+local DEFAULT_OPTS: sync.sync_ctx =
 	{ universe_id = UNIVERSE_ID, session = { api_key_state = { key = 'key' }, cookie_state = { cookie = 'cookie' } } }
 
 -- product builders
