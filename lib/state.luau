@@ -6,6 +6,7 @@ local icon = require '@lib/resources/icon'
 local pass = require '@lib/resources/pass'
 local place = require '@lib/resources/place'
 local product = require '@lib/resources/product'
+local rekey = require '@lib/rekey'
 local thumbnail = require '@lib/resources/thumbnail'
 local universe = require '@lib/resources/universe'
 
@@ -164,6 +165,10 @@ end
 local function build_resources(inputs: manifest, locks: lock): resources
 	inputs.passes, locks.passes = inputs.passes or {}, locks.passes or {}
 	locks.thumbnails = locks.thumbnails or {}
+
+	rekey.orphans(inputs.products, locks.products, product.diff)
+	rekey.orphans(inputs.places, locks.places, place.diff)
+	rekey.orphans(inputs.passes, locks.passes, pass.diff)
 
 	local universe_entry = inputs.universe and { key = 'universe', input = inputs.universe, lock = locks.universe }
 

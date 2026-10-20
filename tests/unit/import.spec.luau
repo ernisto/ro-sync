@@ -1,6 +1,7 @@
 local expect = require '@test/expect'
 local import = require '@lib/import'
 local mock = require '@test/mock'
+local state = require '@lib/state'
 
 local UNIVERSE_ID = 1000
 local PRODUCT_ID = 2000
@@ -82,6 +83,38 @@ function run.masks_existing_manifest_product_by_matching_id()
 	local masked = resources.manifest.products.money_pack
 	expect.eq(masked.name, 'Local Name') -- diverges from cloud → kept
 	expect.falsy(masked.price, 'price equal to cloud should be masked out')
+end
+
+function run.reuses_untracked_manifest_key_matching_cloud()
+	local resources = empty_resources()
+	resources.manifest.products.money_pack = { name = 'Cloud Pack', price = 100, conflicts = {} }
+	resources.manifest.products.other = { name = 'Other', conflicts = {} }
+
+	local api: any = {
+		list = function()
+			return { raw_product() }
+		end,
+	}
+
+	import.await_import_products(api, nil :: any, UNIVERSE_ID, resources)
+
+	expect.falsy(resources.manifest.products.product_2000, 'matching manifest key must be reused')
+	expect.eq(resources.lock.products.money_pack.product_id, PRODUCT_ID)
+	expect.falsy(resources.lock.products.other, 'non-matching key stays untracked')
+end
+
+function run.rekeys_orphan_lock_matching_manifest()
+	local input = { name = 'Pack', price = 100, conflicts = {} }
+	local lock = { universe_id = UNIVERSE_ID, product_id = PRODUCT_ID, input = { name = 'Pack', price = 100 } }
+	local stale = { universe_id = UNIVERSE_ID, product_id = 1, input = { name = 'Pack', price = 5 } }
+	local manifest: any = { products = { renamed = input }, places = {}, passes = {} }
+	local locks: any = { products = { old = lock, stale = stale }, places = {}, passes = {} }
+
+	state.build_resources(manifest, locks)
+
+	expect.eq(locks.products.renamed, lock)
+	expect.falsy(locks.products.old, 'old key removed')
+	expect.eq(locks.products.stale, stale)
 end
 
 -- places

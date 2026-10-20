@@ -2,6 +2,7 @@ local base = require '@lib/resources/base'
 local pass = require '@lib/resources/pass'
 local place = require '@lib/resources/place'
 local product = require '@lib/resources/product'
+local rekey = require '@lib/rekey'
 local state = require '@lib/state'
 local sync_logger = require '@lib/sync_logger'
 local universe = require '@lib/resources/universe'
@@ -26,7 +27,9 @@ local function await_import_products(
 	for _, raw in api.list(session, { universe_id = universe_id }) do
 		local known_key = assetid_keys[raw.productId]
 		local read = product.from_api_result(raw)
-		local key = known_key or `product_{raw.productId}`
+		local key = known_key
+			or rekey.matching_key(resources.manifest.products, resources.lock.products, read, product.diff)
+			or `product_{raw.productId}`
 
 		resources.lock.products[key] = {
 			universe_id = read.universe_id,
@@ -56,7 +59,9 @@ local function await_import_passes(
 
 	for _, raw in api.list(session, { universe_id = universe_id }) do
 		local read = pass.from_api_result(raw, universe_id)
-		local key = passid_keys[read.pass_id] or `pass_{read.pass_id}`
+		local key = passid_keys[read.pass_id]
+			or rekey.matching_key(resources.manifest.passes, resources.lock.passes, read, pass.diff)
+			or `pass_{read.pass_id}`
 
 		resources.lock.passes[key] = {
 			universe_id = universe_id,
@@ -87,7 +92,9 @@ local function await_import_places(
 	for _, raw in api.list(session, { universe_id = universe_id }) do
 		local known_key = placeid_keys[raw.id]
 		local read = place.from_place_config(raw)
-		local key = known_key or `place_{raw.id}`
+		local key = known_key
+			or rekey.matching_key(resources.manifest.places, resources.lock.places, read, place.diff)
+			or `place_{raw.id}`
 
 		resources.lock.places[key] = {
 			universe_id = universe_id,

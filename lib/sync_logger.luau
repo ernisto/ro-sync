@@ -64,6 +64,9 @@ local function log_imported(key: string, product_id: number)
 	ctx_log.str(`{c.purple}↓ Imported: {c.bold}{key}{c.reset} {c.dim}(id: {product_id})`)
 	summary.importeds += 1
 end
+local function log_rekeyed(old_key: string, key: string)
+	ctx_log.str(`{c.purple}~ Re-keyed: {c.bold}{old_key}{c.reset} → {c.bold}{key}`)
+end
 local function log_creation(key)
 	ctx_log.push_ctx(`{c.green}+ Creating: {c.bold}{key}`)
 end
@@ -130,6 +133,7 @@ return table.freeze {
 	update = log_update,
 	creation = log_creation,
 	imported = log_imported,
+	rekeyed = log_rekeyed,
 	update_result = log_update_result,
 	creation_result = log_creation_result,
 
