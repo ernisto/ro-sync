@@ -1,3 +1,4 @@
+local process = require '@lune/process'
 local stdio = require '@lune/stdio'
 
 -- ANSI escape codes
@@ -96,6 +97,12 @@ local function push_err(msg: string, backtrace: string?)
 	if backtrace then push_backtrace(backtrace) end
 end
 
+local function throw(msg: string)
+	local backtrace = debug.traceback():sub(2)
+	push_err(msg, backtrace)
+	return process.exit(1)
+end
+
 local function clear_line()
 	stdio.write '\27[1A\r\27[2K'
 end
@@ -132,6 +139,7 @@ return table.freeze {
 	str = str,
 	gap = gap,
 	warn = warn,
+	throw = throw,
 	error = push_err,
 	clear_line = clear_line,
 	backtrace = push_backtrace,

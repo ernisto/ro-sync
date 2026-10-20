@@ -67,8 +67,9 @@ sync_logger.print_header()
 local user_session = auth_guidance.authenticate_user() :: any
 local universe_id = if state_ok
 	then state_result.universe_id
+	elseif not user_session then ctx_log.throw 'you are not logged as user to import/create a universe'
 	elseif INTERACTIVE then prompt.prompt_subject(user_session).universe.universe_id
-	else error 'universe expected'
+	else ctx_log.throw 'universe expected'
 
 local api_session, key_info = auth_guidance.authenticate_key(API_KEY, API_KEY ~= nil, universe_id)
 if not api_session or not key_info then return process.exit(1) end
@@ -125,10 +126,7 @@ else
 	resources = state.build_resources(input_result, state_result)
 end
 
-if not resources then
-	ctx_log.error 'No state loaded'
-	process.exit(1)
-end
+if not resources then ctx_log.throw 'No state loaded' end
 
 if scanned_cloud then
 	if not input_ok or not (overwrite or prompt.prompt_add_overwrite()) then return process.exit(0) end
