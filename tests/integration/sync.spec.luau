@@ -51,7 +51,7 @@ function run.should_return_prev_unchanged_when_no_local_changes()
 	guarded_api.update = mock.never_called 'update should not be reached for a no-op'
 
 	local opts: sync.sync_ctx = { universe_id = prev.universe_id, session = session }
-	local result = sync.await_reconcile_product(guarded_api, sm.make_product(input, prev), opts)
+	local result = sync.await_reconcile(guarded_api, sm.make_product(input, prev), opts)
 
 	expect.eq(result, prev)
 end
@@ -68,7 +68,7 @@ function run.should_push_description_change_and_revert()
 	patched_prev.input = table.clone(prev.input)
 
 	local opts: sync.sync_ctx = { universe_id = prev.universe_id, session = session }
-	sync.await_reconcile_product(product_res, sm.make_product(input, patched_prev), opts)
+	sync.await_reconcile(product_res, sm.make_product(input, patched_prev), opts)
 
 	local ok, err = pcall(function()
 		local after = get_product()
@@ -92,9 +92,9 @@ function run.should_push_icon_change_and_revert()
 	patched_prev.input.icon_file = { assetid = prev.input.icon_file and prev.input.icon_file.assetid, hash = 'stale' }
 
 	local opts: sync.sync_ctx = { universe_id = prev.universe_id, session = session }
-	sync.await_reconcile_product(product_res, sm.make_product(input, patched_prev), opts)
+	sync.await_reconcile(product_res, sm.make_product(input, patched_prev), opts)
 
-	local after_lock = sync.await_reconcile_product(product_res, sm.make_product(input, patched_prev), opts)
+	local after_lock = sync.await_reconcile(product_res, sm.make_product(input, patched_prev), opts)
 	expect.truthy(after_lock.product_id)
 end
 

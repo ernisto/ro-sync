@@ -27,7 +27,7 @@ end
 local function run_sync(api: typeof(product), opts: sync.sync_ctx)
 	local resources = state_fs.load_resources(TMP_MANIFEST, TMP_LOCK)
 	for _, product in resources.products do
-		product.lock = sync.await_reconcile_product(api, product, opts)
+		product.lock = sync.await_reconcile(api, product, opts)
 	end
 	state_fs.save_resources(resources, TMP_MANIFEST, TMP_LOCK)
 end

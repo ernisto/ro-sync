@@ -1,4 +1,5 @@
 local cloud = require '@pkg/ro_cloud'
+local ctx_log = require '@utils/ctx_log'
 local http = require '@utils/http'
 local tbl = require '@utils/tbl'
 
@@ -58,6 +59,10 @@ local function validate_lock(entry: any, label: string)
 
 	validate_input(entry.input, `{label}.input`);
 	(entry :: any).input.conflicts = nil
+end
+
+local function validate(input: product_input)
+	if input.icon and not input.icon_file then ctx_log.warn(`couldnt find icon '{input.icon}'`) end
 end
 
 -- encoding
@@ -197,6 +202,7 @@ end
 return table.freeze {
 	validate_input = validate_input,
 	validate_lock = validate_lock,
+	validate = validate,
 
 	encode_input = encode_input,
 	encode_lock_entry = encode_lock_entry,

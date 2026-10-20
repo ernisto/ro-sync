@@ -48,12 +48,12 @@ function run.reuploads_only_on_hash_change()
 	local opts = { universe_id = sm.UNIVERSE_ID, session = nil :: any }
 
 	local same = { key = 'main', lock = lock, input = { file = 'main.png', image_file = file(HASH_A), conflicts = {} } }
-	sync.await_reconcile_thumbnail(api, same :: any, opts)
+	sync.await_reconcile(api, same :: any, opts)
 	expect.eq(uploads, 0)
 
 	local changed =
 		{ key = 'main', lock = lock, input = { file = 'main.png', image_file = file(HASH_B), conflicts = {} } }
-	local new_lock = sync.await_reconcile_thumbnail(api, changed :: any, opts)
+	local new_lock = sync.await_reconcile(api, changed :: any, opts)
 	expect.eq(uploads, 1)
 	expect.eq(new_lock.thumbnail_id, 2)
 	expect.eq(new_lock.input.image_file.hash, HASH_B)

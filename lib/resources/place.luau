@@ -1,4 +1,5 @@
 local cloud = require '@pkg/ro_cloud'
+local ctx_log = require '@utils/ctx_log'
 local http = require '@utils/http'
 local tbl = require '@utils/tbl'
 
@@ -63,6 +64,10 @@ local function validate_lock(entry: place_lock, label: string)
 
 	validate_input(entry.input :: any, `{label}.input`);
 	(entry :: any).input.conflicts = nil
+end
+
+local function validate(input: place_input)
+	if input.file and not input.asset_file then ctx_log.warn(`couldnt find place file '{input.file}'`) end
 end
 
 -- encoding
@@ -208,6 +213,7 @@ end
 return table.freeze {
 	validate_input = validate_input,
 	validate_lock = validate_lock,
+	validate = validate,
 
 	encode_input = encode_input,
 	encode_lock_entry = encode_lock_entry,

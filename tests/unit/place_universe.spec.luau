@@ -17,7 +17,7 @@ function run.place_pushes_settings_change()
 
 	local api = sm.make_place_api()
 
-	sync.await_reconcile_place(api, sm.make_place(input, prev), opts)
+	sync.await_reconcile(api, sm.make_place(input, prev), opts)
 
 	expect.eq(api.update.call_count, 1)
 	expect.eq(api.update.calls[1][3].display_name, 'New Name')
@@ -29,7 +29,7 @@ function run.place_skips_when_unchanged()
 
 	local api = sm.make_place_api(nil, { 'create', 'get', 'update' })
 
-	sync.await_reconcile_place(api, sm.make_place(input, prev), opts)
+	sync.await_reconcile(api, sm.make_place(input, prev), opts)
 end
 
 function run.place_records_settings_conflict()
@@ -38,7 +38,7 @@ function run.place_records_settings_conflict()
 
 	local api = sm.make_place_api { display_name = 'Cloud Name' }
 
-	sync.await_reconcile_place(api, sm.make_place(input, prev), opts)
+	sync.await_reconcile(api, sm.make_place(input, prev), opts)
 	expect.truthy(input.conflicts.display_name, 'display_name conflict should be recorded')
 end
 
@@ -60,7 +60,7 @@ function run.place_creates_when_no_lock()
 		}
 	end)
 
-	local lock = sync.await_reconcile_place(api, sm.make_place(input, nil), opts)
+	local lock = sync.await_reconcile(api, sm.make_place(input, nil), opts)
 
 	expect.eq(api.create.call_count, 1)
 	expect.eq(lock.place_id, sm.PLACE_ID)
@@ -78,7 +78,7 @@ function run.place_creates_without_file()
 		return { universe_id = opts.universe_id, place_id = sm.PLACE_ID, input = {} }
 	end)
 
-	local lock = sync.await_reconcile_place(api, sm.make_place(input, nil), opts)
+	local lock = sync.await_reconcile(api, sm.make_place(input, nil), opts)
 	expect.eq(api.create.call_count, 1)
 	expect.eq(lock.place_id, sm.PLACE_ID)
 end
@@ -90,7 +90,7 @@ function run.place_file_pushed_when_hash_differs()
 
 	local api = sm.make_place_api()
 
-	sync.await_reconcile_place(api, sm.make_place(input, prev), opts)
+	sync.await_reconcile(api, sm.make_place(input, prev), opts)
 	expect.eq(api.update.calls[1][3].asset_file, new_file)
 end
 
@@ -100,7 +100,7 @@ function run.place_file_noop_when_hash_matches()
 
 	local api = sm.make_place_api(nil, { 'create', 'get', 'update' })
 
-	sync.await_reconcile_place(api, sm.make_place(input, prev), opts)
+	sync.await_reconcile(api, sm.make_place(input, prev), opts)
 end
 
 function run.place_file_never_conflicts()
@@ -110,7 +110,7 @@ function run.place_file_never_conflicts()
 
 	local api = sm.make_place_api { description = 'Cloud edit' }
 
-	sync.await_reconcile_place(api, sm.make_place(input, prev), opts)
+	sync.await_reconcile(api, sm.make_place(input, prev), opts)
 
 	expect.falsy(next(input.conflicts), 'file vs settings should not conflict')
 	expect.eq(api.update.calls[1][3].asset_file, new_file) -- file still pushed
@@ -123,7 +123,7 @@ function run.universe_pushes_flag_change()
 
 	local api = sm.make_universe_api()
 
-	sync.await_reconcile_universe(api, sm.make_universe(input, prev), opts)
+	sync.await_reconcile(api, sm.make_universe(input, prev), opts)
 	expect.eq(api.update.calls[1][3].desktop, false)
 end
 
@@ -133,7 +133,7 @@ function run.universe_detects_social_link_change()
 
 	local api = sm.make_universe_api()
 
-	sync.await_reconcile_universe(api, sm.make_universe(input, prev), opts)
+	sync.await_reconcile(api, sm.make_universe(input, prev), opts)
 	expect.eq(api.update.calls[1][3].discord.uri, 'https://discord.gg/x')
 end
 
@@ -143,7 +143,7 @@ function run.universe_records_conflict()
 
 	local api = sm.make_universe_api { private_server_price = 200 }
 
-	sync.await_reconcile_universe(api, sm.make_universe(input, prev), opts)
+	sync.await_reconcile(api, sm.make_universe(input, prev), opts)
 	expect.truthy(input.conflicts.private_server_price, 'price conflict should be recorded')
 end
 
@@ -152,7 +152,7 @@ function run.universe_baselines_from_cloud_without_lock()
 
 	local api = sm.make_universe_api()
 
-	local lock = sync.await_reconcile_universe(api, sm.make_universe(input, nil), opts)
+	local lock = sync.await_reconcile(api, sm.make_universe(input, nil), opts)
 
 	expect.eq(lock.universe_id, sm.UNIVERSE_ID)
 	expect.eq(api.update.calls[1][3].desktop, false) -- manifest change pushed against pulled baseline
@@ -164,7 +164,7 @@ function run.universe_accepted_push_updates_lock()
 
 	local api = sm.make_universe_api { price = 0 }
 
-	local lock = sync.await_reconcile_universe(api, sm.make_universe(input, prev), opts)
+	local lock = sync.await_reconcile(api, sm.make_universe(input, prev), opts)
 	expect.eq(lock.input.price, 100)
 end
 
@@ -178,7 +178,7 @@ function run.universe_dropped_push_keeps_lock_in_sync()
 		return cloud -- price refused (e.g. not for-sale)
 	end)
 
-	local lock = sync.await_reconcile_universe(api, sm.make_universe(input, prev), opts)
+	local lock = sync.await_reconcile(api, sm.make_universe(input, prev), opts)
 	expect.eq(api.update.calls[1][3].price, 100) -- we did push 100
 	expect.eq(lock.input.price, 0) -- but lock reflects the dropped result
 end
@@ -193,7 +193,7 @@ function run.universe_no_echo_keeps_lock_at_cloud_value()
 		return {}
 	end)
 
-	local lock = sync.await_reconcile_universe(api, sm.make_universe(input, prev), opts)
+	local lock = sync.await_reconcile(api, sm.make_universe(input, prev), opts)
 	expect.eq(lock.input.price, 0)
 end
 
@@ -208,7 +208,7 @@ function run.place_dropped_push_keeps_lock_in_sync()
 		return cloud -- refused
 	end)
 
-	local lock = sync.await_reconcile_place(api, sm.make_place(input, prev), opts)
+	local lock = sync.await_reconcile(api, sm.make_place(input, prev), opts)
 	expect.eq(api.update.calls[1][3].allow_copying, true) -- pushed true
 	expect.eq(lock.input.allow_copying, false) -- but cloud kept false
 end

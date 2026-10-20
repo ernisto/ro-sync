@@ -135,6 +135,7 @@ end
 return table.freeze {
 	validate_input = validate_input,
 	validate_lock = validate_lock,
+	validate = product.validate,
 
 	encode_input = product.encode_input,
 	encode_lock_entry = encode_lock_entry,

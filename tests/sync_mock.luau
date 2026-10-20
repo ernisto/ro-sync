@@ -1,7 +1,9 @@
 local mock = require '@test/mock'
+local place_res = require '@lib/resources/place'
 local product_res = require '@lib/resources/product'
 local sync = require '@lib/sync'
 local tbl = require '@utils/tbl'
+local universe_res = require '@lib/resources/universe'
 
 -- constants
 local UNIVERSE_ID = 1000
@@ -150,8 +152,10 @@ end
 -- mock api builders: `get` returns the initial cloud state and `update` applies
 -- the patch onto that same state (like the real cloud) before returning the result.
 -- `never` lists api members that must not be called by the sync.
-local function make_api(cloud: { [string]: any }, echo: (any, any) -> any, never: { string }?): any
+local function make_api(res: any, cloud: { [string]: any }, echo: (any, any) -> any, never: { string }?): any
 	local api: any = {
+		diff = res.diff,
+		validate = res.validate,
 		get = mock.fn(function()
 			return table.clone(cloud)
 		end),
@@ -167,15 +171,15 @@ local function make_api(cloud: { [string]: any }, echo: (any, any) -> any, never
 end
 
 local function make_product_api(cloud_input: { [string]: any }?, never: { string }?): any
-	return make_api(cloud_mirror(make_input(cloud_input)), product_echo, never)
+	return make_api(product_res, cloud_mirror(make_input(cloud_input)), product_echo, never)
 end
 
 local function make_place_api(cloud_input: { [string]: any }?, never: { string }?): any
-	return make_api(place_mirror(make_place_input(cloud_input)), place_echo, never)
+	return make_api(place_res, place_mirror(make_place_input(cloud_input)), place_echo, never)
 end
 
 local function make_universe_api(cloud_input: { [string]: any }?, never: { string }?): any
-	return make_api(universe_mirror(make_universe_input(cloud_input)), universe_echo, never)
+	return make_api(universe_res, universe_mirror(make_universe_input(cloud_input)), universe_echo, never)
 end
 
 -- module

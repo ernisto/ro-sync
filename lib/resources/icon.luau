@@ -1,4 +1,5 @@
 local cloud = require '@pkg/ro_cloud'
+local ctx_log = require '@utils/ctx_log'
 local http = require '@utils/http'
 
 local base = require './base'
@@ -14,6 +15,10 @@ local function validate_lock(entry: any, label: string)
 	base.req(entry.universe_id, 'number', `{label}.universe_id`)
 	base.req(entry.input, 'table', `{label}.input`)
 	entry.input.conflicts = nil
+end
+
+local function validate(input: icon_input)
+	if input.file and not input.image_file then ctx_log.warn(`couldnt find icon '{input.file}'`) end
 end
 
 -- encoding
@@ -52,6 +57,7 @@ end
 return table.freeze {
 	validate_input = thumbnail.validate_input,
 	validate_lock = validate_lock,
+	validate = validate,
 
 	encode_input = thumbnail.encode_input,
 	encode_lock_entry = encode_lock_entry,

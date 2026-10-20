@@ -13,13 +13,6 @@ local state = require './state'
 local sync_logger = require './sync_logger'
 
 -- defs
-type thumbnail_api = typeof(thumbnail)
-type icon_api = typeof(icon)
-type universe_api = typeof(universe)
-type product_api = typeof(product)
-type place_api = typeof(place)
-type pass_api = typeof(pass)
-
 export type sync_opts = {
 	session: base.session,
 	ignore_cloud: boolean?,
@@ -37,11 +30,11 @@ export type sync_ctx = {
 
 type resource<Lock = any> = {
 	key: string,
-	lock: (Lock & resource_lock)??,
+	lock: resource_lock?,
 	input: { [string]: any, conflicts: { [string]: any } },
 }
 
-type resource_lock = { universe_id: number, input: { [string]: any } }
+type resource_lock = { universe_id: number, input: { [string]: any }, [string]: number }
 type resource_api = {
 	diff: ({ [string]: any }, { [string]: any }) -> { [string]: any },
 	get: (any, any) -> { [string]: any }?,
@@ -51,9 +44,16 @@ type resource_api = {
 }
 
 -- functions
-local function reconcile_resource<Lock>(api: resource_api, resource: resource<Lock>, opts: sync_ctx): Lock
+local function await_reconcile<Lock>(res: any, resource: resource<Lock>, opts: sync_ctx): Lock
+	local api: resource_api = res
+
 	local key, input, prev = resource.key, resource.input, resource.lock
 	if api.validate then api.validate(input) end
+
+	if not prev and not api.create then
+		local path = { universe_id = opts.universe_id }
+		prev = { universe_id = opts.universe_id, input = api.get(opts.session, path) or {} } :: any
+	end
 
 	if not prev then
 		sync_logger.creation(key)
@@ -72,7 +72,7 @@ local function reconcile_resource<Lock>(api: resource_api, resource: resource<Lo
 
 	if next(local_changes) == nil and not opts.sync_all then
 		sync_logger.noop(key)
-		return prev
+		return prev :: any
 	end
 
 	sync_logger.update(key, prev.input, local_changes)
@@ -126,73 +126,7 @@ local function reconcile_resource<Lock>(api: resource_api, resource: resource<Lo
 	sync_logger.print_pushed_changes(applied, conflicts, dropped)
 	sync_logger.update_result(push_err == nil, free_sending, conflicts)
 
-	return prev
-end
-
-local function await_reconcile_product(api: product_api, product: state.product, opts: sync_ctx): product.product_lock
-	local function validate(input)
-		if input.icon and not input.icon_file then ctx_log.warn(`couldnt find icon '{input.icon}'`) end
-	end
-
-	local api_impl =
-		{ diff = state.diff_product, get = api.get, update = api.update, create = api.create, validate = validate }
-	return reconcile_resource(api_impl :: any, product :: any, opts)
-end
-
-local function await_reconcile_place(api: place_api, place: state.place, opts: sync_ctx): place.place_lock
-	local function validate(input)
-		if input.file and not input.asset_file then ctx_log.warn(`couldnt find place file '{input.file}'`) end
-	end
-
-	local api_impl =
-		{ diff = state.diff_place, get = api.get, update = api.update, create = api.create, validate = validate }
-	return reconcile_resource(api_impl :: any, place :: any, opts)
-end
-
-local function await_reconcile_pass(api: pass_api, pass: state.pass, opts: sync_ctx): pass.pass_lock
-	local function validate(input)
-		if input.icon and not input.icon_file then ctx_log.warn(`couldnt find icon '{input.icon}'`) end
-	end
-
-	local api_impl =
-		{ diff = state.diff_pass, get = api.get, update = api.update, create = api.create, validate = validate }
-	return reconcile_resource(api_impl :: any, pass :: any, opts)
-end
-
-local function await_reconcile_thumbnail(
-	api: thumbnail_api,
-	thumbnail: state.thumbnail,
-	opts: sync_ctx
-): thumbnail.thumbnail_lock
-	local function validate(input)
-		if input.file and not input.image_file then ctx_log.warn(`couldnt find thumbnail '{input.file}'`) end
-	end
-
-	local api_impl =
-		{ diff = state.diff_thumbnail, get = api.get, update = api.update, create = api.create, validate = validate }
-	return reconcile_resource(api_impl :: any, thumbnail :: any, opts)
-end
-
-local function await_reconcile_icon(api: icon_api, icon: state.icon, opts: sync_ctx): icon.icon_lock
-	local function validate(input)
-		if input.file and not input.image_file then ctx_log.warn(`couldnt find icon '{input.file}'`) end
-	end
-
-	local api_impl =
-		{ diff = state.diff_icon, get = api.get, update = api.update, create = api.create, validate = validate }
-	return reconcile_resource(api_impl :: any, icon :: any, opts)
-end
-
-local function await_reconcile_universe(
-	api: universe_api,
-	universe: state.universe,
-	opts: sync_ctx
-): universe.universe_lock
-	universe.lock = universe.lock
-		or { universe_id = opts.universe_id, input = api.get(opts.session, { universe_id = opts.universe_id }) }
-
-	local api_impl = { diff = state.diff_universe, get = api.get, update = api.update }
-	return reconcile_resource(api_impl :: any, universe, opts)
+	return prev :: any
 end
 
 local function await_reconcile_thumbnails(session: base.session, resources: state.resources)
@@ -227,31 +161,26 @@ local function await_reconcile_all(resources: state.resources, opts: sync_opts)
 	local ctx: sync_ctx = table.clone(opts :: any)
 	ctx.universe_id = resources.lock.universe_id
 
-	if resources.universe then resources.universe.lock = await_reconcile_universe(universe, resources.universe, ctx) end
-	if resources.icon then resources.icon.lock = await_reconcile_icon(icon, resources.icon, ctx) end
+	if resources.universe then resources.universe.lock = await_reconcile(universe, resources.universe, ctx) end
+	if resources.icon then resources.icon.lock = await_reconcile(icon, resources.icon, ctx) end
 	if resources.manifest.thumbnails then await_reconcile_thumbnails(ctx.session, resources) end
 
 	for _, resource in resources.thumbnails do
-		resource.lock = await_reconcile_thumbnail(thumbnail, resource, ctx)
+		resource.lock = await_reconcile(thumbnail, resource, ctx)
 	end
 	for _, resource in resources.products do
-		resource.lock = await_reconcile_product(product, resource, ctx)
+		resource.lock = await_reconcile(product, resource, ctx)
 	end
 	for _, resource in resources.places do
-		resource.lock = await_reconcile_place(place, resource, ctx)
+		resource.lock = await_reconcile(place, resource, ctx)
 	end
 	for _, resource in resources.passes do
-		resource.lock = await_reconcile_pass(pass, resource, ctx)
+		resource.lock = await_reconcile(pass, resource, ctx)
 	end
 end
 
 -- module
 return table.freeze {
-	await_reconcile_thumbnail = await_reconcile_thumbnail,
-	await_reconcile_icon = await_reconcile_icon,
-	await_reconcile_universe = await_reconcile_universe,
-	await_reconcile_product = await_reconcile_product,
-	await_reconcile_place = await_reconcile_place,
-	await_reconcile_pass = await_reconcile_pass,
+	await_reconcile = await_reconcile,
 	await_reconcile_all = await_reconcile_all,
 }

@@ -30,7 +30,7 @@ function run.should_create_product_when_no_prev_lock()
 		return { universe_id = UNIVERSE_ID, product_id = PRODUCT_ID, input = { name = data.name } } :: any
 	end
 
-	local lock = sync.await_reconcile_product(api, make_product(input), opts)
+	local lock = sync.await_reconcile(api, make_product(input), opts)
 
 	expect.truthy(created, 'api.create was not called')
 	expect.eq(lock.product_id, PRODUCT_ID)
@@ -43,7 +43,7 @@ function run.should_skip_api_when_input_unchanged()
 
 	local api = sm.make_product_api(nil, { 'create', 'get', 'update' })
 
-	local result = sync.await_reconcile_product(api, make_product(input, prev), opts)
+	local result = sync.await_reconcile(api, make_product(input, prev), opts)
 	expect.eq(result, prev)
 end
 
@@ -54,7 +54,7 @@ function run.should_push_local_changes_to_cloud()
 
 	local api = sm.make_product_api()
 
-	sync.await_reconcile_product(api, make_product(new_input, prev), opts)
+	sync.await_reconcile(api, make_product(new_input, prev), opts)
 
 	expect.eq(api.update.call_count, 1)
 	local patch = api.update.calls[1][3]
@@ -69,7 +69,7 @@ function run.should_record_conflict_when_both_sides_change_same_field()
 
 	local api = sm.make_product_api { name = 'Cloud Name' }
 
-	sync.await_reconcile_product(api, make_product(new_input, prev), opts)
+	sync.await_reconcile(api, make_product(new_input, prev), opts)
 
 	expect.truthy(new_input.conflicts, 'conflicts should be recorded')
 	expect.truthy(new_input.conflicts.name, 'name conflict should be recorded')
@@ -82,7 +82,7 @@ function run.should_not_push_fields_listed_in_conflicts()
 
 	local api = sm.make_product_api { name = 'Cloud Name' }
 
-	sync.await_reconcile_product(api, make_product(new_input, prev), opts)
+	sync.await_reconcile(api, make_product(new_input, prev), opts)
 
 	local patch = api.update.calls[1] and api.update.calls[1][3]
 	expect.falsy(patch and patch.name, 'conflicted field should not be pushed')
@@ -96,7 +96,7 @@ function run.should_not_pull_new_fields_into_input()
 	-- cloud changed an existing field (description) AND exposes an untracked field
 	local api = sm.make_product_api { description = 'Dashboard edit', store_page_enabled = true }
 
-	sync.await_reconcile_product(api, make_product(input, prev), opts)
+	sync.await_reconcile(api, make_product(input, prev), opts)
 
 	-- modified existing field is pulled back into the manifest
 	expect.eq(input.description, 'Dashboard edit')
@@ -111,7 +111,7 @@ function run.icon_not_pushed_when_hash_matches_lock()
 
 	local api = sm.make_product_api(nil, { 'create', 'get', 'update' })
 
-	sync.await_reconcile_product(api, make_product(input, prev), opts)
+	sync.await_reconcile(api, make_product(input, prev), opts)
 end
 
 function run.icon_pushed_when_hash_differs_from_lock()
@@ -121,7 +121,7 @@ function run.icon_pushed_when_hash_differs_from_lock()
 
 	local api = sm.make_product_api { icon = make_icon_lock(ICON_ID, nil) }
 
-	sync.await_reconcile_product(api, make_product(input, prev), opts)
+	sync.await_reconcile(api, make_product(input, prev), opts)
 
 	expect.eq(api.update.calls[1][3].icon_file, new_icon)
 end
@@ -133,7 +133,7 @@ function run.icon_lock_updated_to_new_icon_after_push()
 
 	local api = sm.make_product_api { icon = make_icon_lock(ICON_ID, nil) }
 
-	sync.await_reconcile_product(api, make_product(input, prev), opts)
+	sync.await_reconcile(api, make_product(input, prev), opts)
 
 	-- lock icon updated so next run detects no hash change
 	expect.eq(prev.input.icon_file.hash, ICON_HASH_B)
@@ -146,7 +146,7 @@ function run.icon_pushed_when_lock_has_no_hash()
 
 	local api = sm.make_product_api { icon = make_icon_lock(ICON_ID, nil) }
 
-	sync.await_reconcile_product(api, make_product(input, prev), opts)
+	sync.await_reconcile(api, make_product(input, prev), opts)
 
 	-- nil hash in lock != local hash → treated as change
 	expect.eq(api.update.call_count, 1) -- icon should be pushed when lock has no hash baseline

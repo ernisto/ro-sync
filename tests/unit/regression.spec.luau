@@ -27,7 +27,7 @@ function run.place_create_does_not_leak_identity_into_input()
 		} :: any
 	end
 
-	local lock = sync.await_reconcile_place(api, sm.make_place(input, nil), opts)
+	local lock = sync.await_reconcile(api, sm.make_place(input, nil), opts)
 
 	expect.eq(lock.place_id, sm.PLACE_ID)
 	expect.eq(lock.universe_id, sm.UNIVERSE_ID)
@@ -49,7 +49,7 @@ function run.product_create_does_not_leak_identity_into_input()
 		} :: any
 	end
 
-	local lock = sync.await_reconcile_product(api, sm.make_product(input), opts)
+	local lock = sync.await_reconcile(api, sm.make_product(input), opts)
 
 	expect.eq(lock.product_id, sm.PRODUCT_ID)
 	expect.falsy((lock.input :: any).product_id, 'product_id must not leak into the input block')
@@ -84,7 +84,7 @@ function run.place_create_saves_initial_config_and_file_to_lock()
 		}
 	end
 
-	local lock = sync.await_reconcile_place(api, sm.make_place(input, nil), opts)
+	local lock = sync.await_reconcile(api, sm.make_place(input, nil), opts)
 
 	expect.truthy(pushed, 'create must receive the config to push')
 	expect.eq(pushed.display_name, 'Start')
@@ -138,7 +138,7 @@ function run.place_asset_upload_failure_does_not_hold_settings()
 		return response.body
 	end
 
-	local ok, lock = pcall(sync.await_reconcile_place, place_res, sm.make_place(input, prev), opts)
+	local ok, lock = pcall(sync.await_reconcile, place_res, sm.make_place(input, prev), opts)
 	http.request = real_request
 	assert(ok, lock)
 

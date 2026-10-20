@@ -37,6 +37,10 @@ local function validate_lock(entry: any, label: string)
 	entry.input.conflicts = nil
 end
 
+local function validate(input: thumbnail_input)
+	if input.file and not input.image_file then ctx_log.warn(`couldnt find thumbnail '{input.file}'`) end
+end
+
 -- encoding
 local function encode_input(t: thumbnail_input): thumbnail_input
 	return tbl.subtraction(t, {
@@ -129,6 +133,7 @@ end
 return table.freeze {
 	validate_input = validate_input,
 	validate_lock = validate_lock,
+	validate = validate,
 
 	encode_input = encode_input,
 	encode_lock_entry = encode_lock_entry,
