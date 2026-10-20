@@ -11,12 +11,13 @@ local c = ctx_log.colors
 local apikey = cloud.auth.api_key
 
 -- defs
-local CREDENTIALS_URL = 'https://create.roblox.com/dashboard/credentials'
 local INTERACTIVE_MODE = not env.str 'CI'
 local AUTO_ACCEPT = cli.bool 'yes' or cli.bool 'y'
-local COOKIE = env.str 'ROBLOX_COOKIE'
 
--- scopes ro-sync relies on, used to color the introspected key status
+local COOKIE = cli.str 'roblox-cookie' or env.str 'ROBLOX_COOKIE'
+if not COOKIE:match '^%.ROBLOSECURITY=' then COOKIE = '.ROBLOSECURITY=' .. COOKIE end
+
+local CREDENTIALS_URL = 'https://create.roblox.com/dashboard/credentials'
 local USED_SCOPES = {
 	'universe:read',
 	'universe:write',
@@ -155,7 +156,7 @@ local function describe(cookie: string): string?
 end
 
 local function prompt_user_auth(): cloud.session?
-	if not INTERACTIVE_MODE then return nil end
+	if not INTERACTIVE_MODE then return COOKIE and cloud.auth.new:cookie(COOKIE) end
 
 	local options: { { label: string, kind: string } } = {
 		{ label = 'Enter a .ROBLOSECURITY cookie', kind = 'paste' },
