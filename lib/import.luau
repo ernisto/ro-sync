@@ -1,4 +1,5 @@
 local base = require '@lib/resources/base'
+local ctx_log = require '@utils/ctx_log'
 local pass = require '@lib/resources/pass'
 local place = require '@lib/resources/place'
 local product = require '@lib/resources/product'
@@ -129,16 +130,16 @@ local function await_import_universe(
 end
 
 local function await_import_all(session: base.session, resources: state.resources, universe_id: number)
-	pcall(function()
+	ctx_log.pcall(function()
 		await_import_places(place, session, universe_id, resources)
 	end)
-	pcall(function()
+	ctx_log.pcall(function()
 		await_import_universe(universe, session, universe_id, resources)
 	end)
-	pcall(function()
+	ctx_log.pcall(function()
 		await_import_products(product, session, universe_id, resources)
 	end)
-	pcall(function()
+	ctx_log.pcall(function()
 		await_import_passes(pass, session, universe_id, resources)
 	end)
 end

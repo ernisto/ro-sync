@@ -78,7 +78,12 @@ local function await_reconcile<Lock>(res: any, resource: resource<Lock>, opts: s
 	sync_logger.update(key, prev.input, local_changes)
 
 	-- refresh state
-	local cloud_state = if opts.ignore_cloud then prev.input else api.get(opts.session, prev) or {}
+	local ok, cloud_state = true, prev.input
+	if not opts.ignore_cloud then
+		ok, cloud_state = ctx_log.pcall(api.get :: any, opts.session, prev)
+		if not ok then return prev :: any end
+	end
+
 	local receiving_changes = api.diff(prev.input, cloud_state)
 	local sending_changes = tbl.intersection(api.diff(cloud_state, input), local_changes)
 
@@ -128,8 +133,12 @@ local function await_reconcile<Lock>(res: any, resource: resource<Lock>, opts: s
 
 	return prev :: any
 end
+local function await_try_reconcile<Lock>(res: any, resource: resource<Lock>, ctx: sync_ctx)
+	local ok, lock = ctx_log.pcall(await_reconcile, res, resource, ctx)
+	if ok then resource.lock = lock end
+end
 
-local function await_reconcile_thumbnails(session: base.session, resources: state.resources)
+local function await_try_reconcile_thumbnails(session: base.session, resources: state.resources)
 	local kept = {}
 	for _, resource in resources.thumbnails do
 		local file = resource.lock and resource.lock.input.image_file
@@ -138,13 +147,12 @@ local function await_reconcile_thumbnails(session: base.session, resources: stat
 
 	for hash, lock in resources.lock.thumbnails do
 		if kept[hash] then continue end
-		local ok, err = pcall(thumbnail.delete, session, lock)
-		if ok then
-			resources.lock.thumbnails[hash] = nil
-			ctx_log.str(`deleted thumbnail {lock.thumbnail_id}`)
-		else
-			ctx_log.warn(`couldnt delete thumbnail {lock.thumbnail_id}: {err}`)
-		end
+
+		local ok = ctx_log.pcall(thumbnail.delete, session, lock)
+		if not ok then continue end
+
+		resources.lock.thumbnails[hash] = nil
+		ctx_log.str(`deleted thumbnail {lock.thumbnail_id}`)
 	end
 
 	if #resources.thumbnails > 0 then
@@ -152,8 +160,8 @@ local function await_reconcile_thumbnails(session: base.session, resources: stat
 		for _, resource in resources.thumbnails do
 			if resource.lock then table.insert(ids, resource.lock.thumbnail_id) end
 		end
-		local ok, err = pcall(thumbnail.reorder, session, resources.lock.universe_id, ids)
-		if not ok then ctx_log.warn(`couldnt reorder thumbnails: {err}`) end
+		local ok = ctx_log.pcall(thumbnail.reorder, session, resources.lock.universe_id, ids)
+		if not ok then ctx_log.warn 'couldnt reorder thumbnails' end
 	end
 end
 
@@ -161,21 +169,21 @@ local function await_reconcile_all(resources: state.resources, opts: sync_opts)
 	local ctx: sync_ctx = table.clone(opts :: any)
 	ctx.universe_id = resources.lock.universe_id
 
-	if resources.universe then resources.universe.lock = await_reconcile(universe, resources.universe, ctx) end
-	if resources.icon then resources.icon.lock = await_reconcile(icon, resources.icon, ctx) end
-	if resources.manifest.thumbnails then await_reconcile_thumbnails(ctx.session, resources) end
+	if resources.universe then await_try_reconcile(universe, resources.universe, ctx) end
+	if resources.icon then await_try_reconcile(icon, resources.icon, ctx) end
+	if resources.manifest.thumbnails then await_try_reconcile_thumbnails(ctx.session, resources) end
 
 	for _, resource in resources.thumbnails do
-		resource.lock = await_reconcile(thumbnail, resource, ctx)
+		await_try_reconcile(thumbnail, resource, ctx)
 	end
 	for _, resource in resources.products do
-		resource.lock = await_reconcile(product, resource, ctx)
+		await_try_reconcile(product, resource, ctx)
 	end
 	for _, resource in resources.places do
-		resource.lock = await_reconcile(place, resource, ctx)
+		await_try_reconcile(place, resource, ctx)
 	end
 	for _, resource in resources.passes do
-		resource.lock = await_reconcile(pass, resource, ctx)
+		await_try_reconcile(pass, resource, ctx)
 	end
 end
 
