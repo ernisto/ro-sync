@@ -38,11 +38,6 @@ local function upload(session: session, universe_id: number, file: input_file): 
 	return { image_file = { hash = file.hash, assetid = result.targetId } }
 end
 
--- no endpoint to read the current icon; cloud state = lock state
-local function get(_session: session, _icon: icon_lock): thumbnail.thumbnail_data?
-	return nil
-end
-
 local function update(session: session, icon: icon_lock, patch: icon_input): thumbnail.thumbnail_data
 	if not patch.image_file then return {} :: any end
 	return upload(session, icon.universe_id, patch.image_file)
@@ -65,6 +60,5 @@ return table.freeze {
 	diff = thumbnail.diff,
 
 	create = create,
-	get = get,
 	update = update,
 }

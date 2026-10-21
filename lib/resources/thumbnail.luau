@@ -72,7 +72,7 @@ local function upload(session: session, universe_id: number, file: input_file): 
 	return result.targetId
 end
 
-local function get(session: session, thumbnail: thumbnail_lock): thumbnail_data?
+local function get(session: session, thumbnail: thumbnail_lock): thumbnail_data
 	local path = { universe_id = thumbnail.universe_id }
 	local result = http.call(cloud.universe_media.list_thumbnails, session, path, nil)
 
@@ -82,7 +82,7 @@ local function get(session: session, thumbnail: thumbnail_lock): thumbnail_data?
 			return { image_file = { assetid = item.imageId, hash = hash } }
 		end
 	end
-	return nil
+	error(`thumbnail {thumbnail.thumbnail_id} not found in cloud`)
 end
 
 local function update(session: session, thumbnail: thumbnail_lock, patch: thumbnail_input): thumbnail_data

@@ -36,7 +36,7 @@ type resource<Lock = any> = {
 type resource_lock = { universe_id: number, input: { [string]: any }, [string]: number }
 type resource_api = {
 	diff: ({ [string]: any }, { [string]: any }) -> { [string]: any },
-	get: (any, any) -> { [string]: any }?,
+	get: nil | (any, any) -> { [string]: any },
 	update: (any, any, { [string]: any }) -> ({ [string]: any }, string?),
 	create: ((any, sync_ctx, any) -> resource_lock)?,
 	validate: (({ [string]: any }) -> ())?,
@@ -51,7 +51,7 @@ local function await_reconcile<Lock>(res: any, resource: resource<Lock>, opts: s
 
 	if not prev and not api.create then
 		local path = { universe_id = opts.universe_id }
-		prev = { universe_id = opts.universe_id, input = api.get(opts.session, path) or {} } :: any
+		prev = { universe_id = opts.universe_id, input = api.get and api.get(opts.session, path) } :: any
 	end
 
 	if not prev then
@@ -79,8 +79,8 @@ local function await_reconcile<Lock>(res: any, resource: resource<Lock>, opts: s
 
 	-- refresh state
 	local ok, cloud_state = true, prev.input
-	if not opts.ignore_cloud then
-		ok, cloud_state = ctx_log.pcall(api.get :: any, opts.session, prev)
+	if not opts.ignore_cloud and api.get then
+		ok, cloud_state = ctx_log.pcall(api.get, opts.session, prev)
 		if not ok then return prev :: any end
 	end
 

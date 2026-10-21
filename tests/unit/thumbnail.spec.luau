@@ -30,9 +30,6 @@ function run.reuploads_only_on_hash_change()
 	local uploads = 0
 	local api: any = {
 		diff = thumbnail.diff,
-		get = function()
-			return nil
-		end,
 		create = thumbnail.create,
 		update = function(_, lock: any, patch: any)
 			uploads += 1
