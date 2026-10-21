@@ -51,13 +51,13 @@ local function prompt_creator(session: cloud.session): creator?
 	local user = http.call(cloud.auth.cookie.get_info, session, nil, nil)
 
 	local options = { `@{user.name} {c.dim}({user.id}){c.reset}` }
-
 	for _, group in groups do
 		table.insert(options, `{group.name} {c.dim}({group.id}){c.reset}`)
 	end
 
 	local option = ctx_log.prompt('select', 'Browse games of creator', options)
 	if not option then return nil end
+
 	ctx_log.str(`Browsing games of {c.green}{options[option]}`)
 
 	return if option == 1 then { user = { id = user.id, name = user.name } } else { group = groups[option - 1] }
@@ -83,6 +83,7 @@ local function prompt_universe(
 end
 
 export type subject = { owner: state.owner, universe: universe_path }
+
 local function prompt_subject(session: cloud.session): subject
 	assert(INTERACTIVE_MODE, 'not possible to choice a subject')
 	local creator = prompt_creator(session) or error 'creator required'
@@ -97,10 +98,13 @@ end
 
 local function confirm_reimport(inputs_path: string): boolean
 	if not INTERACTIVE_MODE then return false end
-	local msg =
-		`Enable {c.green}--scan-state{c.reset}? {c.dim}it scan the whole roblox cloud state and reconciles with {inputs_path}`
+
+	local msg = `Enable {c.green}--scan-cloud{c.reset}? {c.dim}The whole\
+		roblox cloud will be fetched and reconciled with {inputs_path}`
+
 	local ok = ctx_log.prompt('confirm', msg)
-	ctx_log.str(if ok then `Enabled {c.green}--scan-state` else `{c.dim}Skipping cloud scan`)
+	ctx_log.str(if ok then `Enabled {c.green}--scan-cloud` else `{c.dim}Skipping cloud scan`)
+
 	return ok
 end
 
@@ -110,26 +114,29 @@ local function confirm_regen_input(input_path: string, state_path: string): bool
 	if env.str 'CI' then
 		ctx_log.warn(`Running on CI, skipping input regeneration`)
 		return false
-	else
-		local msg = `No {c.bold}{input_path}{c.reset} found, regenerate it from {c.bold}{state_path}{c.reset}?`
-		local ok = ctx_log.prompt('confirm', msg)
-		ctx_log.str(if ok then `Regenerating {c.green}{input_path}` else `{c.dim}Keeping empty manifest`)
-		return ok
 	end
+
+	local msg = `No {c.bold}{input_path}{c.reset} found, regenerate it from {c.bold}{state_path}{c.reset}?`
+
+	local ok = ctx_log.prompt('confirm', msg)
+	ctx_log.str(if ok then `Regenerating {c.green}{input_path}` else `{c.dim}Keeping empty manifest`)
+
+	return ok
 end
 
 local function prompt_add_overwrite(): boolean
 	if AUTO_ACCEPT then return true end
 	if not INTERACTIVE_MODE then return false end
 
-	local msg =
-		`Enable {c.green}--overwrite{c.reset}? {c.dim}We already pulled all changes made externally, push now means overwrite those external changes`
+	local msg = `Enable {c.green}--overwrite-cloud{c.reset}? {c.dim}We already pulled all \
+		changes made externally, push now means overwrite those external changes`
+
 	local ok = ctx_log.prompt('confirm', msg)
-	ctx_log.str(if ok then `Overwriting with local changes` else `{c.dim}Taking a time to analyze external changes`)
+	ctx_log.str(if ok then `Overwriting cloud with local changes` else `{c.dim}Ignoring`)
+
 	return ok
 end
 
--- picks an untracked manifest key for an imported resource, or keeps the fallback as a new input
 local function prompt_import_key(fallback: string, name: string, free: { string }): string
 	if #free == 0 or AUTO_ACCEPT or not INTERACTIVE_MODE then return fallback end
 

@@ -27,12 +27,11 @@ local PUSHES = cli.list('push', { value = 'FILE', help = 'manifest to sync (defa
 local INPUT_PATH = if PUSHES and PUSHES[1] then PUSHES[1] else 'cloud.yml'
 local STATE_PATH = cli.str 'cache' or 'cloud-state.yml'
 
-local scan_cloud = cli.bool('scan-roblox', { help = 'rescan the whole universe from Roblox' })
+local scanned_cloud = false
+local scan_cloud = cli.bool('scan-cloud', { help = 'rescan the whole universe from Roblox cloud' })
 local sync_all = cli.bool('all', { help = 'fetch even unchanged resources' })
 local overwrite = cli.bool('overwrite-cloud', { help = 'push local changes over Roblox cloud' })
 local ignore_cloud = cli.bool('ignore-cloud', { help = 'skip fetching Roblox cloud to update cache/conflicts' })
-
-local scanned_cloud = false
 
 cli.strict()
 
@@ -59,7 +58,6 @@ if input_ok and PUSHES then
 		end
 	end
 end
-local resources
 
 -- login
 sync_logger.print_header()
@@ -81,6 +79,8 @@ local universe = http.call(cloud.universe.get, session, { universe_id = universe
 ctx_log.str(`Target universe {c.green}{universe.displayName}{c.reset} {c.dim}({universe_id})`)
 
 -- ensure resources
+local resources
+
 local function state_from_cloud(input: state.manifest?)
 	if not scan_cloud and not prompt.confirm_reimport(INPUT_PATH) then return end
 
@@ -110,6 +110,7 @@ local function input_from_state(lock, universe)
 
 	local rebuilt = state_fs.resources_from_lock(lock, owner)
 	state_fs.save_resources(rebuilt, INPUT_PATH, STATE_PATH)
+
 	ctx_log.str(`Regenerated {c.green}{INPUT_PATH}{c.reset} from {c.green}{STATE_PATH}`)
 	return rebuilt
 end
