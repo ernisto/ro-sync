@@ -103,6 +103,31 @@ function run.reuses_untracked_manifest_key_matching_cloud()
 	expect.falsy(resources.lock.products.other, 'non-matching key stays untracked')
 end
 
+function run.picker_reuses_untracked_key_for_unmatched_import()
+	local resources = empty_resources()
+	resources.manifest.products.money_pack = { name = 'Renamed', conflicts = {} }
+	resources.lock.products.tracked = { universe_id = UNIVERSE_ID, product_id = 1, input = {} }
+	resources.manifest.products.tracked = { name = 'Tracked', conflicts = {} }
+
+	local api: any = {
+		list = function()
+			return { raw_product() }
+		end,
+	}
+	local function pick(fallback: string, name: string, free: { string }): string
+		expect.eq(fallback, 'product_2000')
+		expect.eq(name, 'Cloud Pack')
+		expect.eq(#free, 1)
+		expect.eq(free[1], 'money_pack')
+		return free[1]
+	end
+
+	import.await_import_products(api, nil :: any, UNIVERSE_ID, resources, pick)
+
+	expect.eq(resources.lock.products.money_pack.product_id, PRODUCT_ID)
+	expect.falsy(resources.manifest.products.product_2000, 'picked key replaces fallback')
+end
+
 function run.rekeys_orphan_lock_matching_manifest()
 	local input = { name = 'Pack', price = 100, conflicts = {} }
 	local lock = { universe_id = UNIVERSE_ID, product_id = PRODUCT_ID, input = { name = 'Pack', price = 100 } }

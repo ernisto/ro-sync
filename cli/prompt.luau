@@ -129,8 +129,22 @@ local function prompt_add_overwrite(): boolean
 	return ok
 end
 
+-- picks an untracked manifest key for an imported resource, or keeps the fallback as a new input
+local function prompt_import_key(fallback: string, name: string, free: { string }): string
+	if #free == 0 or AUTO_ACCEPT or not INTERACTIVE_MODE then return fallback end
+
+	local options = { `{c.green}Create {c.bold}{fallback}` }
+	for _, key in free do
+		table.insert(options, `{c.reset}Reuse {c.bold}{key}`)
+	end
+
+	local option = ctx_log.prompt('select', `{c.purple}↓ Importing: {c.bold}{name} {c.reset}{c.dim}()`, options)
+	return if option and option > 1 then free[option - 1] else fallback
+end
+
 -- module
 return table.freeze {
+	prompt_import_key = prompt_import_key,
 	prompt_subject = prompt_subject,
 	confirm_reimport = confirm_reimport,
 	confirm_regen_input = confirm_regen_input,
