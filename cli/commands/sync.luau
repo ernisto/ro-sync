@@ -23,15 +23,23 @@ local INTERACTIVE = not env.str 'CI' -- used bu prompt
 local API_KEY = cli.str('api-key', { value = 'KEY', help = 'Open Cloud API key (default: $API_KEY)' })
 	or env.str 'API_KEY'
 
-local PUSHES = cli.list('push', { value = 'FILE', help = 'manifest to sync (default: cloud.yml)' })
+local PUSHES = cli.list('push', {
+	value = 'FILE',
+	help = 'Values ro-sync ensures keep them (default: cloud.yml)',
+})
 local INPUT_PATH = if PUSHES and PUSHES[1] then PUSHES[1] else 'cloud.yml'
 local STATE_PATH = cli.str 'cache' or 'cloud-state.yml'
 
 local scanned_cloud = false
-local scan_cloud = cli.bool('scan-cloud', { help = 'rescan the whole universe from Roblox cloud' })
-local sync_all = cli.bool('all', { help = 'fetch even unchanged resources' })
-local overwrite = cli.bool('overwrite-cloud', { help = 'push local changes over Roblox cloud' })
-local ignore_cloud = cli.bool('ignore-cloud', { help = 'skip fetching Roblox cloud to update cache/conflicts' })
+local scan_cloud = cli.bool('scan-cloud', {
+	help = 'List and track every resource, managed or not by ro-sync',
+})
+local overwrite = cli.bool('overwrite-cloud', {
+	help = 'Ignore new and existing conflicts',
+})
+local ignore_cloud = cli.bool('ignore-cloud', {
+	help = 'Skip fetch before update, dont update cache, ignore new conflicts, keep existings',
+})
 
 cli.strict()
 
@@ -134,15 +142,30 @@ if scanned_cloud then
 	overwrite = true -- push local changes over the freshly-scanned cloud state
 end
 
+local lock = resources.lock
+local snapshot = {
+	universe = lock.universe and table.clone(lock.universe),
+	icon = lock.icon and table.clone(lock.icon),
+	thumbnails = table.clone(lock.thumbnails),
+	products = table.clone(lock.products),
+	passes = table.clone(lock.passes),
+	places = table.clone(lock.places),
+	universe_id = lock.universe_id,
+}
+
+if scan_cloud and not scanned_cloud then
+	ctx_log.gap()
+	import.await_import_all(session, resources, universe_id, prompt.prompt_import_key)
+	resources = state.build_resources(resources.manifest, lock)
+end
+
 ctx_log.gap()
 sync.await_reconcile_all(resources, {
 	ignore_cloud = ignore_cloud,
 	overwrite = overwrite,
-	sync_all = sync_all,
 	session = session,
+	snapshot = snapshot,
 })
-
-if scan_cloud and not scanned_cloud then state_from_cloud(resources.manifest) end
 
 sync_logger.print_summary()
 state_fs.save_resources(resources, INPUT_PATH, STATE_PATH)

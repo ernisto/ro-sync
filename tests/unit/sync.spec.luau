@@ -152,4 +152,18 @@ function run.icon_pushed_when_lock_has_no_hash()
 	expect.eq(api.update.call_count, 1) -- icon should be pushed when lock has no hash baseline
 end
 
+function run.snapshot_detects_conflicts_after_scan()
+	local snapshot = make_input()
+	local prev = make_lock(make_input { name = 'Cloud Name', price = 300 })
+	prev.input.conflicts = nil
+	local input = make_input { name = 'Local Name' }
+
+	local api = sm.make_product_api({ name = 'Cloud Name', price = 300 }, { 'create' })
+	sync.await_reconcile(api, make_product(input, prev), opts, make_lock(snapshot))
+
+	expect.eq(input.conflicts.name, 'Local Name')
+	expect.eq(input.price, 300)
+	expect.eq(api.update.call_count, 0)
+end
+
 return run

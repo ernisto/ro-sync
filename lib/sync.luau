@@ -15,9 +15,9 @@ local sync_logger = require './sync_logger'
 -- defs
 export type sync_opts = {
 	session: base.session,
+	snapshot: state.lock?, -- lock before any cloud import; defaults to the current lock
 	ignore_cloud: boolean?,
 	overwrite: boolean?,
-	sync_all: boolean?,
 }
 
 export type sync_ctx = {
@@ -25,7 +25,6 @@ export type sync_ctx = {
 	universe_id: number,
 	ignore_cloud: boolean?,
 	overwrite: boolean?,
-	sync_all: boolean?,
 }
 
 type resource<Lock = any> = {
@@ -44,7 +43,7 @@ type resource_api = {
 }
 
 -- functions
-local function await_reconcile<Lock>(res: any, resource: resource<Lock>, opts: sync_ctx): Lock
+local function await_reconcile<Lock>(res: any, resource: resource<Lock>, opts: sync_ctx, snapshot: resource_lock?): Lock
 	local api: resource_api = res
 
 	local key, input, prev = resource.key, resource.input, resource.lock
@@ -68,14 +67,15 @@ local function await_reconcile<Lock>(res: any, resource: resource<Lock>, opts: s
 	end
 
 	-- guard
-	local local_changes = api.diff(prev.input, input)
+	local synced = (snapshot or prev).input
+	local local_changes = api.diff(synced, input)
 
-	if next(local_changes) == nil and not opts.sync_all then
+	if next(local_changes) == nil and next(api.diff(synced, prev.input)) == nil then
 		sync_logger.noop(key)
 		return prev :: any
 	end
 
-	sync_logger.update(key, prev.input, local_changes)
+	sync_logger.update(key, synced, local_changes)
 
 	-- refresh state
 	local ok, cloud_state = true, prev.input
@@ -84,10 +84,10 @@ local function await_reconcile<Lock>(res: any, resource: resource<Lock>, opts: s
 		if not ok then return prev :: any end
 	end
 
-	local receiving_changes = api.diff(prev.input, cloud_state)
+	local receiving_changes = api.diff(synced, cloud_state)
 	local sending_changes = tbl.intersection(api.diff(cloud_state, input), local_changes)
 
-	sync_logger.print_external_changes(prev.input, receiving_changes)
+	sync_logger.print_external_changes(synced, receiving_changes)
 	tbl.apply(prev.input, cloud_state)
 
 	-- conflicts
@@ -133,8 +133,8 @@ local function await_reconcile<Lock>(res: any, resource: resource<Lock>, opts: s
 
 	return prev :: any
 end
-local function await_try_reconcile<Lock>(res: any, resource: resource<Lock>, ctx: sync_ctx)
-	local ok, lock = ctx_log.pcall(await_reconcile, res, resource, ctx)
+local function await_try_reconcile<Lock>(res: any, resource: resource<Lock>, ctx: sync_ctx, snapshot: any?)
+	local ok, lock = ctx_log.pcall(await_reconcile, res, resource, ctx, snapshot)
 	if ok then resource.lock = lock end
 end
 
@@ -166,24 +166,25 @@ local function await_try_reconcile_thumbnails(session: base.session, resources: 
 end
 
 local function await_reconcile_all(resources: state.resources, opts: sync_opts)
+	local snapshot = opts.snapshot or resources.lock
 	local ctx: sync_ctx = table.clone(opts :: any)
 	ctx.universe_id = resources.lock.universe_id
 
-	if resources.universe then await_try_reconcile(universe, resources.universe, ctx) end
-	if resources.icon then await_try_reconcile(icon, resources.icon, ctx) end
+	if resources.universe then await_try_reconcile(universe, resources.universe, ctx, snapshot.universe) end
+	if resources.icon then await_try_reconcile(icon, resources.icon, ctx, snapshot.icon) end
 	if resources.manifest.thumbnails then await_try_reconcile_thumbnails(ctx.session, resources) end
 
 	for _, resource in resources.thumbnails do
 		await_try_reconcile(thumbnail, resource, ctx)
 	end
 	for _, resource in resources.products do
-		await_try_reconcile(product, resource, ctx)
+		await_try_reconcile(product, resource, ctx, snapshot.products[resource.key])
 	end
 	for _, resource in resources.places do
-		await_try_reconcile(place, resource, ctx)
+		await_try_reconcile(place, resource, ctx, snapshot.places[resource.key])
 	end
 	for _, resource in resources.passes do
-		await_try_reconcile(pass, resource, ctx)
+		await_try_reconcile(pass, resource, ctx, snapshot.passes[resource.key])
 	end
 end
 
