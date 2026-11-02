@@ -102,15 +102,6 @@ local function diff(from: { [string]: any }, to: { [string]: any }): { [string]:
 	return out
 end
 
-local function mask(read: product_data, input: product_input): product_input
-	local out: any = diff(read, input)
-	out.conflicts = input.conflicts or {}
-
-	if input.icon ~= nil then out.icon = input.icon end
-	if input.addons ~= nil then out.addons = input.addons end
-	return out
-end
-
 -- api type
 export type product_read = product_data & { universe_id: number, product_id: number }
 
@@ -208,7 +199,7 @@ return table.freeze {
 	encode_lock_entry = encode_lock_entry,
 
 	diff = diff,
-	mask = mask,
+	mask = base.mask,
 
 	from_api_result = from_api_result,
 	to_api_params = to_api_params,

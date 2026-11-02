@@ -107,14 +107,6 @@ local function diff(from: { [string]: any }, to: { [string]: any }): { [string]:
 	return out
 end
 
-local function mask(read: place_data, input: place_input): place_input
-	local out: any = diff(read, input)
-	out.conflicts = input.conflicts or {}
-
-	if input.file ~= nil then out.file = input.file end
-	return out
-end
-
 -- api type
 export type place_read = place_data & { universe_id: number, place_id: number }
 
@@ -219,7 +211,7 @@ return table.freeze {
 	encode_lock_entry = encode_lock_entry,
 
 	diff = diff,
-	mask = mask,
+	mask = base.mask,
 
 	from_place_config = from_place_config,
 	to_place_config_params = to_place_config_params,

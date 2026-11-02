@@ -1,4 +1,4 @@
--- import masking: keep user overrides that diverge from the live cloud read, drop redundant fields
+-- import masking: keep every field the user wrote (like sync); the cloud read only goes to the lock
 local expect = require '@test/expect'
 local sm = require '@test/sync_mock'
 local state = require '@lib/state'
@@ -14,13 +14,13 @@ function run.mask_product_keeps_diverging_field()
 	expect.eq(out.name, 'Local')
 end
 
-function run.mask_product_drops_field_matching_read()
+function run.mask_product_keeps_field_matching_read()
 	local read = sm.make_product_read {}
 	local input = sm.make_input { name = 'Local' }
 
 	local out = state.mask_product(read, input)
-	expect.falsy(out.price, 'price equal to read should be dropped')
-	expect.falsy(out.description, 'description equal to read should be dropped')
+	expect.eq(out.price, input.price)
+	expect.eq(out.description, input.description)
 end
 
 function run.mask_product_preserves_conflicts_icon_addons()
@@ -33,14 +33,23 @@ function run.mask_product_preserves_conflicts_icon_addons()
 	expect.eq(out.conflicts.name, 'x')
 end
 
+function run.mask_product_defaults_conflicts()
+	local read = sm.make_product_read {}
+	local input: any = sm.make_input {}
+	input.conflicts = nil
+
+	local out = state.mask_product(read, input)
+	expect.truthy(out.conflicts)
+end
+
 -- places
-function run.mask_place_keeps_diverging_and_drops_matching()
+function run.mask_place_keeps_diverging_and_matching()
 	local read = sm.place_mirror(sm.make_place_input())
 	local input = sm.make_place_input { display_name = 'Local' }
 
 	local out = state.mask_place(read, input)
 	expect.eq(out.display_name, 'Local')
-	expect.falsy(out.server_size, 'server_size equal to read should be dropped')
+	expect.eq(out.server_size, input.server_size)
 end
 
 function run.mask_place_preserves_conflicts_and_file()
@@ -53,14 +62,14 @@ function run.mask_place_preserves_conflicts_and_file()
 end
 
 -- universe
-function run.mask_universe_keeps_diverging_and_drops_matching()
+function run.mask_universe_keeps_diverging_and_matching()
 	local read = sm.universe_mirror(sm.make_universe_input())
 	local input = sm.make_universe_input { desktop = false }
 
 	local out = state.mask_universe(read, input)
 	expect.eq(out.desktop, false)
-	expect.falsy(out.mobile, 'mobile equal to read should be dropped')
-	expect.falsy(out.private_server_price, 'price equal to read should be dropped')
+	expect.eq(out.mobile, input.mobile)
+	expect.eq(out.private_server_price, input.private_server_price)
 end
 
 function run.mask_universe_preserves_conflicts()

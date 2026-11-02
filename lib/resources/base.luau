@@ -91,6 +91,13 @@ local function diff_file(from: file, to: file): file?
 	return if to_hash ~= nil and from_hash ~= to_hash then to else nil
 end
 
+-- import keeps every user-written field (like sync); the cloud read only lands in the lock
+local function mask<T>(_read: { [string]: any }, input: T & { conflicts: { [string]: any }? }): T
+	local out: any = table.clone(input :: any)
+	out.conflicts = (input :: any).conflicts or {}
+	return out
+end
+
 local function json_of(v: any): string?
 	return if type(v) == 'table' and next(v) == nil then nil else serde.encode('json', v)
 end
@@ -116,6 +123,7 @@ return table.freeze {
 
 	diff_fields = diff_fields,
 	diff_file = diff_file,
+	mask = mask,
 	json_of = json_of,
 
 	encode_map = encode_map,

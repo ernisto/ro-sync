@@ -59,7 +59,7 @@ function run.imports_new_product_into_lock_and_manifest()
 	expect.eq(resources.manifest.products.product_2000.name, 'Cloud Pack')
 end
 
-function run.masks_existing_manifest_product_by_matching_id()
+function run.keeps_existing_manifest_product_fields_by_matching_id()
 	local resources = empty_resources()
 	-- lock already tracks this product under a user-chosen key
 	resources.lock.products.money_pack = { universe_id = UNIVERSE_ID, product_id = PRODUCT_ID, input = {} }
@@ -82,7 +82,9 @@ function run.masks_existing_manifest_product_by_matching_id()
 
 	local masked = resources.manifest.products.money_pack
 	expect.eq(masked.name, 'Local Name') -- diverges from cloud → kept
-	expect.falsy(masked.price, 'price equal to cloud should be masked out')
+	expect.eq(masked.price, 100) -- equal to cloud → still kept
+	expect.eq(masked.description, 'A pack')
+	expect.eq(masked.is_for_sale, true)
 end
 
 function run.reuses_untracked_manifest_key_matching_cloud()

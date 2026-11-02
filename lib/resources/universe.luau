@@ -143,13 +143,6 @@ local function diff(from: { [string]: any }, to: { [string]: any }): { [string]:
 	return out
 end
 
-local function mask(read: universe_data, input: universe_input): universe_input
-	local out: any = diff(read, input)
-	out.conflicts = input.conflicts or {}
-
-	return out
-end
-
 -- api impl
 local function from_universe_api(data: cloud.universe_data): universe_data
 	return {
@@ -265,7 +258,7 @@ return table.freeze {
 	encode_input = encode_input,
 
 	diff = diff,
-	mask = mask,
+	mask = base.mask,
 
 	SOCIAL_FIELDS = SOCIAL_FIELDS,
 	DEVICE_FIELDS = DEVICE_FIELDS,
