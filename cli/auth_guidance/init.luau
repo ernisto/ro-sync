@@ -15,7 +15,7 @@ local INTERACTIVE_MODE = not env.str 'CI'
 local AUTO_ACCEPT = cli.bool 'yes' or cli.bool 'y'
 
 local COOKIE = cli.str 'roblox-cookie' or env.str 'ROBLOX_COOKIE'
-if not COOKIE:match '^%.ROBLOSECURITY=' then COOKIE = '.ROBLOSECURITY=' .. COOKIE end
+if COOKIE and not COOKIE:match '^%.ROBLOSECURITY=' then COOKIE = '.ROBLOSECURITY=' .. COOKIE end
 
 local CREDENTIALS_URL = 'https://create.roblox.com/dashboard/credentials'
 local USED_SCOPES = {
