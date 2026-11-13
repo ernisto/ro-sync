@@ -44,7 +44,8 @@ local state_ok, state_result = pcall(state_fs.load_lock, STATE_PATH)
 local input_ok, input_result = pcall(state_fs.load_input, INPUT_PATH)
 
 local function reason(err: unknown): string
-	return (tostring(err):gsub('^.-:%d+: ', ''))
+	local first_line = tostring(err):match '^[^\n]*' :: string
+	return (first_line:gsub('^.-:%d+: ', ''))
 end
 
 local function merge_input(base: any, extra: any)
@@ -72,7 +73,7 @@ end
 sync_logger.print_header()
 
 if not state_ok then
-	ctx_log.warn(`Couldnt read state, {reason(state_result)}`)
+	ctx_log.warn(`Couldnt read state '{STATE_PATH}', {reason(state_result)}`)
 	if not prompt.confirm_import_universe() then return process.exit(1) end
 
 	scan_cloud = true
