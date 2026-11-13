@@ -41,9 +41,7 @@ end
 -- encoding
 local function encode_lock_entry(pass: pass_lock): pass_lock
 	local input = pass.input
-	local icon_file = if input.icon_file
-		then { hash = input.icon_file.hash, assetid = input.icon_file.assetid }
-		else nil
+	local icon_file = base.lock_file_of(input.icon_file)
 
 	return {
 		universe_id = pass.universe_id,

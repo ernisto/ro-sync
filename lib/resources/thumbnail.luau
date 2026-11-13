@@ -8,7 +8,7 @@ type input_file = base.input_file
 type lock_file = base.lock_file
 
 -- defs
-export type thumbnail_data<F = lock_file> = { image_file: F }
+export type thumbnail_data<F = lock_file> = { image_file: F? }
 export type thumbnail_input = {
 	file: string?,
 	image_file: input_file?,
@@ -54,7 +54,7 @@ local function encode_lock_entry(t: thumbnail_lock): thumbnail_lock
 	return {
 		universe_id = t.universe_id,
 		thumbnail_id = t.thumbnail_id,
-		input = { image_file = image_file and { hash = image_file.hash, assetid = image_file.assetid } },
+		input = { image_file = base.lock_file_of(image_file) },
 	}
 end
 

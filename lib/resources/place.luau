@@ -80,9 +80,7 @@ end
 
 local function encode_lock_entry(place: place_lock): place_lock
 	local input = place.input
-	local asset_file = if input.asset_file
-		then { hash = input.asset_file.hash, assetid = input.asset_file.assetid }
-		else nil
+	local asset_file = base.lock_file_of(input.asset_file)
 
 	return {
 		universe_id = place.universe_id,

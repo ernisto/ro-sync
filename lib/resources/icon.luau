@@ -26,7 +26,7 @@ local function encode_lock_entry(t: icon_lock): icon_lock
 	local image_file = t.input.image_file
 	return {
 		universe_id = t.universe_id,
-		input = { image_file = image_file and { hash = image_file.hash, assetid = image_file.assetid } },
+		input = { image_file = base.lock_file_of(image_file) },
 	}
 end
 

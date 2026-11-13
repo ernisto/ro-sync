@@ -103,6 +103,10 @@ local function json_of(v: any): string?
 end
 
 -- encoding
+local function lock_file_of(f: file?): lock_file?
+	return if f then { hash = f.hash, assetid = f.assetid } else nil
+end
+
 local function encode_map(map: { [any]: any }, encode: (any) -> any)
 	local out = {}
 	for key, entry in map do
@@ -126,5 +130,6 @@ return table.freeze {
 	mask = mask,
 	json_of = json_of,
 
+	lock_file_of = lock_file_of,
 	encode_map = encode_map,
 }

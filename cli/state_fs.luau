@@ -96,7 +96,8 @@ local function save_resources(resources: state.resources, manifest_path: string,
 	end
 	for _, thumbnail in resources.thumbnails do
 		local lock = thumbnail.lock
-		local hash = lock and lock.input.image_file.hash
+		local file = lock and lock.input.image_file
+		local hash = file and file.hash
 		if lock and hash then resources.lock.thumbnails[hash] = lock end
 	end
 	if resources.icon and resources.icon.lock then resources.lock.icon = resources.icon.lock end
