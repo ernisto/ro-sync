@@ -105,6 +105,7 @@ local function state_from_cloud(input: state.manifest?)
 
 	ctx_log.gap()
 	import.await_import_all(session, resources, universe_id, prompt.prompt_import_key)
+	resources = state.build_resources(resources.manifest, resources.lock)
 
 	state_fs.save_resources(resources, INPUT_PATH, STATE_PATH)
 	ctx_log.str(`Saved {c.green}{STATE_PATH}{c.reset} and {c.green}{INPUT_PATH}`)
