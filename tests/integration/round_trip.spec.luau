@@ -6,6 +6,7 @@ local sm = require '@test/sync_mock'
 local state = require '@lib/state'
 local state_fs = require '@cli/state_fs'
 local sync = require '@lib/sync'
+local yaml = require '@utils/yaml'
 
 -- defs
 local OPTS: sync.sync_ctx = { universe_id = sm.UNIVERSE_ID, session = nil :: any }
@@ -20,8 +21,8 @@ local function cleanup()
 end
 
 local function write_files(manifest: any, lock: any)
-	fs.writeFile(TMP_MANIFEST, serde.encode('yaml', manifest, true))
-	fs.writeFile(TMP_LOCK, serde.encode('yaml', lock, true))
+	fs.writeFile(TMP_MANIFEST, yaml.encode(manifest))
+	fs.writeFile(TMP_LOCK, yaml.encode(lock))
 end
 
 local function run_sync(api: typeof(product), opts: sync.sync_ctx)

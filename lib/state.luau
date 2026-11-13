@@ -1,5 +1,6 @@
 local serde = require '@lune/serde'
 local tbl = require '@utils/tbl'
+local yaml = require '@utils/yaml'
 
 local base = require '@lib/resources/base'
 local icon = require '@lib/resources/icon'
@@ -147,7 +148,7 @@ local function encode_manifest(data: manifest): string
 		out.universe = if next(encoded) == nil then nil else encoded
 	end
 
-	return serde.encode('yaml', out, true)
+	return yaml.encode(out)
 end
 local function encode_lock(data: lock): string
 	local out: any = tbl.applied(data, { version = 1, products = {}, places = {} })
@@ -158,7 +159,7 @@ local function encode_lock(data: lock): string
 	out.icon = data.icon and icon.encode_lock_entry(data.icon)
 	out.places = base.encode_map(data.places, place.encode_lock_entry)
 
-	return serde.encode('yaml', out, true)
+	return yaml.encode(out)
 end
 
 -- resources

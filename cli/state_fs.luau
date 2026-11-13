@@ -1,6 +1,7 @@
 local fs = require '@lune/fs'
 local serde = require '@lune/serde'
 local state = require '@lib/state'
+local yaml = require '@utils/yaml'
 
 local MANIFEST_HEADER =
 	'# yaml-language-server: $schema=https://raw.githubusercontent.com/ernisto/ro-sync/refs/heads/main/assets/manifest.schema.json\n\n'
@@ -110,7 +111,7 @@ local function save_resources(resources: state.resources, manifest_path: string,
 
 	local new_yml = state.encode_manifest(resources.manifest)
 	local current_yml = if fs.isFile(manifest_path)
-		then serde.encode('yaml', serde.decode('yaml', fs.readFile(manifest_path)))
+		then yaml.encode(serde.decode('yaml', fs.readFile(manifest_path)))
 		else nil
 
 	if new_yml ~= current_yml then fs.writeFile(manifest_path, MANIFEST_HEADER .. new_yml) end
