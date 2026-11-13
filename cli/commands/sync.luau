@@ -1,3 +1,4 @@
+local args = require '@cli/args'
 local cli = require '@utils/cli'
 local cloud = require '@pkg/ro_cloud'
 local ctx_log = require '@utils/ctx_log'
@@ -16,8 +17,7 @@ local sync = require '@lib/sync'
 local sync_logger = require '@lib/sync_logger'
 
 -- cli
-local INTERACTIVE = not env.str 'CI' -- used bu prompt
--- local AUTO_ACCEPT = cli.str 'yes' or cli.str 'y' -- used by prompt
+local INTERACTIVE = args.INTERACTIVE
 
 -- local COOKIE = env.str 'ROBLOX_COOKIE' -- used by auth_guidance
 local API_KEY = cli.str('api-key', { value = 'KEY', help = 'Open Cloud API key (default: $API_KEY)' })

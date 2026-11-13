@@ -60,4 +60,4 @@ function call<P, Q, B, R>(endpoint: cloud.endpoint<P, Q, B, R, any>, session: cl
 end
 
 -- module
-return table.freeze { call = call }
+return table.freeze { call = call, CREDENTIALS_URL = CREDENTIALS_URL }

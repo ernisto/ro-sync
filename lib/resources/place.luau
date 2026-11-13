@@ -221,4 +221,6 @@ return table.freeze {
 	get = get,
 	update = update,
 	list = list,
+
+	BASEPLATE_PLACE_ID = BASEPLATE_PLACE_ID,
 }

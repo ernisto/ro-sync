@@ -1,15 +1,14 @@
-local cli = require '@utils/cli'
+local args = require '@cli/args'
 local cloud = require '@pkg/ro_cloud'
 local ctx_log = require '@utils/ctx_log'
-local env = require '@utils/env'
 local http = require '@utils/http'
+local place = require '@lib/resources/place'
 local state = require '@lib/state'
 local c = ctx_log.colors
 
 -- defs
-local BASEPLATE_PLACE_ID = 95206881
-local AUTO_ACCEPT = cli.bool 'yes' or cli.bool 'y'
-local INTERACTIVE_MODE = not env.str 'CI'
+local AUTO_ACCEPT = args.AUTO_ACCEPT
+local INTERACTIVE = args.INTERACTIVE
 
 type universe_path = { universe_id: number }
 type creator = { user: nil, group: cloud.dev_group_data } | { user: { id: number, name: string }, group: nil }
@@ -37,7 +36,7 @@ local function fetch_universes(session: cloud.session, group: cloud.dev_group_da
 end
 local function create_universe(session: cloud.session, creator: creator): universe_path
 	local res = http.call(cloud.universe.create, session, nil, {
-		templatePlaceId = BASEPLATE_PLACE_ID,
+		templatePlaceId = place.BASEPLATE_PLACE_ID,
 		groupId = creator.group and creator.group.id,
 	})
 	return { universe_id = res.universeId }
@@ -45,7 +44,7 @@ end
 
 -- functions
 local function prompt_creator(session: cloud.session): creator?
-	assert(INTERACTIVE_MODE, 'not possible to choice a subject')
+	assert(INTERACTIVE, 'not possible to choice a subject')
 
 	local groups = http.call(cloud.develop.get_groups, session, nil, nil).data
 	local user = http.call(cloud.auth.cookie.get_info, session, nil, nil)
@@ -67,7 +66,7 @@ local function prompt_universe(
 	creator: creator,
 	universes: { cloud.dev_universe_data }
 ): universe_path
-	assert(INTERACTIVE_MODE, 'not possible to choice a subject')
+	assert(INTERACTIVE, 'not possible to choice a subject')
 
 	local options = { `{c.green}Create a new universe{c.reset}` }
 	for _, universe in universes do
@@ -85,7 +84,7 @@ end
 export type subject = { owner: state.owner, universe: universe_path }
 
 local function prompt_subject(session: cloud.session): subject
-	assert(INTERACTIVE_MODE, 'not possible to choice a subject')
+	assert(INTERACTIVE, 'not possible to choice a subject')
 	local creator = prompt_creator(session) or error 'creator required'
 
 	local universes = fetch_universes(session, creator.group)
@@ -97,7 +96,7 @@ local function prompt_subject(session: cloud.session): subject
 end
 
 local function confirm_reimport(inputs_path: string): boolean
-	if not INTERACTIVE_MODE then return false end
+	if not INTERACTIVE then return false end
 
 	local msg = `Enable {c.green}--scan-cloud{c.reset}? {c.dim}The whole\
 		roblox cloud will be fetched and reconciled with {inputs_path}`
@@ -110,7 +109,7 @@ end
 
 local function confirm_import_universe(): boolean
 	if AUTO_ACCEPT then return true end
-	if not INTERACTIVE_MODE then return false end
+	if not INTERACTIVE then return false end
 
 	local option = ctx_log.prompt('select', 'No state loaded', { `{c.green}Re-import a universe`, 'Exit' })
 	return option == 1
@@ -119,7 +118,7 @@ end
 local function confirm_regen_input(input_path: string, state_path: string): boolean
 	if AUTO_ACCEPT then return true end
 
-	if env.str 'CI' then
+	if not INTERACTIVE then
 		ctx_log.warn(`Running on CI, skipping input regeneration`)
 		return false
 	end
@@ -134,7 +133,7 @@ end
 
 local function prompt_add_overwrite(): boolean
 	if AUTO_ACCEPT then return true end
-	if not INTERACTIVE_MODE then return false end
+	if not INTERACTIVE then return false end
 
 	local msg = `Enable {c.green}--overwrite-cloud{c.reset}? {c.dim}We already pulled all \
 		changes made externally, push now means overwrite those external changes`
@@ -146,7 +145,7 @@ local function prompt_add_overwrite(): boolean
 end
 
 local function prompt_import_key(fallback: string, name: string, free: { string }): string
-	if #free == 0 or AUTO_ACCEPT or not INTERACTIVE_MODE then return fallback end
+	if #free == 0 or AUTO_ACCEPT or not INTERACTIVE then return fallback end
 
 	local options = { `{c.green}Create {c.bold}{fallback}` }
 	for _, key in free do

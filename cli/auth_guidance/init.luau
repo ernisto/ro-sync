@@ -1,3 +1,4 @@
+local args = require '@cli/args'
 local cli = require '@utils/cli'
 local cloud = require '@pkg/ro_cloud'
 local ctx_log = require '@utils/ctx_log'
@@ -11,13 +12,13 @@ local c = ctx_log.colors
 local apikey = cloud.auth.api_key
 
 -- defs
-local INTERACTIVE_MODE = not env.str 'CI'
-local AUTO_ACCEPT = cli.bool 'yes' or cli.bool 'y'
+local INTERACTIVE = args.INTERACTIVE
+local AUTO_ACCEPT = args.AUTO_ACCEPT
 
 local COOKIE = cli.str 'roblox-cookie' or env.str 'ROBLOX_COOKIE'
 if COOKIE and not COOKIE:match '^%.ROBLOSECURITY=' then COOKIE = '.ROBLOSECURITY=' .. COOKIE end
 
-local CREDENTIALS_URL = 'https://create.roblox.com/dashboard/credentials'
+local CREDENTIALS_URL = require('@cli/auth_guidance/http').CREDENTIALS_URL
 local USED_SCOPES = {
 	'universe:read',
 	'universe:write',
@@ -136,7 +137,7 @@ local function print_status(key_info: cloud.api_key_introspection?, api_key: str
 end
 
 local function prompt_api_key(): string?
-	if not INTERACTIVE_MODE then
+	if not INTERACTIVE then
 		ctx_log.error 'No usable API Key'
 		return nil
 	end
@@ -146,7 +147,7 @@ local function prompt_api_key(): string?
 end
 
 local function confirm_save_api_key(): boolean
-	if not INTERACTIVE_MODE then return false end
+	if not INTERACTIVE then return false end
 	return ctx_log.prompt('confirm', `Save this API Key to {c.green}.env{c.reset}?`)
 end
 
@@ -156,7 +157,7 @@ local function describe(cookie: string): string?
 end
 
 local function prompt_user_auth(): cloud.session?
-	if not INTERACTIVE_MODE then return COOKIE and cloud.auth.new:cookie(COOKIE) end
+	if not INTERACTIVE then return COOKIE and cloud.auth.new:cookie(COOKIE) end
 
 	local options: { { label: string, kind: string } } = {
 		{ label = 'Enter a .ROBLOSECURITY cookie', kind = 'paste' },
