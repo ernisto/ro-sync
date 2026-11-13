@@ -108,6 +108,14 @@ local function confirm_reimport(inputs_path: string): boolean
 	return ok
 end
 
+local function confirm_import_universe(): boolean
+	if AUTO_ACCEPT then return true end
+	if not INTERACTIVE_MODE then return false end
+
+	local option = ctx_log.prompt('select', 'No state loaded', { `{c.green}Re-import a universe`, 'Exit' })
+	return option == 1
+end
+
 local function confirm_regen_input(input_path: string, state_path: string): boolean
 	if AUTO_ACCEPT then return true end
 
@@ -154,6 +162,7 @@ return table.freeze {
 	prompt_import_key = prompt_import_key,
 	prompt_subject = prompt_subject,
 	confirm_reimport = confirm_reimport,
+	confirm_import_universe = confirm_import_universe,
 	confirm_regen_input = confirm_regen_input,
 	prompt_add_overwrite = prompt_add_overwrite,
 }

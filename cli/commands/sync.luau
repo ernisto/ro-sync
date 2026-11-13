@@ -23,10 +23,7 @@ local INTERACTIVE = not env.str 'CI' -- used bu prompt
 local API_KEY = cli.str('api-key', { value = 'KEY', help = 'Open Cloud API key (default: $API_KEY)' })
 	or env.str 'API_KEY'
 
-local PUSHES = cli.list('push', {
-	value = 'FILE',
-	help = 'Values ro-sync ensures keep them (default: cloud.yml)',
-})
+local PUSHES = cli.list('push', { value = 'FILE', help = 'Values ro-sync ensures keep them (default: cloud.yml)' })
 local INPUT_PATH = if PUSHES and PUSHES[1] then PUSHES[1] else 'cloud.yml'
 local STATE_PATH = cli.str 'cache' or 'cloud-state.yml'
 
@@ -69,6 +66,14 @@ end
 
 -- login
 sync_logger.print_header()
+
+if not state_ok then
+	ctx_log.warn(`Couldnt read state, {(tostring(state_result):gsub('^.-:%d+: ', ''))}`)
+	if not prompt.confirm_import_universe() then return process.exit(1) end
+
+	scan_cloud = true
+	ctx_log.gap()
+end
 
 local user_session = auth_guidance.authenticate_user() :: any
 local universe_id = if state_ok
@@ -126,7 +131,6 @@ end
 -- resource recovery
 if not state_ok and STATE_PATH then
 	ctx_log.gap()
-	ctx_log.warn(`Couldnt read state, {(tostring(state_result):gsub('^.-:%d+: ', ''))}`)
 	resources = state_from_cloud(input_ok and input_result or nil)
 elseif not input_ok and INPUT_PATH then
 	ctx_log.warn(`Couldnt read input, {(tostring(input_result):gsub('^.-:%d+: ', ''))}`)
