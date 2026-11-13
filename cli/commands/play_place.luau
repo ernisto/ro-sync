@@ -1,4 +1,5 @@
 local cli = require '@utils/cli'
+local open_url = require '@utils/open_url'
 local place_ref = require './place_ref'
 local process = require '@lune/process'
 local serde = require '@lune/serde'
@@ -26,13 +27,7 @@ if data then
 	url ..= `&launchData={encode(data)}`
 end
 
-if process.os == 'windows' then
-	process.exec('', { `explorer "{url}"` }, { shell = true })
-elseif process.os == 'macos' then
-	process.exec('open', { url })
-else
-	process.exec('xdg-open', { url })
-end
+open_url(url)
 
 print(`launching {name} ({ref.place_id}) in player`)
 
