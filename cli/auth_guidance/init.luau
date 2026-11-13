@@ -30,6 +30,9 @@ local USED_SCOPES = {
 	'developer-product:write',
 }
 
+type key_status = 'missing' | 'disabled' | 'expired' | 'active'
+type auth_choice = 'local' | 'env' | 'paste' | 'why' | 'ignore'
+
 export type session = {
 	session: cloud.session,
 	key_info: cloud.api_key_introspection,
@@ -37,10 +40,13 @@ export type session = {
 }
 
 -- helpers
-local function print_status(key_info: cloud.api_key_introspection?, api_key: string?, universe_id: number?): string
-	if not key_info then return 'unexisting' end
+local function print_status(key_info: cloud.api_key_introspection?, api_key: string?, universe_id: number?): key_status
+	if not key_info then return 'missing' end
 
-	local status = if not key_info.enabled then 'disabled' elseif key_info.expired then 'expired' else 'active'
+	local status: key_status = if not key_info.enabled
+		then 'disabled'
+		elseif key_info.expired then 'expired'
+		else 'active'
 	local color = if status == 'active' then c.green else c.red
 
 	local prefix = if api_key then ` {c.dim}({string.sub(api_key, 1, 8)}...){c.reset}` else ''
@@ -159,7 +165,7 @@ end
 local function prompt_user_auth(): cloud.session?
 	if not INTERACTIVE then return COOKIE and cloud.auth.new:cookie(COOKIE) end
 
-	local options: { { label: string, kind: string } } = {
+	local options: { { label: string, kind: auth_choice } } = {
 		{ label = 'Enter a .ROBLOSECURITY cookie', kind = 'paste' },
 		{ label = `{c.dim}Why authenticate?{c.reset}`, kind = 'why' },
 		{ label = `{c.dim}Ignore{c.reset}`, kind = 'ignore' },
@@ -168,14 +174,14 @@ local function prompt_user_auth(): cloud.session?
 	local ok, local_cookie = pcall(roblox.getAuthCookie)
 	if ok and local_cookie then
 		local local_who = describe(local_cookie)
-		table.insert(options, 1, { label = `{c.green}Log in as {local_who}`, kind = 'local' })
+		table.insert(options, 1, { label = `{c.green}Log in as {local_who}`, kind = 'local' :: auth_choice })
 	end
 	if COOKIE then
 		local env_who = describe(COOKIE)
 		local env_label = if env_who
 			then `{c.green}Log in from ROBLOX_COOKIE as {env_who}`
 			else `{c.green}Log in from ROBLOX_COOKIE{c.reset}`
-		table.insert(options, 1, { label = env_label, kind = 'env' })
+		table.insert(options, 1, { label = env_label, kind = 'env' :: auth_choice })
 	end
 
 	if AUTO_ACCEPT then
