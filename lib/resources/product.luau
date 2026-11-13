@@ -57,8 +57,8 @@ local function parse_lock(entry: any, label: string)
 	base.req(entry.universe_id, 'number', `{label}.universe_id`)
 	base.req(entry.product_id, 'number', `{label}.product_id`)
 
-	parse_input(entry.input, `{label}.input`);
-	(entry :: any).input.conflicts = nil
+	parse_input(entry.input, `{label}.input`)
+	entry.input.conflicts = nil
 end
 
 local function validate(input: product_input)

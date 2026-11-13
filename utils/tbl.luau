@@ -60,7 +60,6 @@ return table.freeze {
 	apply = write_apply,
 
 	intersection = clone_intersect,
-	filtered = clone_filter,
 	changes = clone_changes,
 	count = count,
 }

@@ -27,7 +27,6 @@ local forwarded: { string } = {}
 local specs: { ArgSpec } = {}
 local by_name: { [string]: ArgSpec } = {}
 local by_alias: { [string]: ArgSpec } = {}
-local about: string?
 
 local ESCAPES: { [string]: string } = { ['\\'] = '\\', ['"'] = '"', ["'"] = "'", n = '\n', t = '\t' }
 
@@ -278,10 +277,6 @@ end
 local function num(key: string | number, opts: ArgOptions?): number?
 	return tonumber(str(key, opts))
 end
-local function uint(key: string | number, opts: ArgOptions?): number?
-	local val = num(key, opts)
-	return val and val // 1
-end
 -- alias of `str` that names a filesystem path (intent + help rendering)
 local function path(key: string, opts: ArgOptions?): string?
 	return str(key, opts)
@@ -318,11 +313,6 @@ local function cmd(...: string): boolean
 	end
 	cmd_offset = #names
 	return true
-end
-
--- declaration -------------------------------------------------------------
-local function describe(text: string): ()
-	about = text
 end
 
 -- help --------------------------------------------------------------------
@@ -387,11 +377,6 @@ function help(name: string, formatter: ((string) -> string)?): ()
 		return s
 	end
 
-	if about then
-		print(fmt(about))
-		print ''
-	end
-
 	local u = usage(name)
 	local painted = `{c.green}{name}{c.reset}{string.sub(u, #name + 1)}`
 	print(fmt(`{c.bold}{c.yellow}Usage:{c.reset} {painted}`))
@@ -441,13 +426,6 @@ local function known(key: string): boolean
 	return by_name[key] ~= nil or by_alias[key] ~= nil
 end
 
--- how a required arg is spelled back to the user, clap-style
-local function descriptor(spec: ArgSpec): string
-	if spec.kind == 'positional' then return `<{spec.name}>` end
-	if spec.kind == 'variadic' then return `<{spec.name}...>` end
-	return `--{spec.name}{placeholder(spec)}`
-end
-
 -- bad args are user error, not a bug: print clean and exit, no stack trace
 local function abort(body: string, name: string?): never
 	help_gate()
@@ -458,45 +436,6 @@ local function abort(body: string, name: string?): never
 	out ..= `\n\nFor more information, try '{c.green}--help{c.reset}'.`
 	print(out)
 	return process.exit(1)
-end
-
-local function validate(name: string?): ()
-	ensure()
-
-	-- reject anything not declared (skip entirely when no specs registered so
-	-- callers that don't declare args keep the permissive behaviour)
-	if #specs > 0 then
-		for key in options do
-			if not known(key) then abort(`unexpected argument '{if #key == 1 then '-' else '--'}{key}' found`, name) end
-		end
-		for key in flags do
-			if not known(key) then abort(`unexpected argument '{if #key == 1 then '-' else '--'}{key}' found`, name) end
-		end
-	end
-
-	-- collect every missing required arg, reported together
-	local missing: { string } = {}
-	for _, spec in specs do
-		if not spec.options.required then continue end
-		local present
-		if spec.kind == 'positional' then
-			local pi = positional_index(spec.name)
-			present = pi ~= nil and positional[cmd_offset + pi] ~= nil
-		elseif spec.kind == 'variadic' then
-			present = #positional > cmd_offset
-		else
-			present = value(spec.name) ~= nil or raised(spec.name)
-		end
-		if not present then table.insert(missing, descriptor(spec)) end
-	end
-
-	if #missing > 0 then
-		local body = 'the following required arguments were not provided:'
-		for _, d in missing do
-			body ..= `\n  {c.green}{d}{c.reset}`
-		end
-		abort(body, name)
-	end
 end
 
 -- require at least one accessor in the group to be present; returns it as-is.
@@ -545,7 +484,6 @@ end
 return table.freeze {
 	str = str,
 	num = num,
-	uint = uint,
 	path = path,
 	list = list,
 	bool = bool,
@@ -554,9 +492,4 @@ return table.freeze {
 	fail = fail,
 	strict = strict,
 	forwarded = forwarded,
-
-	describe = describe,
-	validate = validate,
-	usage = usage,
-	help = help,
 }

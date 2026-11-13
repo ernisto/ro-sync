@@ -135,7 +135,7 @@ end
 
 -- encoding
 local function encode_manifest(data: manifest): string
-	local out: any = tbl.applied(data, { version = 1, products = {}, places = {} })
+	local out: any = tbl.applied(data, { version = 1 })
 
 	out.thumbnails = data.thumbnails and (base.encode_map(data.thumbnails, thumbnail.encode_input) or {})
 	out.icon = data.icon and icon.encode_input(data.icon)
@@ -151,7 +151,7 @@ local function encode_manifest(data: manifest): string
 	return yaml.encode(out)
 end
 local function encode_lock(data: lock): string
-	local out: any = tbl.applied(data, { version = 1, products = {}, places = {} })
+	local out: any = tbl.applied(data, { version = 1 })
 
 	out.products = base.encode_map(data.products, product.encode_lock_entry)
 	out.passes = base.encode_map(data.passes, pass.encode_lock_entry)
@@ -164,9 +164,6 @@ end
 
 -- resources
 local function build_resources(inputs: manifest, locks: lock): resources
-	inputs.passes, locks.passes = inputs.passes or {}, locks.passes or {}
-	locks.thumbnails = locks.thumbnails or {}
-
 	rekey.orphans(inputs.products, locks.products, product.diff)
 	rekey.orphans(inputs.places, locks.places, place.diff)
 	rekey.orphans(inputs.passes, locks.passes, pass.diff)

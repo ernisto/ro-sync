@@ -9,7 +9,7 @@ local apikey = cloud.auth.api_key
 local CREDENTIALS_URL = 'https://create.roblox.com/dashboard/credentials'
 
 local base_call = http.call
-local instrospection_cache: { [string]: cloud.api_key_introspection } = {}
+local introspection_cache: { [string]: cloud.api_key_introspection } = {}
 
 -- helpers
 local function missing_scope(endpoint: any, session: cloud.session, path: any): (string?, string?)
@@ -17,7 +17,7 @@ local function missing_scope(endpoint: any, session: cloud.session, path: any): 
 	if not spec or not key or next(spec.scope) == nil then return nil, nil end
 
 	local target = if type(path) == 'table' and path.universe_id then tostring(path.universe_id) else nil
-	local info = instrospection_cache[key.key] or http.call(apikey.introspect, session, nil, nil)
+	local info = introspection_cache[key.key] or http.call(apikey.introspect, session, nil, nil)
 
 	for scope in spec.scope do
 		if not apikey.has_scope(info, scope, target) then return scope, target end
@@ -54,7 +54,7 @@ function call<P, Q, B, R>(endpoint: cloud.endpoint<P, Q, B, R, any>, session: cl
 	local res = base_call(endpoint, session, path, body, query)
 
 	if endpoint == apikey.introspect and session.api_key_state then
-		instrospection_cache[session.api_key_state.key] = res :: any
+		introspection_cache[session.api_key_state.key] = res :: any
 	end
 	return res
 end

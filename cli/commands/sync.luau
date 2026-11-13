@@ -19,7 +19,6 @@ local sync_logger = require '@lib/sync_logger'
 -- cli
 local INTERACTIVE = args.INTERACTIVE
 
--- local COOKIE = env.str 'ROBLOX_COOKIE' -- used by auth_guidance
 local API_KEY = cli.str('api-key', { value = 'KEY', help = 'Open Cloud API key (default: $API_KEY)' })
 	or env.str 'API_KEY'
 
@@ -43,6 +42,10 @@ cli.strict()
 local state_ok, state_result = pcall(state_fs.load_lock, STATE_PATH)
 local input_ok, input_result = pcall(state_fs.load_input, INPUT_PATH)
 
+local function reason(err: unknown): string
+	return (tostring(err):gsub('^.-:%d+: ', ''))
+end
+
 local function merge_input(base: any, extra: any)
 	for k, v in extra do
 		if type(v) == 'table' and type(base[k]) == 'table' and v[1] == nil then
@@ -59,7 +62,7 @@ if input_ok and PUSHES then
 			merge_input(input_result, extra)
 			ctx_log.str(`Merged {c.green}{PUSHES[i]}{c.reset} into {c.green}{INPUT_PATH}`)
 		else
-			ctx_log.warn(`Couldnt read {PUSHES[i]}, {(tostring(extra):gsub('^.-:%d+: ', ''))}`)
+			ctx_log.warn(`Couldnt read {PUSHES[i]}, {reason(extra)}`)
 		end
 	end
 end
@@ -68,7 +71,7 @@ end
 sync_logger.print_header()
 
 if not state_ok then
-	ctx_log.warn(`Couldnt read state, {(tostring(state_result):gsub('^.-:%d+: ', ''))}`)
+	ctx_log.warn(`Couldnt read state, {reason(state_result)}`)
 	if not prompt.confirm_import_universe() then return process.exit(1) end
 
 	scan_cloud = true
@@ -106,17 +109,17 @@ local function state_from_cloud(input: state.manifest?)
 	if not scan_cloud and not prompt.confirm_reimport(INPUT_PATH) then return end
 
 	local owner = owner_of(universe)
-	local resources = state.build_resources(input or state.create_input(owner), state.create_state(universe_id))
+	local fresh = state.build_resources(input or state.create_input(owner), state.create_state(universe_id))
 
 	ctx_log.gap()
-	import.await_import_all(session, resources, universe_id, prompt.prompt_import_key)
-	resources = state.build_resources(resources.manifest, resources.lock)
+	import.await_import_all(session, fresh, universe_id, prompt.prompt_import_key)
+	fresh = state.build_resources(fresh.manifest, fresh.lock)
 
-	state_fs.save_resources(resources, INPUT_PATH, STATE_PATH)
+	state_fs.save_resources(fresh, INPUT_PATH, STATE_PATH)
 	ctx_log.str(`Saved {c.green}{STATE_PATH}{c.reset} and {c.green}{INPUT_PATH}`)
 
 	scanned_cloud = true
-	return resources
+	return fresh
 end
 local function input_from_state(lock, universe)
 	local owner = owner_of(universe)
@@ -133,11 +136,11 @@ local function input_from_state(lock, universe)
 end
 
 -- resource recovery
-if not state_ok and STATE_PATH then
+if not state_ok then
 	ctx_log.gap()
 	resources = state_from_cloud(input_ok and input_result or nil)
-elseif not input_ok and INPUT_PATH then
-	ctx_log.warn(`Couldnt read input, {(tostring(input_result):gsub('^.-:%d+: ', ''))}`)
+elseif not input_ok then
+	ctx_log.warn(`Couldnt read input, {reason(input_result)}`)
 	resources = input_from_state(state_result, universe)
 else
 	resources = state.build_resources(input_result, state_result)

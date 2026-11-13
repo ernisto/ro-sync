@@ -94,9 +94,6 @@ local function await_reconcile<Lock>(res: any, resource: resource<Lock>, opts: s
 	local conflicts = input.conflicts
 	local conflicted_changes = {}
 
-	-- local auto_solved = tbl.intersection(matched, conflicts)
-	-- sync_logger.solved_conflicts(auto_solved)
-
 	local matched = tbl.subtraction(cloud_state, sending_changes)
 	tbl.subtract(conflicts, matched)
 

@@ -89,11 +89,11 @@ local function parse_input(u: universe_input, label: string)
 	u.conflicts = u.conflicts or {}
 end
 
-local function parse_lock(entry: universe_lock, label: string)
+local function parse_lock(entry: any, label: string)
 	base.req(entry.universe_id, 'number', `{label}.universe_id`)
 
-	parse_input(entry.input :: any, `{label}.input`);
-	(entry :: any).input.conflicts = nil
+	parse_input(entry.input, `{label}.input`)
+	entry.input.conflicts = nil
 end
 
 -- encoding

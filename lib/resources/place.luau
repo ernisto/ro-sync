@@ -58,12 +58,12 @@ local function parse_input(p: place_input, label: string)
 	p.conflicts = p.conflicts or {}
 end
 
-local function parse_lock(entry: place_lock, label: string)
+local function parse_lock(entry: any, label: string)
 	base.req(entry.universe_id, 'number', `{label}.universe_id`)
 	base.req(entry.place_id, 'number', `{label}.place_id`)
 
-	parse_input(entry.input :: any, `{label}.input`);
-	(entry :: any).input.conflicts = nil
+	parse_input(entry.input, `{label}.input`)
+	entry.input.conflicts = nil
 end
 
 local function validate(input: place_input)
