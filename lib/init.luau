@@ -9,5 +9,6 @@ return table.freeze {
 		product = require '@lib/resources/product',
 		place = require '@lib/resources/place',
 		pass = require '@lib/resources/pass',
+		config = require '@lib/resources/config',
 	},
 }

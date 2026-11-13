@@ -1,4 +1,5 @@
 local base = require '@lib/resources/base'
+local config = require '@lib/resources/config'
 local ctx_log = require '@utils/ctx_log'
 local pass = require '@lib/resources/pass'
 local place = require '@lib/resources/place'
@@ -12,6 +13,7 @@ type universe_api = typeof(universe)
 type product_api = typeof(product)
 type place_api = typeof(place)
 type pass_api = typeof(pass)
+type config_api = typeof(config)
 export type picker = (fallback: string, name: string, free: { string }) -> string
 
 type pending = { read: any, fallback: string, name: string }
@@ -192,6 +194,25 @@ local function await_import_universe(
 	sync_logger.imported('universe', universe_id)
 end
 
+-- config keys are the identity, so cloud keys map 1:1 onto manifest keys
+local function await_import_configs(
+	api: config_api,
+	session: base.session,
+	universe_id: number,
+	resources: state.resources
+)
+	for key, read in api.list(session, { universe_id = universe_id }) do
+		resources.lock.configs[key] = { universe_id = universe_id, key = key, input = read }
+
+		local input = resources.manifest.configs[key]
+		resources.manifest.configs[key] = if input
+			then state.mask_config(read, input)
+			else { type = read.type, description = read.description, conflicts = {} }
+
+		sync_logger.imported(key, universe_id)
+	end
+end
+
 local function await_import_all(session: base.session, resources: state.resources, universe_id: number, pick: picker?)
 	ctx_log.try(function()
 		await_import_places(place, session, universe_id, resources, pick)
@@ -205,6 +226,9 @@ local function await_import_all(session: base.session, resources: state.resource
 	ctx_log.try(function()
 		await_import_passes(pass, session, universe_id, resources, pick)
 	end)
+	ctx_log.try(function()
+		await_import_configs(config, session, universe_id, resources)
+	end)
 end
 
 -- module
@@ -213,5 +237,6 @@ return table.freeze {
 	await_import_products = await_import_products,
 	await_import_passes = await_import_passes,
 	await_import_places = await_import_places,
+	await_import_configs = await_import_configs,
 	await_import_all = await_import_all,
 }

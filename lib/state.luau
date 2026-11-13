@@ -3,6 +3,7 @@ local tbl = require '@utils/tbl'
 local yaml = require '@utils/yaml'
 
 local base = require '@lib/resources/base'
+local config = require '@lib/resources/config'
 local icon = require '@lib/resources/icon'
 local pass = require '@lib/resources/pass'
 local place = require '@lib/resources/place'
@@ -25,6 +26,7 @@ export type input = {
 	products: { [string]: product.product_input },
 	thumbnails: { thumbnail.thumbnail_input }?, -- nil = unmanaged, rosync never deletes
 	icon: icon.icon_input?,
+	configs: { [string]: config.config_input },
 }
 export type lock = {
 	universe_id: number,
@@ -34,6 +36,7 @@ export type lock = {
 	products: { [string]: product.product_lock },
 	thumbnails: { [string]: thumbnail.thumbnail_lock }, -- keyed by image hash
 	icon: icon.icon_lock?,
+	configs: { [string]: config.config_lock },
 }
 export type manifest = input
 
@@ -43,6 +46,7 @@ export type thumbnail = { key: string, lock: thumbnail.thumbnail_lock?, input: t
 export type icon = { key: string, lock: icon.icon_lock?, input: icon.icon_input }
 export type place = { key: string, lock: place.place_lock?, input: place.place_input }
 export type universe = { key: string, lock: universe.universe_lock?, input: universe.universe_input }
+export type config = { key: string, lock: config.config_lock?, input: config.config_input }
 export type resources = {
 	thumbnails: { thumbnail },
 	icon: icon?,
@@ -50,16 +54,17 @@ export type resources = {
 	places: { place },
 	passes: { pass },
 	universe: universe?,
+	configs: { config },
 	manifest: manifest,
 	lock: lock,
 }
 
 -- constructors
 local function create_input(owner: owner): manifest
-	return { owner = owner, products = {}, passes = {}, places = {} }
+	return { owner = owner, products = {}, passes = {}, places = {}, configs = {} }
 end
 local function create_state(universe_id: number): lock
-	return { universe_id = universe_id, products = {}, passes = {}, thumbnails = {}, places = {} }
+	return { universe_id = universe_id, products = {}, passes = {}, thumbnails = {}, places = {}, configs = {} }
 end
 
 -- parsing
@@ -93,6 +98,11 @@ local function parse_manifest(content: buffer): manifest
 	end
 
 	if data.universe ~= nil then universe.parse_input(data.universe, 'manifest.universe') end
+
+	data.configs = base.string_map(data.configs, 'manifest.configs')
+	for key, entry in data.configs do
+		config.parse_input(entry, `manifest.configs.{key}`)
+	end
 	return data
 end
 local function parse_lock(content: buffer): lock
@@ -130,6 +140,11 @@ local function parse_lock(content: buffer): lock
 		universe.parse_lock(data.universe, 'lock.universe')
 	end
 
+	data.configs = base.string_map(data.configs, 'lock.configs')
+	for key, entry in data.configs do
+		config.parse_lock(entry, `lock.configs.{key}`)
+	end
+
 	return data
 end
 
@@ -142,6 +157,7 @@ local function encode_manifest(data: manifest): string
 	out.products = base.encode_map(data.products, product.encode_input)
 	out.places = base.encode_map(data.places, place.encode_input)
 	out.passes = base.encode_map(data.passes, pass.encode_input)
+	out.configs = base.encode_map(data.configs, config.encode_input)
 
 	if data.universe then
 		local encoded = universe.encode_input(data.universe)
@@ -158,6 +174,7 @@ local function encode_lock(data: lock): string
 	out.thumbnails = base.encode_map(data.thumbnails, thumbnail.encode_lock_entry)
 	out.icon = data.icon and icon.encode_lock_entry(data.icon)
 	out.places = base.encode_map(data.places, place.encode_lock_entry)
+	out.configs = base.encode_map(data.configs, table.clone)
 
 	return yaml.encode(out)
 end
@@ -185,6 +202,15 @@ local function build_resources(inputs: manifest, locks: lock): resources
 		table.insert(passes, { key = key, input = input, lock = locks.passes[key] })
 	end
 
+	-- older manifests/locks predate configs
+	inputs.configs = inputs.configs or {}
+	locks.configs = locks.configs or {}
+
+	local configs = {}
+	for key, input in inputs.configs do
+		table.insert(configs, { key = key, input = input, lock = locks.configs[key] })
+	end
+
 	local thumbnails = {}
 	for i, input in inputs.thumbnails or {} :: { thumbnail.thumbnail_input } do
 		local lock = input.image_file and locks.thumbnails[input.image_file.hash]
@@ -199,6 +225,7 @@ local function build_resources(inputs: manifest, locks: lock): resources
 		icon = icon_entry,
 		places = places,
 		universe = universe_entry,
+		configs = configs,
 		manifest = inputs,
 		lock = locks,
 	}
@@ -222,9 +249,11 @@ return table.freeze {
 	diff_product = product.diff,
 	diff_place = place.diff,
 	diff_pass = pass.diff,
+	diff_config = config.diff,
 
 	mask_universe = universe.mask,
 	mask_product = product.mask,
 	mask_place = place.mask,
 	mask_pass = pass.mask,
+	mask_config = config.mask,
 }

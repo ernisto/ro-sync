@@ -63,6 +63,11 @@ local function resources_from_lock(lock: state.lock, owner: state.owner): state.
 		input.asset_file, input.conflicts = nil, {}
 		manifest.places[key] = input
 	end
+	for key, config in lock.configs do
+		local input: any = table.clone(config.input)
+		input.conflicts = {}
+		manifest.configs[key] = input
+	end
 	if lock.universe then
 		local input: any = table.clone(lock.universe.input)
 		input.conflicts = {}
@@ -102,6 +107,9 @@ local function save_resources(resources: state.resources, manifest_path: string,
 	end
 	if resources.universe then
 		if resources.universe.lock then resources.lock.universe = resources.universe.lock end
+	end
+	for _, config in resources.configs do
+		if config.lock then resources.lock.configs[config.key] = config.lock end
 	end
 
 	fs.writeFile(lock_path, state.encode_lock(resources.lock))

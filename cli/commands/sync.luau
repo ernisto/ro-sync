@@ -163,6 +163,7 @@ local snapshot = {
 	products = table.clone(lock.products),
 	passes = table.clone(lock.passes),
 	places = table.clone(lock.places),
+	configs = table.clone(lock.configs),
 	universe_id = lock.universe_id,
 }
 

@@ -36,9 +36,31 @@
     "icon": {
       "description": "Universe (game) icon image.",
       "$ref": "#/definitions/thumbnail"
+    },
+    "configs": {
+      "description": "Map of in-experience config key -> config. Values are never synced: missing keys are created with the type's zero value, tune values in Creator Hub or in game.",
+      "type": "object",
+      "additionalProperties": { "$ref": "#/definitions/config" }
     }
   },
   "definitions": {
+    "config": {
+      "description": "In-experience config entry (ConfigService).",
+      "type": "object",
+      "required": ["type"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "description": "Value type, used to pick the zero value on creation.",
+          "enum": ["json", "string", "number", "boolean"]
+        },
+        "description": {
+          "description": "Read-only: Open Cloud can't write descriptions, set it in Creator Hub. Filled on import.",
+          "type": "string"
+        },
+        "conflicts": { "type": "object" }
+      }
+    },
     "owner": {
       "description": "Resource owner. Set exactly one of user/group.",
       "type": "object",

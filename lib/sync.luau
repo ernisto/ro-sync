@@ -2,6 +2,7 @@ local ctx_log = require '@utils/ctx_log'
 local tbl = require '@utils/tbl'
 
 local base = require './resources/base'
+local config = require './resources/config'
 local icon = require './resources/icon'
 local pass = require './resources/pass'
 local place = require './resources/place'
@@ -33,12 +34,12 @@ type resource<Lock = any> = {
 	input: { [string]: any, conflicts: { [string]: any } },
 }
 
-type resource_lock = { universe_id: number, input: { [string]: any }, [string]: number }
+type resource_lock = { universe_id: number, input: { [string]: any }, [string]: any }
 type resource_api = {
 	diff: ({ [string]: any }, { [string]: any }) -> { [string]: any },
 	get: nil | (any, any) -> { [string]: any },
 	update: (any, any, { [string]: any }) -> ({ [string]: any }, string?),
-	create: ((any, sync_ctx, any) -> resource_lock)?,
+	create: ((any, sync_ctx, any, string) -> resource_lock)?,
 	validate: (({ [string]: any }) -> ())?,
 }
 
@@ -58,7 +59,7 @@ local function await_reconcile<Lock>(res: any, resource: resource<Lock>, opts: s
 		sync_logger.creation(key)
 		local create = api.create or error 'resource has no create'
 
-		local ok, created_lock = ctx_log.try(create, opts.session, opts, input)
+		local ok, created_lock = ctx_log.try(create, opts.session, opts, input, key)
 		if ok then sync_logger.print_pushed_changes(api.diff({}, created_lock.input)) end
 
 		sync_logger.creation_result(ok)
@@ -110,7 +111,9 @@ local function await_reconcile<Lock>(res: any, resource: resource<Lock>, opts: s
 
 	local confirmed_state, push_err = cloud_state, nil
 	if next(free_sending) then
-		confirmed_state, push_err = api.update(opts.session, prev, free_sending)
+		-- a raising update (logged by try) still has to close this resource's log and count as an error
+		local pushed, updated, err = ctx_log.try(api.update, opts.session, prev, free_sending)
+		confirmed_state, push_err = if pushed then updated else {}, if pushed then err else 'update raised'
 	end
 
 	confirmed_state = tbl.applied(cloud_state, confirmed_state)
@@ -182,6 +185,9 @@ local function await_reconcile_all(resources: state.resources, opts: sync_opts)
 	end
 	for _, resource in resources.passes do
 		await_try_reconcile(pass, resource, ctx, snapshot.passes[resource.key])
+	end
+	for _, resource in resources.configs do
+		await_try_reconcile(config, resource, ctx, snapshot.configs[resource.key])
 	end
 end
 
