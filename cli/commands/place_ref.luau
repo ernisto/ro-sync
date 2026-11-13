@@ -25,7 +25,7 @@ local function resolve(): (string, ref)
 end
 
 local function api_key(): string
-	return cli.str 'api-key' or env.str 'API_KEY' or cli.fail '--api-key missing (or set API_KEY)'
+	return cli.str 'api-key' or env.secret.string 'API_KEY'
 end
 
 return table.freeze { resolve = resolve, api_key = api_key }

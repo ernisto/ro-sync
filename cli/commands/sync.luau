@@ -20,7 +20,8 @@ local sync_logger = require '@lib/sync_logger'
 local INTERACTIVE = args.INTERACTIVE
 
 local API_KEY = cli.str('api-key', { value = 'KEY', help = 'Open Cloud API key (default: $API_KEY)' })
-	or env.str 'API_KEY'
+	or env.is_set 'API_KEY' and env.secret.string 'API_KEY'
+	or nil
 
 local PUSHES = cli.list('push', { value = 'FILE', help = 'Values ro-sync ensures keep them (default: cloud.yml)' })
 local INPUT_PATH = if PUSHES and PUSHES[1] then PUSHES[1] else 'cloud.yml'

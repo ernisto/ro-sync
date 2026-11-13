@@ -10,5 +10,5 @@ cli.str('remote-cache', { value = 'FILE', group = GLOBAL, help = 'remote state s
 
 return table.freeze {
 	AUTO_ACCEPT = auto_accept,
-	INTERACTIVE = not env.str 'CI',
+	INTERACTIVE = not env.is_set 'CI',
 }

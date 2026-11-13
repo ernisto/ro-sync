@@ -10,7 +10,7 @@
 pesde install   # deps (ro_cloud); tools: lune, pesde, stylua, luau-lsp (CI uses rokit)
 ```
 
-`.env` (TOML: `API_KEY = "..."`) supplies the API key; `utils/env.luau` falls back to `process.env`.
+`.env` (`KEY=value` lines, quotes optional) supplies the API key; `utils/env.luau` (mirrors lxit) reads it over `process.env`: `env.string/number/bool(name, default?)` error when missing, `env.secret.string` registers values for `env.redact`, `env.save` rewrites a key.
 
 ## Verify (mirrors CI: .github/workflows/check.yml)
 

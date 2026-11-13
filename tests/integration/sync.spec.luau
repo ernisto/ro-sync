@@ -12,7 +12,7 @@ local LOCK_PATH = 'tests/integration/assets/cloud-state.yml'
 local MANIFEST_PATH = 'tests/integration/assets/cloud.yml'
 local ICON_PATH = 'tests/integration/assets/placeholder.png'
 
-local API_KEY = env.str 'API_KEY'
+local API_KEY = env.is_set 'API_KEY' and env.secret.string 'API_KEY' or nil
 
 local resources = state_fs.load_resources(MANIFEST_PATH, LOCK_PATH)
 local session: any = cloud.auth.new:api_key(API_KEY)

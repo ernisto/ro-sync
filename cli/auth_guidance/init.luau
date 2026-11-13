@@ -3,10 +3,8 @@ local cli = require '@utils/cli'
 local cloud = require '@pkg/ro_cloud'
 local ctx_log = require '@utils/ctx_log'
 local env = require '@utils/env'
-local fs = require '@lune/fs'
 local http = require '@utils/http'
 local roblox = require '@lune/roblox'
-local serde = require '@lune/serde'
 local c = ctx_log.colors
 
 local apikey = cloud.auth.api_key
@@ -15,7 +13,7 @@ local apikey = cloud.auth.api_key
 local INTERACTIVE = args.INTERACTIVE
 local AUTO_ACCEPT = args.AUTO_ACCEPT
 
-local COOKIE = cli.str 'roblox-cookie' or env.str 'ROBLOX_COOKIE'
+local COOKIE = cli.str 'roblox-cookie' or env.is_set 'ROBLOX_COOKIE' and env.secret.string 'ROBLOX_COOKIE' or nil
 if COOKIE and not COOKIE:match '^%.ROBLOSECURITY=' then COOKIE = '.ROBLOSECURITY=' .. COOKIE end
 
 local CREDENTIALS_URL = require('@cli/auth_guidance/http').CREDENTIALS_URL
@@ -299,9 +297,7 @@ local function authenticate_key(
 	if not api_session or not key_info or not resolved then return nil end
 
 	if not provided and confirm_save_api_key() then
-		local dotenv = if fs.isFile '.env' then serde.decode('toml', fs.readFile '.env') else {}
-		dotenv.API_KEY = resolved
-		fs.writeFile('.env', serde.encode('toml', dotenv))
+		env.save('API_KEY', resolved)
 		ctx_log.str(`Saved API Key to {c.bold}.env`)
 	end
 
