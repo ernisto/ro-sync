@@ -7,13 +7,13 @@ export type ref = { place_id: number, universe_id: number }
 
 cli.str('place', { positional = true, required = true, help = 'place name from the lock file' })
 local state = cli.some {
-	file = cli.path 'cache',
 	remote = cli.str 'remote-cache',
+	file = cli.path 'cache',
 }
+local source = state.remote or state.file or cli.fail 'missing state source'
 
 -- functions
 local function resolve(): (string, ref)
-	local source = state.file or state.remote or cli.fail 'missing state source'
 	local ok, lock = pcall(function()
 		return serde.decode('yaml', fs.readFile(source))
 	end)

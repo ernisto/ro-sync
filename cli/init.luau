@@ -18,7 +18,7 @@ local COMMANDS = {
 }
 local GROUPS: { [string]: boolean } = { place = true }
 
-if cli.cmd 'sync' then return require '@cli/commands/sync' end
+if cli.cmd 'sync' or cli.str(1) == nil then return require '@cli/commands/sync' end
 if cli.cmd('place', 'load') then return require '@cli/commands/load_place' end
 if cli.cmd('place', 'play') then return require '@cli/commands/play_place' end
 if cli.cmd('place', 'edit') then return require '@cli/commands/edit_place' end

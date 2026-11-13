@@ -130,7 +130,7 @@ local function diff(from: { [string]: any }, to: { [string]: any }): { [string]:
 		'is_for_sale',
 		'price',
 		'allow_private_servers',
-		'genre',
+		-- 'genre', -- not mapped to the api yet, diffing it would re-push forever
 		'is_archived',
 		'studio_access_to_apis_allowed',
 		'is_mesh_texture_api_access_allowed',
@@ -219,27 +219,27 @@ end
 
 type session = base.session
 
-local function update(session: session, game: { universe_id: number }, patch: universe_input): universe_data
+local function update(session: session, game: { universe_id: number }, patch: universe_input): (universe_data, string?)
 	local universe = { universe_id = game.universe_id }
 	local applied: { [string]: any } = {}
 
 	local open_params = to_universe_params(patch)
-	pcall(function()
+	local _, err1 = pcall(function()
 		if next(open_params) == nil then return end
 
 		local res = http.call(cloud.universe.update, session, universe, open_params)
 		tbl.apply(applied, from_universe_api(res))
-	end)
+	end :: any)
 
 	local config_params = to_universe_config_params(patch)
-	pcall(function()
+	local _, err2 = pcall(function()
 		if next(config_params) == nil then return end
 
 		local res = http.call(cloud.universe_configuration.update, session, universe, config_params)
 		tbl.apply(applied, from_universe_config(res))
-	end)
+	end :: any)
 
-	return applied
+	return applied, err1 or err2
 end
 
 local function get(session: session, game: { universe_id: number }): universe_data

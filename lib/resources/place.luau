@@ -171,12 +171,15 @@ local function create(session: session, game: universe_path, place: place_input)
 	local result = http.call(cloud.place.create, session, universe, { templatePlaceId = BASEPLATE_PLACE_ID })
 
 	local identity = { universe_id = game.universe_id, place_id = result.placeId }
-	local data = update(session, identity, place)
+	local data, err = update(session, identity, place)
+
+	-- place already exists: keep the lock so next sync retries the update instead of re-creating
+	if err then ctx_log.warn(`place {identity.place_id} created, but config failed: {err}`) end
 
 	return {
 		universe_id = identity.universe_id,
 		place_id = identity.place_id,
-		input = data or {} :: any,
+		input = data :: any,
 	}
 end
 

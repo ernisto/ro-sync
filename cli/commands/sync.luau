@@ -94,13 +94,18 @@ ctx_log.str(`Target universe {c.green}{universe.displayName}{c.reset} {c.dim}({u
 -- ensure resources
 local resources
 
+-- universe.user / universe.group come as "users/123" / "groups/456"
+local function owner_of(universe: any): state.owner
+	local id = tonumber(((universe.user or universe.group) :: string):match '%d+')
+	if not id then error(`universe has no owner id: {universe.user or universe.group}`, 2) end
+
+	return if universe.user then { user = id, group = nil } else { group = id, user = nil }
+end
+
 local function state_from_cloud(input: state.manifest?)
 	if not scan_cloud and not prompt.confirm_reimport(INPUT_PATH) then return end
 
-	local owner: state.owner = if universe.user
-		then { user = tonumber(universe.user:match '%d+') :: number, group = nil }
-		else { group = tonumber((universe.group :: string):match '%d+') :: number, user = nil }
-
+	local owner = owner_of(universe)
 	local resources = state.build_resources(input or state.create_input(owner), state.create_state(universe_id))
 
 	ctx_log.gap()
@@ -114,9 +119,7 @@ local function state_from_cloud(input: state.manifest?)
 	return resources
 end
 local function input_from_state(lock, universe)
-	local owner: state.owner = if universe.user
-		then { user = tonumber(universe.user) }
-		else { group = tonumber(universe.group) } :: any
+	local owner = owner_of(universe)
 
 	if not prompt.confirm_regen_input(INPUT_PATH, STATE_PATH) then
 		return state.build_resources(state.create_input(owner), lock)

@@ -28,15 +28,23 @@ local code = script.code or fs.readFile(script.path :: string)
 local last_state
 
 -- functions
-local function poll(session, identity)
+local MAX_POLL_FAILURES = 5
+
+local function poll_async(session, identity)
+	local failures = 0
+
 	while true do
 		task.wait(poll_rate)
 
 		local ok, data = pcall(http.call, cloud.luau_task_exec.get, session, identity, nil)
 		if not ok then
+			failures += 1
 			print(`{stdio.color 'yellow'}failed to poll task: {data}{stdio.color 'reset'}`)
+			if failures >= MAX_POLL_FAILURES then error(`gave up polling after {failures} failures`, 0) end
 			continue
 		end
+		failures = 0
+
 		if data.state ~= 'PROCESSING' and data.state ~= 'QUEUED' then return data end
 
 		if data.state ~= last_state then
@@ -69,7 +77,7 @@ if not ok then
 end
 
 last_state = created.state
-local done = poll(session, { path = created.path })
+local done = poll_async(session, { path = created.path })
 
 print_logs(session, { path = done.path })
 if done.state == 'FAILED' then

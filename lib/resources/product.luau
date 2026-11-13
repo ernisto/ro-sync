@@ -106,7 +106,7 @@ end
 export type product_read = product_data & { universe_id: number, product_id: number }
 
 local function from_api_result(data: cloud.product_data): product_read
-	local price_info = data.priceInformation
+	local price_info = data.priceInformation or {} :: any
 	return {
 		universe_id = data.universeId,
 		product_id = data.productId,
@@ -116,7 +116,7 @@ local function from_api_result(data: cloud.product_data): product_read
 		description = data.description,
 		is_for_sale = data.isForSale,
 		store_page_enabled = data.storePageEnabled,
-		regional_pricing = table.find(price_info.enabledFeatures, 'RegionalPricing') ~= nil,
+		regional_pricing = table.find(price_info.enabledFeatures or {}, 'RegionalPricing') ~= nil,
 	}
 end
 
