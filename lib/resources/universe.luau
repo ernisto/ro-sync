@@ -66,7 +66,7 @@ local function validate_bool(v, l)
 	base.req(v, 'boolean', l)
 end
 
-local function validate_input(u: universe_input, label: string)
+local function parse_input(u: universe_input, label: string)
 	base.req(u, 'table', label)
 
 	base.flatten_group(u, 'socials', SOCIAL_FIELDS, validate_social, label)
@@ -89,10 +89,10 @@ local function validate_input(u: universe_input, label: string)
 	u.conflicts = u.conflicts or {}
 end
 
-local function validate_lock(entry: universe_lock, label: string)
+local function parse_lock(entry: universe_lock, label: string)
 	base.req(entry.universe_id, 'number', `{label}.universe_id`)
 
-	validate_input(entry.input :: any, `{label}.input`);
+	parse_input(entry.input :: any, `{label}.input`);
 	(entry :: any).input.conflicts = nil
 end
 
@@ -252,8 +252,8 @@ end
 
 -- module
 return table.freeze {
-	validate_input = validate_input,
-	validate_lock = validate_lock,
+	parse_input = parse_input,
+	parse_lock = parse_lock,
 
 	encode_input = encode_input,
 

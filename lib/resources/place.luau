@@ -40,7 +40,7 @@ export type place_lock = {
 }
 
 -- validation
-local function validate_input(p: place_input, label: string)
+local function parse_input(p: place_input, label: string)
 	base.req(p, 'table', label)
 	base.opt(p.file, 'string', `{label}.file`)
 	base.opt(p.display_name, 'string', `{label}.display_name`)
@@ -58,11 +58,11 @@ local function validate_input(p: place_input, label: string)
 	p.conflicts = p.conflicts or {}
 end
 
-local function validate_lock(entry: place_lock, label: string)
+local function parse_lock(entry: place_lock, label: string)
 	base.req(entry.universe_id, 'number', `{label}.universe_id`)
 	base.req(entry.place_id, 'number', `{label}.place_id`)
 
-	validate_input(entry.input :: any, `{label}.input`);
+	parse_input(entry.input :: any, `{label}.input`);
 	(entry :: any).input.conflicts = nil
 end
 
@@ -206,8 +206,8 @@ end
 
 -- module
 return table.freeze {
-	validate_input = validate_input,
-	validate_lock = validate_lock,
+	parse_input = parse_input,
+	parse_lock = parse_lock,
 	validate = validate,
 
 	encode_input = encode_input,

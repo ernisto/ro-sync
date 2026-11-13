@@ -21,7 +21,7 @@ export type thumbnail_lock = {
 }
 
 -- validation
-local function validate_input(t: any, label: string)
+local function parse_input(t: any, label: string)
 	base.req(t, 'table', label)
 	base.opt(t.file, 'string', `{label}.file`)
 
@@ -29,7 +29,7 @@ local function validate_input(t: any, label: string)
 	t.conflicts = t.conflicts or {}
 end
 
-local function validate_lock(entry: any, label: string)
+local function parse_lock(entry: any, label: string)
 	base.req(entry.universe_id, 'number', `{label}.universe_id`)
 	base.req(entry.thumbnail_id, 'number', `{label}.thumbnail_id`)
 
@@ -131,8 +131,8 @@ end
 
 -- module
 return table.freeze {
-	validate_input = validate_input,
-	validate_lock = validate_lock,
+	parse_input = parse_input,
+	parse_lock = parse_lock,
 	validate = validate,
 
 	encode_input = encode_input,

@@ -23,7 +23,7 @@ function run.from_api_result_maps_fields()
 end
 
 function run.rejects_store_page_enabled()
-	local ok = pcall(pass.validate_input, { name = 'VIP', store_page_enabled = true }, 'p')
+	local ok = pcall(pass.parse_input, { name = 'VIP', store_page_enabled = true }, 'p')
 	expect.falsy(ok, 'store_page_enabled is product-only')
 end
 

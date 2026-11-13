@@ -25,16 +25,16 @@ export type pass_lock = {
 }
 
 -- validation
-local function validate_input(p: any, label: string)
-	product.validate_input(p, label)
+local function parse_input(p: any, label: string)
+	product.parse_input(p, label)
 	base.check(p.store_page_enabled == nil, `{label}.store_page_enabled is not supported on game passes`)
 end
 
-local function validate_lock(entry: any, label: string)
+local function parse_lock(entry: any, label: string)
 	base.req(entry.universe_id, 'number', `{label}.universe_id`)
 	base.req(entry.pass_id, 'number', `{label}.pass_id`)
 
-	validate_input(entry.input, `{label}.input`);
+	parse_input(entry.input, `{label}.input`);
 	(entry :: any).input.conflicts = nil
 end
 
@@ -133,8 +133,8 @@ end
 
 -- module
 return table.freeze {
-	validate_input = validate_input,
-	validate_lock = validate_lock,
+	parse_input = parse_input,
+	parse_lock = parse_lock,
 	validate = product.validate,
 
 	encode_input = product.encode_input,

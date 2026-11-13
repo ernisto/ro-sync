@@ -71,28 +71,28 @@ local function parse_manifest(content: buffer): manifest
 
 	data.products = base.string_map(data.products, 'manifest.products')
 	for key, entry in data.products do
-		product.validate_input(entry, `manifest.products.{key}`)
+		product.parse_input(entry, `manifest.products.{key}`)
 	end
 
 	data.passes = base.string_map(data.passes, 'manifest.passes')
 	for key, entry in data.passes do
-		pass.validate_input(entry, `manifest.passes.{key}`)
+		pass.parse_input(entry, `manifest.passes.{key}`)
 	end
 
 	if data.thumbnails ~= nil then
 		data.thumbnails = base.list(data.thumbnails, 'manifest.thumbnails')
 		for i, entry in data.thumbnails do
-			thumbnail.validate_input(entry, `manifest.thumbnails[{i}]`)
+			thumbnail.parse_input(entry, `manifest.thumbnails[{i}]`)
 		end
 	end
-	if data.icon ~= nil then icon.validate_input(data.icon, 'manifest.icon') end
+	if data.icon ~= nil then icon.parse_input(data.icon, 'manifest.icon') end
 
 	data.places = base.string_map(data.places, 'manifest.places')
 	for key, entry in data.places do
-		place.validate_input(entry, `manifest.places.{key}`)
+		place.parse_input(entry, `manifest.places.{key}`)
 	end
 
-	if data.universe ~= nil then universe.validate_input(data.universe, 'manifest.universe') end
+	if data.universe ~= nil then universe.parse_input(data.universe, 'manifest.universe') end
 	return data
 end
 local function parse_lock(content: buffer): lock
@@ -103,31 +103,31 @@ local function parse_lock(content: buffer): lock
 
 	data.products = base.string_map(data.products, 'lock.products')
 	for key, entry in data.products do
-		product.validate_lock(entry, `lock.products.{key}`)
+		product.parse_lock(entry, `lock.products.{key}`)
 	end
 
 	data.passes = base.string_map(data.passes, 'lock.passes')
 	for key, entry in data.passes do
-		pass.validate_lock(entry, `lock.passes.{key}`)
+		pass.parse_lock(entry, `lock.passes.{key}`)
 	end
 
 	data.thumbnails = base.string_map(data.thumbnails, 'lock.thumbnails')
 	for hash, entry in data.thumbnails do
-		thumbnail.validate_lock(entry, `lock.thumbnails.{hash}`)
+		thumbnail.parse_lock(entry, `lock.thumbnails.{hash}`)
 	end
 	if data.icon ~= nil then
 		base.req(data.icon, 'table', 'lock.icon')
-		icon.validate_lock(data.icon, 'lock.icon')
+		icon.parse_lock(data.icon, 'lock.icon')
 	end
 
 	data.places = base.string_map(data.places, 'lock.places')
 	for key, entry in data.places do
-		place.validate_lock(entry, `lock.places.{key}`)
+		place.parse_lock(entry, `lock.places.{key}`)
 	end
 
 	if data.universe ~= nil then
 		base.req(data.universe, 'table', 'lock.universe')
-		universe.validate_lock(data.universe, 'lock.universe')
+		universe.parse_lock(data.universe, 'lock.universe')
 	end
 
 	return data

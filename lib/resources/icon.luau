@@ -11,7 +11,7 @@ export type icon_input = thumbnail.thumbnail_input
 export type icon_lock = { universe_id: number, input: thumbnail.thumbnail_data }
 
 -- validation
-local function validate_lock(entry: any, label: string)
+local function parse_lock(entry: any, label: string)
 	base.req(entry.universe_id, 'number', `{label}.universe_id`)
 	base.req(entry.input, 'table', `{label}.input`)
 	entry.input.conflicts = nil
@@ -50,8 +50,8 @@ end
 
 -- module
 return table.freeze {
-	validate_input = thumbnail.validate_input,
-	validate_lock = validate_lock,
+	parse_input = thumbnail.parse_input,
+	parse_lock = parse_lock,
 	validate = validate,
 
 	encode_input = thumbnail.encode_input,
