@@ -1,5 +1,6 @@
 local cloud = require '@pkg/ro_cloud'
 local http = require '@utils/http'
+local pages = require '@utils/pages'
 local tbl = require '@utils/tbl'
 
 local base = require './base'
@@ -115,18 +116,10 @@ local function get(session: session, pass: pass_path): pass_read
 end
 
 local function list(session: session, universe: universe_path): { any }
-	local passes = {}
-	local token: string? = nil
-	repeat
+	return pages.collect_async(function(token)
 		local page = http.call(cloud.pass.list, session, universe, nil, { pageToken = token })
-
-		for _, pass in page.gamePasses do
-			table.insert(passes, pass)
-		end
-		token = if page.nextPageToken and page.nextPageToken ~= '' then page.nextPageToken else nil
-	until token == nil
-
-	return passes
+		return page.gamePasses, page.nextPageToken
+	end)
 end
 
 -- module

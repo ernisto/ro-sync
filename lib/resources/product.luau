@@ -1,6 +1,7 @@
 local cloud = require '@pkg/ro_cloud'
 local ctx_log = require '@utils/ctx_log'
 local http = require '@utils/http'
+local pages = require '@utils/pages'
 local tbl = require '@utils/tbl'
 
 local base = require './base'
@@ -173,18 +174,10 @@ local function get(session: session, product: product_path): product_read
 end
 
 local function list(session: session, universe: universe_path): { cloud.product_data }
-	local products = {}
-	local token: string? = nil
-	repeat
+	return pages.collect_async(function(token)
 		local page = http.call(cloud.product.list, session, universe, nil, { pageToken = token })
-
-		for _, product in page.developerProducts do
-			table.insert(products, product)
-		end
-		token = if page.nextPageToken ~= '' then page.nextPageToken else nil
-	until token == nil
-
-	return products
+		return page.developerProducts, page.nextPageToken
+	end)
 end
 
 -- module

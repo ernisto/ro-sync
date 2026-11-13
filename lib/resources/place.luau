@@ -1,6 +1,7 @@
 local cloud = require '@pkg/ro_cloud'
 local ctx_log = require '@utils/ctx_log'
 local http = require '@utils/http'
+local pages = require '@utils/pages'
 local tbl = require '@utils/tbl'
 
 local base = require './base'
@@ -186,20 +187,12 @@ local function get(session: session, path: place_path): place_data
 end
 
 local function list(session: session, universe: universe_path): { cloud.place_configuration_data }
-	local places = {}
-	local cursor: string? = nil
-	repeat
-		local path = { universe_id = universe.universe_id }
+	local path = { universe_id = universe.universe_id }
+
+	return pages.collect_async(function(cursor)
 		local page = http.call(cloud.develop.list_universe_places, session, path, nil, { cursor = cursor })
-
-		for _, place in page.data do
-			table.insert(places, place)
-		end
-		local next_cursor = page.nextPageCursor
-		cursor = if next_cursor == '' or next_cursor == cursor then nil else next_cursor
-	until cursor == nil
-
-	return places
+		return page.data, page.nextPageCursor
+	end)
 end
 
 -- module

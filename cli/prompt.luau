@@ -2,6 +2,7 @@ local args = require '@cli/args'
 local cloud = require '@pkg/ro_cloud'
 local ctx_log = require '@utils/ctx_log'
 local http = require '@utils/http'
+local pages = require '@utils/pages'
 local place = require '@lib/resources/place'
 local state = require '@lib/state'
 local c = ctx_log.colors
@@ -15,24 +16,14 @@ type creator = { user: nil, group: cloud.dev_group_data } | { user: { id: number
 
 -- helpers
 local function fetch_universes(session: cloud.session, group: cloud.dev_group_data?): { cloud.dev_universe_data }
-	local universes: { cloud.dev_universe_data } = {}
-	local cursor: string?
-
-	repeat
+	return pages.collect_async(function(cursor)
 		local query = { cursor = cursor }
 		local page = if group
 			then http.call(cloud.develop.get_group_universes, session, { group_id = group.id }, nil, query)
 			else http.call(cloud.develop.get_user_universes, session, nil, nil, query)
 
-		for _, universe in page.data :: any do
-			table.insert(universes, universe)
-		end
-
-		local next_cursor = page.nextPageCursor
-		cursor = if next_cursor == '' or next_cursor == cursor then nil else next_cursor
-	until cursor == nil
-
-	return universes
+		return page.data :: any, page.nextPageCursor
+	end)
 end
 local function create_universe(session: cloud.session, creator: creator): universe_path
 	local res = http.call(cloud.universe.create, session, nil, {
