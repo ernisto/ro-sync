@@ -60,8 +60,8 @@ local function log_noop(key)
 	ctx_log.str(`{c.dim}= Skipping: {c.bold}{key}`)
 	summary.noops += 1
 end
-local function log_imported(key: string, product_id: number)
-	ctx_log.str(`{c.purple}↓ Imported: {c.bold}{key}{c.reset} {c.dim}(id: {product_id})`)
+local function log_imported(key: string, id: number)
+	ctx_log.str(`{c.purple}↓ Imported: {c.bold}{key}{c.reset} {c.dim}(id: {id})`)
 	summary.importeds += 1
 end
 local function log_rekeyed(old_key: string, key: string)

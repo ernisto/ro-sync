@@ -140,10 +140,10 @@ return table.freeze {
 	gap = gap,
 	warn = warn,
 	throw = throw,
-	error = push_err,
+	print_error = push_err,
 	clear_line = clear_line,
 	backtrace = push_backtrace,
-	pcall = try_result,
+	try = try_result,
 	prompt = prompt :: (() -> string) & ((kind: 'text', message: string?, default: string?) -> string) & ((kind: 'confirm', message: string, default: boolean?) -> boolean) & ((kind: 'select', message: string?, options: { string }) -> number?) & ((kind: 'multiselect', message: string?, options: { string }) -> { number }?),
 
 	colors = c,

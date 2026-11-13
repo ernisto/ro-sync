@@ -16,10 +16,6 @@ local function resolve_file(path: string): state.input_file?
 	return content and table.freeze { content = content, hash = serde.hash('sha256', content) }
 end
 
-local function files_exist(manifest_path: string): boolean
-	return fs.isFile(manifest_path)
-end
-
 local function resolve_manifest_files(manifest: state.manifest)
 	for _, product in manifest.products do
 		if product.icon then product.icon_file = resolve_file(product.icon) end
@@ -46,7 +42,7 @@ end
 
 local function load_lock(lock_path: string): state.lock
 	local raw_lock = maybe_read(lock_path) or error(`No file at {lock_path}`)
-	return raw_lock and state.parse_lock(raw_lock)
+	return state.parse_lock(raw_lock)
 end
 
 local function resources_from_lock(lock: state.lock, owner: state.owner): state.resources
@@ -120,9 +116,8 @@ end
 
 -- module
 return table.freeze {
-	files_exist = files_exist,
 	load_input = load_input,
-	load_state = load_lock,
+	load_lock = load_lock,
 	resources_from_lock = resources_from_lock,
 	load_resources = load_resources,
 	save_resources = save_resources,

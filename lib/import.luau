@@ -193,16 +193,16 @@ local function await_import_universe(
 end
 
 local function await_import_all(session: base.session, resources: state.resources, universe_id: number, pick: picker?)
-	ctx_log.pcall(function()
+	ctx_log.try(function()
 		await_import_places(place, session, universe_id, resources, pick)
 	end)
-	ctx_log.pcall(function()
+	ctx_log.try(function()
 		await_import_universe(universe, session, universe_id, resources)
 	end)
-	ctx_log.pcall(function()
+	ctx_log.try(function()
 		await_import_products(product, session, universe_id, resources, pick)
 	end)
-	ctx_log.pcall(function()
+	ctx_log.try(function()
 		await_import_passes(pass, session, universe_id, resources, pick)
 	end)
 end

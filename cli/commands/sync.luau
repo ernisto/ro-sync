@@ -40,7 +40,7 @@ local ignore_cloud = cli.bool('ignore-cloud', {
 
 cli.strict()
 
-local state_ok, state_result = pcall(state_fs.load_state, STATE_PATH)
+local state_ok, state_result = pcall(state_fs.load_lock, STATE_PATH)
 local input_ok, input_result = pcall(state_fs.load_input, INPUT_PATH)
 
 local function merge_input(base: any, extra: any)

@@ -58,7 +58,7 @@ local function await_reconcile<Lock>(res: any, resource: resource<Lock>, opts: s
 		sync_logger.creation(key)
 		local create = api.create or error 'resource has no create'
 
-		local ok, created_lock = ctx_log.pcall(create, opts.session, opts, input)
+		local ok, created_lock = ctx_log.try(create, opts.session, opts, input)
 		if ok then sync_logger.print_pushed_changes(api.diff({}, created_lock.input)) end
 
 		sync_logger.creation_result(ok)
@@ -80,7 +80,7 @@ local function await_reconcile<Lock>(res: any, resource: resource<Lock>, opts: s
 	-- refresh state
 	local ok, cloud_state = true, prev.input
 	if not opts.ignore_cloud and api.get then
-		ok, cloud_state = ctx_log.pcall(api.get, opts.session, prev)
+		ok, cloud_state = ctx_log.try(api.get, opts.session, prev)
 		if not ok then return prev :: any end
 	end
 
@@ -134,7 +134,7 @@ local function await_reconcile<Lock>(res: any, resource: resource<Lock>, opts: s
 	return prev :: any
 end
 local function await_try_reconcile<Lock>(res: any, resource: resource<Lock>, ctx: sync_ctx, snapshot: any?)
-	local ok, lock = ctx_log.pcall(await_reconcile, res, resource, ctx, snapshot)
+	local ok, lock = ctx_log.try(await_reconcile, res, resource, ctx, snapshot)
 	if ok then resource.lock = lock end
 end
 
@@ -148,7 +148,7 @@ local function await_try_reconcile_thumbnails(session: base.session, resources: 
 	for hash, lock in resources.lock.thumbnails do
 		if kept[hash] then continue end
 
-		local ok = ctx_log.pcall(thumbnail.delete, session, lock)
+		local ok = ctx_log.try(thumbnail.delete, session, lock)
 		if not ok then continue end
 
 		resources.lock.thumbnails[hash] = nil
@@ -160,7 +160,7 @@ local function await_try_reconcile_thumbnails(session: base.session, resources: 
 		for _, resource in resources.thumbnails do
 			if resource.lock then table.insert(ids, resource.lock.thumbnail_id) end
 		end
-		local ok = ctx_log.pcall(thumbnail.reorder, session, resources.lock.universe_id, ids)
+		local ok = ctx_log.try(thumbnail.reorder, session, resources.lock.universe_id, ids)
 		if not ok then ctx_log.warn 'couldnt reorder thumbnails' end
 	end
 end

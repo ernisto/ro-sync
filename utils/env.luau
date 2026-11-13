@@ -8,10 +8,10 @@ local dotenv = if fs.isFile '.env' then serde.decode('toml', fs.readFile '.env')
 local function num(key: string): number?
 	return tonumber(dotenv[key] or process.env[key])
 end
-local function str(key: string): string
+local function str(key: string): string?
 	local val = dotenv[key] or process.env[key]
-	return val and tostring(val)
+	return if val == nil then nil else tostring(val)
 end
 
 -- module
-return table.freeze { uint = num, int = num, num = num, str = str }
+return table.freeze { num = num, str = str }

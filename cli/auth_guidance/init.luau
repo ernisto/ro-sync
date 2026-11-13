@@ -138,7 +138,7 @@ end
 
 local function prompt_api_key(): string?
 	if not INTERACTIVE then
-		ctx_log.error 'No usable API Key'
+		ctx_log.print_error 'No usable API Key'
 		return nil
 	end
 
