@@ -8,7 +8,7 @@ local function count(tab)
 end
 
 local function clone_intersect<T>(base: { [string]: any }, mask: T): T
-	assert(type(mask) == 'table')
+	assert(type(mask) == 'table', `intersection mask must be a table, got {type(mask)}`)
 	local out = {}
 	for k in mask do
 		out[k] = base[k]
@@ -17,7 +17,7 @@ local function clone_intersect<T>(base: { [string]: any }, mask: T): T
 end
 
 local function write_apply<T>(base: T, new: { [string]: any }): T
-	assert(type(base) == 'table')
+	assert(type(base) == 'table', `base must be a table, got {type(base)}`)
 	for k, v in new do
 		base[k] = v
 	end
@@ -28,7 +28,7 @@ local function clone_apply<T>(base: T, new: { [string]: any }): T
 end
 
 local function write_subtract<T>(base: T, removing: { [string]: any }): T
-	assert(type(base) == 'table')
+	assert(type(base) == 'table', `base must be a table, got {type(base)}`)
 	for k in removing do
 		base[k] = nil
 	end

@@ -23,7 +23,7 @@ if data then
 	local ok = pcall(function()
 		return serde.decode('json', data)
 	end)
-	if not ok then error(`--data must be valid JSON, got: {data}`) end
+	if not ok then cli.fail(`--data must be valid JSON, got: {data}`) end
 	url ..= `&launchData={encode(data)}`
 end
 
