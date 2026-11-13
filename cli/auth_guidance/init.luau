@@ -40,103 +40,123 @@ export type session = {
 }
 
 -- helpers
+local USED: { [string]: true } = {}
+for _, scope in USED_SCOPES do
+	USED[scope] = true
+end
+
+type scope_group = { name: string, targets: { string }?, ops: { string } }
+
+local function get_key_status(key_info: cloud.api_key_introspection?): key_status
+	if not key_info then return 'missing' :: key_status end
+	if not key_info.enabled then return 'disabled' :: key_status end
+	if key_info.expired then return 'expired' :: key_status end
+	return 'active' :: key_status
+end
+
+-- groups keep insertion order; `by_key` dedupes them
+local function ensure_group(
+	groups: { scope_group },
+	by_key: { [string]: scope_group },
+	key: string,
+	name: string,
+	targets: { string }?
+): scope_group
+	local existing = by_key[key]
+	if existing then return existing end
+
+	local group: scope_group = { name = name, targets = targets, ops = {} }
+	by_key[key] = group
+	table.insert(groups, group)
+	return group
+end
+
+-- operations of scopes sharing the same name+targets, merged in grant order
+local function group_granted_scopes(key_info: cloud.api_key_introspection): { scope_group }
+	local groups: { scope_group } = {}
+	local by_key: { [string]: scope_group } = {}
+
+	for _, scope in key_info.scopes do
+		local targets = scope.universeIds or scope.groupIds or scope.userIds
+		local key = `{scope.name}|{if targets then table.concat(targets, ',') else ''}`
+		local group = ensure_group(groups, by_key, key, scope.name, targets)
+
+		for _, op in scope.operations do
+			if not table.find(group.ops, op) then table.insert(group.ops, op) end
+		end
+	end
+
+	return groups
+end
+
+-- operations we rely on but the key lacks, merged by scope name
+local function group_missing_scopes(key_info: cloud.api_key_introspection, target: string?): { scope_group }
+	local groups: { scope_group } = {}
+	local by_name: { [string]: scope_group } = {}
+
+	for _, scope in USED_SCOPES do
+		if apikey.has_scope(key_info, scope, target) then continue end
+
+		local name, op = string.match(scope, '^(.*):([^:]+)$')
+		local group = ensure_group(groups, by_name, name :: string, name :: string)
+		table.insert(group.ops, op :: string)
+	end
+
+	return groups
+end
+
+local function is_targeting(targets: { string }?, target: string?): boolean
+	local is_global = not targets or #targets == 0 or targets[1] == '*'
+	return is_global or (target ~= nil and table.find(targets :: { string }, target) ~= nil)
+end
+
+local function is_used(group: scope_group): boolean
+	for _, op in group.ops do
+		if USED[`{group.name}:{op}`] then return true end
+	end
+	return false
+end
+
+-- green: used, yellow: relied on but missing, gray: granted but unused
+local function format_scope_labels(key_info: cloud.api_key_introspection, target: string?): { string }
+	local greens, grays = {}, {}
+
+	for _, group in group_granted_scopes(key_info) do
+		local ops = table.concat(group.ops, '/')
+		local used = is_used(group)
+		local targeting = is_targeting(group.targets, target)
+
+		if used and targeting then
+			table.insert(greens, `{c.green}{group.name}:{ops}{c.reset}`)
+		else
+			-- only show targets on used scopes granted for a different universe
+			local suffix = if used then `({table.concat(group.targets :: { string }, ',')})` else ''
+			table.insert(grays, `{c.dim}{group.name}:{ops}{suffix}{c.reset}`)
+		end
+	end
+
+	local labels = greens
+	for _, group in group_missing_scopes(key_info, target) do
+		table.insert(labels, `{c.yellow}{group.name}:{table.concat(group.ops, '/')}{c.reset}`)
+	end
+	table.move(grays, 1, #grays, #labels + 1, labels)
+
+	return labels
+end
+
 local function print_status(key_info: cloud.api_key_introspection?, api_key: string?, universe_id: number?): key_status
-	if not key_info then return 'missing' end
+	local status: key_status = get_key_status(key_info)
+	if not key_info then return status end
 
-	local status: key_status = if not key_info.enabled
-		then 'disabled'
-		elseif key_info.expired then 'expired'
-		else 'active'
 	local color = if status == 'active' then c.green else c.red
-
 	local prefix = if api_key then ` {c.dim}({string.sub(api_key, 1, 8)}...){c.reset}` else ''
 	local expiry = if key_info.expirationUtcTime then ` {c.dim}(expires {key_info.expirationUtcTime}){c.reset}` else ''
 
 	ctx_log.str(`Logged in api key {color}{key_info.name}{prefix} {color}`)
 	ctx_log.str(`Currently {c.green}{string.upper(status)}{c.reset}{expiry}`)
 
-	local used = {}
-	for _, scope in USED_SCOPES do
-		used[scope] = true
-	end
-
-	-- merge operations of scopes sharing the same name+target
-	local groups, index = {}, {}
-	for _, scope in key_info.scopes do
-		local targets = scope.universeIds or scope.groupIds or scope.userIds
-		local key = `{scope.name}|{if targets then table.concat(targets, ',') else ''}`
-
-		local group = index[key]
-		if not group then
-			group = { name = scope.name, targets = targets, ops = {}, seen = {} }
-			index[key] = group
-			table.insert(groups, group)
-		end
-		for _, op in scope.operations do
-			if not group.seen[op] then
-				group.seen[op] = true
-				table.insert(group.ops, op)
-			end
-		end
-	end
-
-	-- green: used, yellow: relied on but missing, gray: granted but unused
-	local greens, grays = {}, {}
-	for _, group in groups do
-		local targets = group.targets
-
-		-- a scope only helps if it targets our universe (or everything)
-		local applies = not targets or #targets == 0 or targets[1] == '*'
-		if targets and #targets > 0 and targets[1] ~= '*' then
-			for _, target in targets do
-				if target == tostring(universe_id) then applies = true end
-			end
-		end
-
-		local any_used = false
-		for _, op in group.ops do
-			if used[`{group.name}:{op}`] then
-				any_used = true
-				break
-			end
-		end
-
-		-- only show the target on used scopes granted for a different universe
-		local suffix = if any_used and not applies then `({table.concat(targets, ',')})` else ''
-
-		local ops = table.concat(group.ops, '/')
-		if any_used and applies then
-			table.insert(greens, `{c.green}{group.name}:{ops}{c.reset}`)
-		else
-			table.insert(grays, `{c.dim}{group.name}:{ops}{suffix}{c.reset}`)
-		end
-	end
-
-	-- merge missing operations we rely on by scope name
-	local missing, missing_index = {}, {}
 	local target = if universe_id then tostring(universe_id) else nil
-	for _, scope in USED_SCOPES do
-		if apikey.has_scope(key_info, scope, target) then continue end
-		local name, op = string.match(scope, '^(.*):([^:]+)$')
-
-		local group = missing_index[name]
-		if not group then
-			group = { name = name, ops = {} }
-			missing_index[name] = group
-			table.insert(missing, group)
-		end
-		table.insert(group.ops, op)
-	end
-
-	local yellows = {}
-	for _, group in missing do
-		table.insert(yellows, `{c.yellow}{group.name}:{table.concat(group.ops, '/')}{c.reset}`)
-	end
-
-	local labels = {}
-	table.move(greens, 1, #greens, 1, labels)
-	table.move(yellows, 1, #yellows, #labels + 1, labels)
-	table.move(grays, 1, #grays, #labels + 1, labels)
+	local labels = format_scope_labels(key_info, target)
 	ctx_log.str(`Scopes: {if #labels > 0 then table.concat(labels, ', ') else 'none'}`)
 
 	return status
