@@ -51,7 +51,7 @@ for _, command in COMMANDS do
 	if cli.cmd(table.unpack(command.words)) then return command.run() end
 end
 
--- unknown command
+-- no command: help; unknown command: error + help
 local function is_group(word: string): boolean
 	for _, command in COMMANDS do
 		if #command.words > 1 and command.words[1] == word then return true end
@@ -60,8 +60,9 @@ local function is_group(word: string): boolean
 end
 
 local cmd, sub = cli.str(1), cli.str(2)
-local hint = if not is_group(cmd :: string)
-	then `unknown command '{cmd}'`
+local hint = if cmd == nil
+	then nil
+	elseif not is_group(cmd) then `unknown command '{cmd}'`
 	elseif sub then `unknown subcommand '{sub}' for '{cmd}'`
 	else `command '{cmd}' needs a subcommand`
 
@@ -71,7 +72,6 @@ for _, command in COMMANDS do
 end
 
 local lines = {
-	`{c.red}{c.bold}error:{c.reset} {hint}\n`,
 	ABOUT,
 	'',
 	`{c.bold}{c.yellow}Usage:{c.reset} {c.green}ro-sync{c.reset} [OPTIONS] [COMMAND]`,
@@ -85,5 +85,7 @@ for _, command in COMMANDS do
 	table.insert(lines, `  {c.green}{name}{c.reset}{pad}  {c.dim}{command.help}{c.reset}`)
 end
 
+if hint then table.insert(lines, 1, `{c.red}{c.bold}error:{c.reset} {hint}\n`) end
+
 print(table.concat(lines, '\n'))
-process.exit(1)
+process.exit(if hint then 1 else 0)

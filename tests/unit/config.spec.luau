@@ -55,15 +55,18 @@ configs:
 	expect.truthy(out:find 'skillpoints', 'config kept')
 	expect.falsy(out:find 'conflicts', 'empty conflicts dropped')
 
-	local lock = state.parse_lock(buffer.fromstring(state.encode_lock {
+	local encoded = state.encode_lock {
 		universe_id = sm.UNIVERSE_ID,
 		products = {},
 		passes = {},
 		thumbnails = {},
 		places = {},
 		configs = { skillpoints = { universe_id = sm.UNIVERSE_ID, key = 'skillpoints', input = { type = 'json' } } },
-	}))
-	expect.eq(lock.configs.skillpoints.key, 'skillpoints')
+	}
+	expect.falsy(encoded:find("'key'", 1, true), 'key is the map key, not stored')
+
+	local lock = state.parse_lock(buffer.fromstring(encoded))
+	expect.eq(lock.configs.skillpoints.key, 'skillpoints', 'key restored from the map key')
 	expect.eq(lock.configs.skillpoints.input.type, 'json')
 end
 

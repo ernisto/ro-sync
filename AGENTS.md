@@ -25,7 +25,7 @@ pesde x ernisto/test --   # runs all *.spec.luau (unit + integration), no networ
 
 ## Running
 
-Dispatch is on positionals in `cli/init.luau`; bare invocation defaults to `sync`. Do **not** use `--` before subcommand args — `utils/cli` treats `--` as "forward everything remaining".
+Dispatch is on positionals in `cli/init.luau`; bare invocation (or `--help`) prints help, an unknown command prints an error + help and exits 1. Do **not** use `--` before subcommand args — `utils/cli` treats `--` as "forward everything remaining".
 
 ```sh
 lune run cli sync --cache cloud-state.yml --push cloud.yml

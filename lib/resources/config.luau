@@ -11,6 +11,7 @@ export type config_data = {
 	description: string?, -- read-only: open cloud drafts only take values, set it in creator hub
 }
 export type config_input = config_data & { conflicts: { [string]: any } }
+-- `key` mirrors the lock map key: filled on parse, never written to the file
 export type config_lock = { universe_id: number, key: string, input: config_data }
 
 -- values never live in ro-sync: creation publishes the type's zero value, tuning happens in creator hub/game
@@ -69,15 +70,19 @@ local function parse_input(c: any, label: string)
 	c.conflicts = c.conflicts or {}
 end
 
-local function parse_lock(entry: any, label: string)
+local function parse_lock(entry: any, label: string, key: string)
 	base.req(entry.universe_id, 'number', `{label}.universe_id`)
-	base.req(entry.key, 'string', `{label}.key`)
+	entry.key = key
 
 	parse_input(entry.input, `{label}.input`)
 	entry.input.conflicts = nil
 end
 
 -- encoding
+local function encode_lock_entry(lock: config_lock): any
+	return { universe_id = lock.universe_id, input = lock.input }
+end
+
 local function encode_input(c: config_input): config_input
 	return tbl.subtraction(c, { conflicts = next(c.conflicts) == nil or nil })
 end
@@ -171,6 +176,7 @@ return table.freeze {
 	parse_lock = parse_lock,
 
 	encode_input = encode_input,
+	encode_lock_entry = encode_lock_entry,
 
 	diff = diff,
 	mask = base.mask,

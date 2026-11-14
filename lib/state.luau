@@ -142,7 +142,7 @@ local function parse_lock(content: buffer): lock
 
 	data.configs = base.string_map(data.configs, 'lock.configs')
 	for key, entry in data.configs do
-		config.parse_lock(entry, `lock.configs.{key}`)
+		config.parse_lock(entry, `lock.configs.{key}`, key)
 	end
 
 	return data
@@ -174,7 +174,7 @@ local function encode_lock(data: lock): string
 	out.thumbnails = base.encode_map(data.thumbnails, thumbnail.encode_lock_entry)
 	out.icon = data.icon and icon.encode_lock_entry(data.icon)
 	out.places = base.encode_map(data.places, place.encode_lock_entry)
-	out.configs = base.encode_map(data.configs, table.clone)
+	out.configs = base.encode_map(data.configs, config.encode_lock_entry)
 
 	return yaml.encode(out)
 end
