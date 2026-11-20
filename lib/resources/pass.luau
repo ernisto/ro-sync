@@ -142,8 +142,11 @@ return table.freeze {
 	diff = product.diff,
 	mask = product.mask,
 
+	stage = base.stage,
+
 	create = create,
 	get = get,
 	update = update,
 	list = list,
+	delete = base.unsupported 'game passes cant be deleted through open cloud',
 }

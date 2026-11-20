@@ -59,6 +59,11 @@ return table.freeze {
 
 	diff = thumbnail.diff,
 
+	stage = base.stage,
+
 	create = create,
 	update = update,
+	get = base.unsupported 'the universe icon cant be read back from open cloud',
+	list = base.unsupported 'a universe has one icon, nothing to list',
+	delete = base.unsupported 'the universe icon cant be removed, only replaced',
 }

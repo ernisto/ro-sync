@@ -72,20 +72,11 @@ local function reason(err: unknown): string
 	return (first_line:gsub('^.-:%d+: ', ''))
 end
 
-local function merge_input(base: any, extra: any)
-	for k, v in extra do
-		if type(v) == 'table' and type(base[k]) == 'table' and v[1] == nil then
-			merge_input(base[k], v)
-		else
-			base[k] = v
-		end
-	end
-end
 if input_ok then
 	for i = 2, #MANIFESTS do
 		local ok, extra = pcall(state_fs.load_input, MANIFESTS[i])
 		if ok then
-			merge_input(input_result, extra)
+			state_fs.merge_input(input_result, extra)
 			ctx_log.str(`Merged {c.green}{MANIFESTS[i]}{c.reset} into {c.green}{INPUT_PATH}`)
 		else
 			ctx_log.warn(`Couldnt read {MANIFESTS[i]}, {reason(extra)}`)
@@ -195,6 +186,7 @@ local snapshot = {
 	passes = table.clone(lock.passes),
 	places = table.clone(lock.places),
 	configs = table.clone(lock.configs),
+	assets = lock.assets and table.clone(lock.assets),
 	universe_id = lock.universe_id,
 }
 

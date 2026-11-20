@@ -146,6 +146,11 @@ return table.freeze {
 	diff = diff,
 	mask = base.mask,
 
+	stage = base.stage,
+
 	get = get,
 	update = update,
+	create = base.unsupported 'universes cant be created through open cloud, create one in studio or creator hub',
+	list = base.unsupported 'universes cant be listed through open cloud',
+	delete = base.unsupported 'universes cant be deleted through open cloud',
 }

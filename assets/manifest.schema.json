@@ -41,6 +41,22 @@
       "description": "Map of in-experience config key -> config. Values are never synced: missing keys are created with the type's zero value, tune values in Creator Hub or in game.",
       "type": "object",
       "additionalProperties": { "$ref": "#/definitions/config" }
+    },
+    "assets": {
+      "description": "Files uploaded as Roblox assets (images, audio, models, animations, videos), stored in the lock as a tree by path (relative to the glob root, extensions stripped) of `{ asset_id, hash }`: files with an already uploaded hash (unchanged, renamed, duplicated) are never re-uploaded. Owned by `owner`. Transparent png pixels are alpha-bled before upload.",
+      "type": "object",
+      "required": ["files"],
+      "additionalProperties": false,
+      "properties": {
+        "files": {
+          "type": "string",
+          "description": "Glob of files to upload, supports `*`, `?`, `**` and `{a,b}`. Example: `assets/{images,sounds}/**`."
+        },
+        "animations": {
+          "type": "string",
+          "description": "Dot path of the game folder holding the animations with the same hierarchy as the glob root, e.g. `ReplicatedStorage.Animations`. `codegen` registers animations not uploaded yet from there with KeyframeSequenceProvider (Studio only)."
+        }
+      }
     }
   },
   "definitions": {

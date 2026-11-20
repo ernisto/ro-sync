@@ -179,6 +179,40 @@ local function encode_map(map: { [any]: any }, encode: (any) -> any)
 	return if next(out) == nil then nil else out
 end
 
+-- api
+local unsupported_methods: { [any]: true } = setmetatable({}, { __mode = 'k' }) :: any
+
+-- crud method a backend doesnt offer: fails loud at the caller with the reason
+local function unsupported(reason: string): (...any) -> never
+	local method = function(): never
+		error(reason, 2)
+	end
+	unsupported_methods[method] = true
+	return method
+end
+
+-- whether a resource method really reaches its backend (not an `unsupported` stub)
+local function supports(method: any): boolean
+	return method ~= nil and not unsupported_methods[method]
+end
+
+-- stage
+-- staged view for codegen: `stage.data` is the lock input (last cloud state, the template) with the manifest
+-- input over it; a resource not created yet stages without lock fields (no id)
+local function stage(input: { [string]: any }?, lock: { [string]: any }?, _content_dir: string?): { [string]: any }
+	local template = if lock then lock.input else {}
+	local data = tbl.applied(template, tbl.subtraction(input or {}, { conflicts = true }))
+
+	-- identity (universe_id, product_id, ...) lives on the lock entry, never in its data
+	if lock then
+		for key in lock do
+			if string.match(key, '_id$') then data[key] = nil end
+		end
+	end
+
+	return tbl.applied(lock or {}, { stage = { data = data } })
+end
+
 -- module
 return table.freeze {
 	check = check,
@@ -204,4 +238,8 @@ return table.freeze {
 	lock_file_of = lock_file_of,
 	encode_map = encode_map,
 	encode_mapped = encode_mapped,
+
+	unsupported = unsupported,
+	supports = supports,
+	stage = stage,
 }

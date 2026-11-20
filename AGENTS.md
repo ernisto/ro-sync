@@ -39,6 +39,8 @@ Global flags (`cli/args.luau`): `--cache` (lock file, default `cloud-state.yml`)
 
 `sync [FILES...]`: manifests (default `cloud.yml`, extra files merge into the first). Flags: `--push` (cloud is only updated when present), `--pull [FILE]` (fetch cloud before reconciling; FILE gets the cloud version, without it only the cache updates), `--pull-new [FILE]` (import every cloud resource), `--resolve-to cloud|local` (conflict winner), `--dry` (report only: lock, manifest and files untouched). `--push`/`--dry` map to one `sync_mode` (`lib/sync.luau`; none = `receive`) and exclude each other.
 
+`codegen [FILE]` (default `cloud.yml`, skipped if missing): assets without an uploaded id are copied into Studio's `content/ro-sync` and emitted as `rbxasset://` uris; places/products/passes are emitted as `{ place_id|product_id|pass_id, data }` (identity never inside `data`, staged ones get ids -1, -2, ...); the lock file is not written.
+
 ## Architecture
 
 - `cli/init.luau` — dispatcher; `cli/commands/` holds `sync` and `place load|play|edit|run`. `place_ref.luau` resolves a `<name>` positional to `{ place_id, universe_id }` from the `--cache` lock file. `play`/`edit` open Roblox deep links; `run` executes a script via `luau_task_exec` and streams logs.

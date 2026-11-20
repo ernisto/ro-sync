@@ -1,6 +1,7 @@
 local ctx_log = require '@utils/ctx_log'
 local tbl = require '@utils/tbl'
 
+local asset = require './resources/asset'
 local base = require './resources/base'
 local config = require './resources/config'
 local icon = require './resources/icon'
@@ -61,10 +62,14 @@ local function await_reconcile<Lock>(res: any, resource: resource<Lock>, opts: s
 	local key, input, prev = resource.key, resource.input, resource.lock
 	if api.validate then api.validate(input) end
 
-	if not prev and not api.create then
+	-- stubbed crud methods (base.unsupported) count as missing
+	local create = if base.supports(api.create) then api.create else nil
+	local get = if base.supports(api.get) then api.get else nil
+
+	if not prev and not create then
 		-- `path`: identity to baseline from, set by sub-resources (see await_try_reconcile_configuration)
 		local path = (resource :: any).path or { universe_id = opts.universe_id }
-		prev = tbl.applied(path, { input = api.get and api.get(opts.session, path) }) :: any
+		prev = tbl.applied(path, { input = get and get(opts.session, path) }) :: any
 	end
 
 	local pushing = opts.mode == 'push'
@@ -75,9 +80,7 @@ local function await_reconcile<Lock>(res: any, resource: resource<Lock>, opts: s
 	end
 	if not prev then
 		sync_logger.creation(key)
-		local create = api.create or error 'resource has no create'
-
-		local ok, created_lock = ctx_log.try(create, opts.session, opts, input, key)
+		local ok, created_lock = ctx_log.try(create or error 'resource has no create', opts.session, opts, input, key)
 		if ok then sync_logger.print_pushed_changes(api.diff({}, created_lock.input)) end
 
 		sync_logger.creation_result(ok)
@@ -98,8 +101,8 @@ local function await_reconcile<Lock>(res: any, resource: resource<Lock>, opts: s
 
 	-- refresh state
 	local ok, cloud_state = true, prev.input
-	if not opts.ignore_cloud and api.get then
-		ok, cloud_state = ctx_log.try(api.get, opts.session, prev)
+	if not opts.ignore_cloud and get then
+		ok, cloud_state = ctx_log.try(get, opts.session, prev)
 		if not ok then
 			sync_logger.update_result(false, local_changes, {})
 			return prev :: any
@@ -212,6 +215,19 @@ local function await_try_reconcile_thumbnails(session: base.session, resources: 
 	end
 end
 
+local function await_sync_assets(resources: state.resources, opts: sync_opts)
+	local input = resources.manifest.assets
+	if not input or opts.mode == 'dry' then return end
+
+	local prev = resources.lock.assets or {}
+
+	if opts.mode == 'push' then
+		resources.lock.assets = asset.create(opts.session, resources.manifest.owner, input, prev)
+	else
+		resources.lock.assets = asset.receive(input, prev)
+	end
+end
+
 local function await_reconcile_all(resources: state.resources, opts: sync_opts)
 	local snapshot = opts.snapshot or resources.lock
 	local ctx: sync_ctx = table.clone(opts :: any)
@@ -265,6 +281,8 @@ local function await_reconcile_all(resources: state.resources, opts: sync_opts)
 	for _, join in joins do
 		join()
 	end
+
+	await_sync_assets(resources, opts)
 end
 
 -- module

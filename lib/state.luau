@@ -2,6 +2,7 @@ local serde = require '@lune/serde'
 local tbl = require '@utils/tbl'
 local yaml = require '@utils/yaml'
 
+local asset = require '@lib/resources/asset'
 local base = require '@lib/resources/base'
 local config = require '@lib/resources/config'
 local icon = require '@lib/resources/icon'
@@ -27,6 +28,7 @@ export type input = {
 	thumbnails: { thumbnail.thumbnail_input }?,
 	icon: icon.icon_input?,
 	configs: { [string]: config.config_input },
+	assets: asset.assets_input?,
 }
 -- state holding every field the extending file doesnt write itself: merged on load, written back on save
 export type extends = { file: string, rbxstore: nil } | { rbxstore: rbxstore, file: nil }
@@ -42,6 +44,7 @@ export type lock = {
 	products: { [string]: product.product_lock },
 	thumbnails: { [string]: thumbnail.thumbnail_lock }, -- keyed by image hash
 	icon: icon.icon_lock?,
+	assets: asset.assets_lock?,
 }
 export type manifest = input
 
@@ -69,7 +72,15 @@ local function create_input(owner: owner): manifest
 	return { owner = owner, products = {}, passes = {}, places = {}, configs = {} }
 end
 local function create_state(universe_id: number): lock
-	return { universe_id = universe_id, products = {}, passes = {}, thumbnails = {}, places = {}, configs = {} }
+	return {
+		universe_id = universe_id,
+		products = {},
+		passes = {},
+		thumbnails = {},
+		places = {},
+		configs = {},
+		assets = {},
+	}
 end
 
 -- parsing
@@ -108,6 +119,8 @@ local function parse_manifest(content: buffer): manifest
 	for key, entry in data.configs do
 		config.parse_input(entry, `manifest.configs.{key}`)
 	end
+
+	if data.assets ~= nil then asset.parse_input(data.assets, 'manifest.assets') end
 	return data
 end
 local function parse_extends(t: any)
@@ -170,6 +183,7 @@ local function parse_lock_data(data: any): lock
 		config.parse_lock(entry, `lock.configs.{key}`, key)
 	end
 
+	data.assets = asset.parse_lock(data.assets, 'lock.assets')
 	return data
 end
 local function parse_lock(content: buffer): lock
@@ -215,6 +229,7 @@ local function encode_lock_data(data: lock): { [string]: any }
 	out.places = base.encode_map(data.places, place.encode_lock_entry)
 	out.configs = base.encode_map(data.configs, config.encode_lock_entry)
 	out.icon = if data.icon then icon.encode_lock_entry(data.icon) else nil
+	out.assets = if data.assets and next(data.assets) then data.assets else nil
 	return out
 end
 local function encode_lock(data: lock): string

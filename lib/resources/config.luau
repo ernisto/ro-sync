@@ -178,8 +178,11 @@ return table.freeze {
 	diff = diff,
 	mask = base.mask,
 
+	stage = base.stage,
+
 	list = list,
 	get = get,
 	create = create,
 	update = update,
+	delete = base.unsupported 'configs cant be deleted by ro-sync, remove them in creator hub',
 }

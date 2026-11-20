@@ -64,6 +64,11 @@ return table.freeze {
 	diff = diff,
 	mask = base.mask,
 
+	stage = base.stage,
+
 	get = get,
 	update = update,
+	create = base.unsupported 'place configuration comes with its place, it is never created',
+	list = base.unsupported 'place configuration belongs to one place, nothing to list',
+	delete = base.unsupported 'place configuration lives as long as its place',
 }

@@ -49,7 +49,7 @@ local COMMANDS = table.freeze {
 		run = function()
 			return require '@cli/commands/codegen'
 		end,
-		help = 'Write a Luau module with the cached universe, place, product and pass ids',
+		help = 'Write a Luau module with the cached universe, place, product, pass and asset ids',
 	},
 }
 

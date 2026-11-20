@@ -29,6 +29,8 @@ local USED_SCOPES = {
 	'universe-places:write',
 	'developer-product:read',
 	'developer-product:write',
+	'asset:read',
+	'asset:write',
 	'universe-datastores.objects:read',
 	'universe-datastores.objects:update',
 }

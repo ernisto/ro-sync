@@ -11,5 +11,6 @@ return table.freeze {
 		place = require '@lib/resources/place',
 		pass = require '@lib/resources/pass',
 		config = require '@lib/resources/config',
+		asset = require '@lib/resources/asset',
 	},
 }

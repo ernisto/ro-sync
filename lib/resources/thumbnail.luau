@@ -140,9 +140,12 @@ return table.freeze {
 
 	diff = diff,
 
+	stage = base.stage,
+
 	create = create,
 	get = get,
 	update = update,
 	delete = delete,
 	reorder = reorder,
+	list = base.unsupported 'thumbnails cant be listed through open cloud, the lock is their source',
 }

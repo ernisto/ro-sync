@@ -200,8 +200,11 @@ return table.freeze {
 	diff = diff,
 	mask = base.mask,
 
+	stage = base.stage,
+
 	create = create,
 	get = get,
 	update = update,
 	list = list,
+	delete = base.unsupported 'developer products cant be deleted through open cloud',
 }

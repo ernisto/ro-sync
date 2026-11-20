@@ -192,10 +192,13 @@ return table.freeze {
 	diff = diff,
 	mask = base.mask,
 
+	stage = base.stage,
+
 	create = create,
 	get = get,
 	update = update,
 	list = list,
 
 	BASEPLATE_PLACE_ID = BASEPLATE_PLACE_ID,
+	delete = base.unsupported 'places cant be deleted through open cloud',
 }

@@ -187,6 +187,11 @@ return table.freeze {
 	diff = diff,
 	mask = base.mask,
 
+	stage = base.stage,
+
 	get = get,
 	update = update,
+	create = base.unsupported 'universe configuration comes with its universe, it is never created',
+	list = base.unsupported 'universe configuration belongs to one universe, nothing to list',
+	delete = base.unsupported 'universe configuration lives as long as its universe',
 }

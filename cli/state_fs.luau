@@ -43,6 +43,17 @@ local function load_input(manifest_path: string): state.manifest
 	return manifest
 end
 
+-- extra manifests (`sync a.yml b.yml`) merge over the first, maps deeply, lists replaced
+local function merge_input(base: any, extra: any)
+	for k, v in extra do
+		if type(v) == 'table' and type(base[k]) == 'table' and v[1] == nil then
+			merge_input(base[k], v)
+		else
+			base[k] = v
+		end
+	end
+end
+
 local function load_lock(lock_path: string): state.lock
 	local raw_lock = maybe_read(lock_path) or error(`No file at {lock_path}`)
 	return state.parse_lock(raw_lock)
@@ -213,6 +224,7 @@ end
 return table.freeze {
 	load_input = load_input,
 	load_lock = load_lock,
+	merge_input = merge_input,
 	resources_from_lock = resources_from_lock,
 	load_resources = load_resources,
 	save_resources = save_resources,

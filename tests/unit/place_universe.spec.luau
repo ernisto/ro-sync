@@ -162,6 +162,17 @@ function run.universe_baselines_from_cloud_without_lock()
 	expect.eq(api.update.calls[1][3].desktop, false) -- manifest change pushed against pulled baseline
 end
 
+function run.unsupported_create_still_baselines_from_cloud()
+	local api = sm.make_universe_api()
+	api.create = base.unsupported 'no create'
+
+	local lock = sync.await_reconcile(api, sm.make_universe(sm.make_universe_input(), nil), opts)
+
+	expect.eq(lock.universe_id, sm.UNIVERSE_ID, 'baselined from get, not created')
+	expect.falsy(base.supports(api.create))
+	expect.truthy(base.supports(api.get))
+end
+
 -- configuration sub-resources
 local function universe_config_lock(input: { [string]: any }): any
 	return { universe_id = sm.UNIVERSE_ID, input = input }
