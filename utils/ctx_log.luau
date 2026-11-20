@@ -126,10 +126,19 @@ local function prompt(kind: any, raw_message: any, default_or_options: any): any
 	return result
 end
 
-local function try_result(fun, ...)
-	return xpcall(fun, function(err)
-		push_backtrace(debug.traceback(tostring(err), 2))
-	end, ...)
+-- closes scopes the failed call left open, so following logs keep their depth
+local function try_result(fun: any, ...): ...any
+	local ctx = ensure_ctx()
+	local depth = ctx.depth
+	local result: any = table.pack(xpcall(fun, function(err)
+		push_err(tostring(err), debug.traceback('', 2))
+	end, ...))
+	if not result[1] then
+		while ctx.depth > depth do
+			pop_ctx(`{c.red}failed{c.reset}`)
+		end
+	end
+	return table.unpack(result, 1, result.n)
 end
 
 -- module
@@ -143,7 +152,7 @@ return table.freeze {
 	print_error = push_err,
 	clear_line = clear_line,
 	backtrace = push_backtrace,
-	try = try_result,
+	try = (try_result :: any) :: <A..., R...>((A...) -> R..., A...) -> (boolean, R...),
 	prompt = prompt :: (() -> string) & ((kind: 'text', message: string?, default: string?) -> string) & ((kind: 'confirm', message: string, default: boolean?) -> boolean) & ((kind: 'select', message: string?, options: { string }) -> number?) & ((kind: 'multiselect', message: string?, options: { string }) -> { number }?),
 
 	colors = c,

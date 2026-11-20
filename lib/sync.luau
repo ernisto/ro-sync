@@ -82,7 +82,10 @@ local function await_reconcile<Lock>(res: any, resource: resource<Lock>, opts: s
 	local ok, cloud_state = true, prev.input
 	if not opts.ignore_cloud and api.get then
 		ok, cloud_state = ctx_log.try(api.get, opts.session, prev)
-		if not ok then return prev :: any end
+		if not ok then
+			sync_logger.update_result(false, local_changes, {})
+			return prev :: any
+		end
 	end
 
 	local receiving_changes = api.diff(synced, cloud_state)
