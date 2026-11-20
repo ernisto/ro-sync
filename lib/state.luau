@@ -24,19 +24,24 @@ export type input = {
 	passes: { [string]: pass.pass_input },
 	places: { [string]: place.place_input },
 	products: { [string]: product.product_input },
-	thumbnails: { thumbnail.thumbnail_input }?, -- nil = unmanaged, rosync never deletes
+	thumbnails: { thumbnail.thumbnail_input }?,
 	icon: icon.icon_input?,
 	configs: { [string]: config.config_input },
 }
+-- state holding every field the extending file doesnt write itself: merged on load, written back on save
+export type extends = { file: string, rbxstore: nil } | { rbxstore: rbxstore, file: nil }
+export type rbxstore = { store: string, scope: string?, key: string, universe: number? }
 export type lock = {
 	universe_id: number,
+	extends: extends?,
+	owned: { [string]: true }?, -- fields written in the extending file, set when `extends` is
 	universe: universe.universe_lock?,
 	passes: { [string]: pass.pass_lock },
 	places: { [string]: place.place_lock },
+	configs: { [string]: config.config_lock },
 	products: { [string]: product.product_lock },
 	thumbnails: { [string]: thumbnail.thumbnail_lock }, -- keyed by image hash
 	icon: icon.icon_lock?,
-	configs: { [string]: config.config_lock },
 }
 export type manifest = input
 
@@ -105,11 +110,31 @@ local function parse_manifest(content: buffer): manifest
 	end
 	return data
 end
-local function parse_lock(content: buffer): lock
-	local data = serde.decode('yaml', content)
+local function parse_extends(t: any)
+	base.req(t, 'table', 'lock.extends')
+	base.check((t.file == nil) ~= (t.rbxstore == nil), 'lock.extends must set exactly one of file/rbxstore')
+	if t.file ~= nil then return base.req(t.file, 'string', 'lock.extends.file') end
+
+	local store = t.rbxstore
+	base.req(store, 'table', 'lock.extends.rbxstore')
+	base.req(store.store, 'string', 'lock.extends.rbxstore.store')
+	base.opt(store.scope, 'string', 'lock.extends.rbxstore.scope')
+	base.req(store.key, 'string', 'lock.extends.rbxstore.key')
+	base.opt(store.universe, 'number', 'lock.extends.rbxstore.universe')
+end
+
+local function parse_lock_data(data: any): lock
 	base.req(data, 'table', 'lock')
 	base.check(data.version == 1, `unsupported lock version {tostring(data.version)}`)
 	base.opt(data.universe_id, 'number', 'lock.universe_id')
+
+	if data.extends ~= nil then
+		parse_extends(data.extends)
+		data.owned = {}
+		for key in data do
+			data.owned[key] = true
+		end
+	end
 
 	data.products = base.string_map(data.products, 'lock.products')
 	for key, entry in data.products do
@@ -147,6 +172,20 @@ local function parse_lock(content: buffer): lock
 
 	return data
 end
+local function parse_lock(content: buffer): lock
+	return parse_lock_data(serde.decode('yaml', content))
+end
+
+-- extended fields replace the ones the extending file doesnt own
+local function merge_extended(lock: lock, raw: any)
+	local shared: any = parse_lock_data(tbl.applied(raw or {}, { version = 1 }))
+	local owned = lock.owned or {}
+
+	for key, value in shared do
+		if key == 'version' or key == 'extends' or key == 'owned' or owned[key] then continue end
+		(lock :: any)[key] = value
+	end
+end
 
 -- encoding
 local function encode_manifest(data: manifest): string
@@ -166,17 +205,37 @@ local function encode_manifest(data: manifest): string
 
 	return yaml.encode(out)
 end
-local function encode_lock(data: lock): string
+local function encode_lock_data(data: lock): { [string]: any }
 	local out: any = tbl.applied(data, { version = 1 })
+	out.owned = nil
 
 	out.products = base.encode_map(data.products, product.encode_lock_entry)
 	out.passes = base.encode_map(data.passes, pass.encode_lock_entry)
 	out.thumbnails = base.encode_map(data.thumbnails, thumbnail.encode_lock_entry)
-	out.icon = data.icon and icon.encode_lock_entry(data.icon)
 	out.places = base.encode_map(data.places, place.encode_lock_entry)
 	out.configs = base.encode_map(data.configs, config.encode_lock_entry)
+	out.icon = if data.icon then icon.encode_lock_entry(data.icon) else nil
+	return out
+end
+local function encode_lock(data: lock): string
+	return yaml.encode(encode_lock_data(data))
+end
 
-	return yaml.encode(out)
+-- (own fields, extended fields) of a lock with `extends`
+local function split_lock(data: lock): ({ [string]: any }, { [string]: any })
+	local out = encode_lock_data(data)
+	local owned = data.owned or {}
+	local own, shared = { version = 1, extends = out.extends }, { version = 1 }
+
+	for key, value in out do
+		if key == 'version' or key == 'extends' then continue end
+		if owned[key] then
+			own[key] = value
+		else
+			shared[key] = value
+		end
+	end
+	return own, shared
 end
 
 -- resources
@@ -241,6 +300,8 @@ return table.freeze {
 
 	encode_manifest = encode_manifest,
 	encode_lock = encode_lock,
+	split_lock = split_lock,
+	merge_extended = merge_extended,
 	build_resources = build_resources,
 
 	diff_thumbnail = thumbnail.diff,

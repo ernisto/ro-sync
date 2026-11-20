@@ -29,6 +29,8 @@ local USED_SCOPES = {
 	'universe-places:write',
 	'developer-product:read',
 	'developer-product:write',
+	'universe-datastores.objects:read',
+	'universe-datastores.objects:update',
 }
 
 type key_status = 'missing' | 'disabled' | 'expired' | 'active'

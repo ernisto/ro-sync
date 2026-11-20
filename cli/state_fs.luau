@@ -1,4 +1,6 @@
+local cloud = require '@pkg/ro_cloud'
 local fs = require '@lune/fs'
+local http = require '@utils/http'
 local serde = require '@lune/serde'
 local state = require '@lib/state'
 local tbl = require '@utils/tbl'
@@ -48,6 +50,76 @@ end
 
 local function configuration_of(sub_lock: any): any
 	return sub_lock and tbl.applied(sub_lock.input, { conflicts = {} })
+end
+
+-- extends
+local loaded_extensions: { [state.lock]: { [string]: any } } = setmetatable({}, { __mode = 'k' }) :: any
+
+local function store_path(lock: state.lock, store: state.rbxstore)
+	return {
+		universe_id = store.universe or lock.universe_id,
+		data_store_id = store.store,
+		scope_id = store.scope,
+		entry_id = store.key,
+	}
+end
+
+local function rbxstore_of(extends: state.extends): state.rbxstore
+	return extends.rbxstore or error 'extends needs file or rbxstore'
+end
+
+local function await_read_extension(
+	lock: state.lock,
+	extends: state.extends,
+	session: cloud.session?
+): { [string]: any }
+	if extends.file then
+		local content = maybe_read(extends.file)
+		return if content then serde.decode('yaml', content) else {}
+	end
+
+	local path = store_path(lock, rbxstore_of(extends))
+	local ok, entry =
+		pcall(http.call, cloud.data_store.get_entry, session or error 'rbxstore needs a session', path, nil)
+	if ok then return entry.value end
+	if string.match(tostring(entry), '^404') then return {} end
+	error(entry, 0)
+end
+
+local function await_load_extends(lock: state.lock, session: cloud.session?)
+	local extends = lock.extends
+	if not extends then return end
+
+	local raw = await_read_extension(lock, extends, session)
+	loaded_extensions[lock] = raw
+	state.merge_extended(lock, raw)
+end
+
+-- fields owned by the extending file stay as they were in the extension (other states may extend it too)
+-- ponytail: last write wins, concurrent syncs can drop each other's changes; use the entry etag if that happens
+local function await_save_lock(lock: state.lock, lock_path: string, session: cloud.session?)
+	local extends = lock.extends
+	if not extends then return fs.writeFile(lock_path, state.encode_lock(lock)) end
+
+	local own, shared = state.split_lock(lock)
+	local owned = lock.owned or {}
+	local merged = {}
+	local loaded: { [string]: any } = loaded_extensions[lock] or {}
+	for key, value in loaded do
+		if owned[key] then merged[key] = value end
+	end
+	for key, value in shared do
+		merged[key] = value
+	end
+
+	if extends.file then
+		fs.writeFile(extends.file, yaml.encode(merged))
+	else
+		local path = store_path(lock, rbxstore_of(extends))
+		local session_ = session or error 'rbxstore needs a session'
+		http.call(cloud.data_store.update_entry, session_, path, { value = merged }, { allowMissing = true })
+	end
+	fs.writeFile(lock_path, yaml.encode(own))
 end
 
 local function resources_from_lock(lock: state.lock, owner: state.owner): state.resources
@@ -104,7 +176,12 @@ local function save_manifest(manifest: state.manifest, manifest_path: string)
 	if new_yml ~= current_yml then fs.writeFile(manifest_path, MANIFEST_HEADER .. new_yml) end
 end
 
-local function save_resources(resources: state.resources, manifest_path: string, lock_path: string)
+local function save_resources(
+	resources: state.resources,
+	manifest_path: string,
+	lock_path: string,
+	session: cloud.session?
+)
 	for _, product in resources.products do
 		if product.lock then resources.lock.products[product.key] = product.lock end
 	end
@@ -128,7 +205,7 @@ local function save_resources(resources: state.resources, manifest_path: string,
 		if config.lock then resources.lock.configs[config.key] = config.lock end
 	end
 
-	fs.writeFile(lock_path, state.encode_lock(resources.lock))
+	await_save_lock(resources.lock, lock_path, session)
 	save_manifest(resources.manifest, manifest_path)
 end
 
@@ -140,5 +217,6 @@ return table.freeze {
 	load_resources = load_resources,
 	save_resources = save_resources,
 	save_manifest = save_manifest,
+	await_load_extends = await_load_extends,
 	resolve_file = resolve_file,
 }

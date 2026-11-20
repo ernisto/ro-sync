@@ -116,9 +116,10 @@ if not api_session or not key_info then return process.exit(1) end
 
 local session: cloud.session = api_session :: any
 session.cookie_state = user_session and user_session.cookie_state
+if state_ok then state_fs.await_load_extends(state_result, session) end
 
 local function save(res: state.resources, manifest_path: string)
-	if mode ~= 'dry' then state_fs.save_resources(res, manifest_path, STATE_PATH) end
+	if mode ~= 'dry' then state_fs.save_resources(res, manifest_path, STATE_PATH, session) end
 end
 
 local universe = http.call(cloud.universe.get, session, { universe_id = universe_id }, nil)
