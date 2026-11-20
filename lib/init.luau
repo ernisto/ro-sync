@@ -1,4 +1,5 @@
 return table.freeze {
+	codegen = require '@lib/codegen',
 	import = require '@lib/import',
 	state = require '@lib/state',
 	sync = require '@lib/sync',

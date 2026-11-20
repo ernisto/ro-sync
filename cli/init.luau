@@ -44,6 +44,13 @@ local COMMANDS = table.freeze {
 		end,
 		help = 'Run a Luau script against the place',
 	},
+	{
+		words = { 'codegen' },
+		run = function()
+			return require '@cli/commands/codegen'
+		end,
+		help = 'Write a Luau module with the cached universe, place, product and pass ids',
+	},
 }
 
 -- dispatch
