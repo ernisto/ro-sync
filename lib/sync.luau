@@ -191,28 +191,51 @@ local function await_reconcile_all(resources: state.resources, opts: sync_opts)
 	local ctx: sync_ctx = table.clone(opts :: any)
 	ctx.universe_id = resources.lock.universe_id
 
-	if resources.universe then
-		await_try_reconcile(universe, resources.universe, ctx, snapshot.universe)
-		await_try_reconcile_configuration(universe_configuration, resources.universe, ctx, snapshot.universe)
+	local joins = {}
+	local function spawn(fun: () -> ())
+		table.insert(joins, ctx_log.spawn(fun))
 	end
-	if resources.icon then await_try_reconcile(icon, resources.icon, ctx, snapshot.icon) end
-	if resources.manifest.thumbnails then await_try_reconcile_thumbnails(ctx.session, resources) end
 
-	for _, resource in resources.thumbnails do
-		await_try_reconcile(thumbnail, resource, ctx)
+	if resources.universe then
+		spawn(function()
+			await_try_reconcile(universe, resources.universe, ctx, snapshot.universe)
+			await_try_reconcile_configuration(universe_configuration, resources.universe, ctx, snapshot.universe)
+		end)
 	end
+	if resources.icon then spawn(function()
+		await_try_reconcile(icon, resources.icon, ctx, snapshot.icon)
+	end) end
+
+	spawn(function()
+		if resources.manifest.thumbnails then await_try_reconcile_thumbnails(ctx.session, resources) end
+		for _, resource in resources.thumbnails do
+			await_try_reconcile(thumbnail, resource, ctx)
+		end
+	end)
 	for _, resource in resources.products do
-		await_try_reconcile(product, resource, ctx, snapshot.products[resource.key])
+		spawn(function()
+			await_try_reconcile(product, resource, ctx, snapshot.products[resource.key])
+		end)
 	end
 	for _, resource in resources.places do
-		await_try_reconcile(place, resource, ctx, snapshot.places[resource.key])
-		await_try_reconcile_configuration(place_configuration, resource, ctx, snapshot.places[resource.key])
+		spawn(function()
+			await_try_reconcile(place, resource, ctx, snapshot.places[resource.key])
+			await_try_reconcile_configuration(place_configuration, resource, ctx, snapshot.places[resource.key])
+		end)
 	end
 	for _, resource in resources.passes do
-		await_try_reconcile(pass, resource, ctx, snapshot.passes[resource.key])
+		spawn(function()
+			await_try_reconcile(pass, resource, ctx, snapshot.passes[resource.key])
+		end)
 	end
 	for _, resource in resources.configs do
-		await_try_reconcile(config, resource, ctx, snapshot.configs[resource.key])
+		spawn(function()
+			await_try_reconcile(config, resource, ctx, snapshot.configs[resource.key])
+		end)
+	end
+
+	for _, join in joins do
+		join()
 	end
 end
 
