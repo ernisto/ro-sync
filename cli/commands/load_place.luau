@@ -7,8 +7,6 @@ local place_ref = require './place_ref'
 local process = require '@lune/process'
 
 -- cli
-cli.str('api-key', { value = 'KEY', help = 'Open Cloud API key (default: $API_KEY)' })
-
 local output = cli.str('output', { value = 'FILE', required = true, help = 'destination .rbxl path' })
 	or cli.fail '--output <file> arg missing'
 cli.strict()

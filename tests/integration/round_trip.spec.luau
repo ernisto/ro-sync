@@ -10,7 +10,7 @@ local sync = require '@lib/sync'
 local yaml = require '@utils/yaml'
 
 -- defs
-local OPTS: sync.sync_ctx = { universe_id = sm.UNIVERSE_ID, session = nil :: any }
+local OPTS: sync.sync_ctx = { universe_id = sm.UNIVERSE_ID, session = nil :: any, mode = 'push' }
 local ICON_PATH = 'tests/integration/assets/placeholder.png'
 local TMP_MANIFEST = 'tests/integration/assets/tmp_manifest.yml'
 local TMP_LOCK = 'tests/integration/assets/tmp_lock.yml'

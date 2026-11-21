@@ -1,16 +1,12 @@
+local args = require '@cli/args'
 local cli = require '@utils/cli'
-local env = require '@utils/env'
 local fs = require '@lune/fs'
 local serde = require '@lune/serde'
 
 export type ref = { place_id: number, universe_id: number }
 
 cli.str('place', { positional = true, required = true, help = 'place name from the lock file' })
-local state = cli.some {
-	remote = cli.str 'remote-cache',
-	file = cli.path 'cache',
-}
-local source = state.remote or state.file or cli.fail 'missing state source'
+local source = cli.path 'cache' or cli.fail 'missing state source'
 
 -- functions
 local function resolve(): (string, ref)
@@ -25,7 +21,7 @@ local function resolve(): (string, ref)
 end
 
 local function api_key(): string
-	return cli.str 'api-key' or env.secret.string 'API_KEY'
+	return args.API_KEY or cli.fail 'missing --api-key or $API_KEY'
 end
 
 return table.freeze { resolve = resolve, api_key = api_key }

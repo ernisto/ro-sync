@@ -51,7 +51,7 @@ function run.should_return_prev_unchanged_when_no_local_changes()
 	guarded_api.get = mock.never_called 'get should not be reached for a no-op'
 	guarded_api.update = mock.never_called 'update should not be reached for a no-op'
 
-	local opts: sync.sync_ctx = { universe_id = prev.universe_id, session = session }
+	local opts: sync.sync_ctx = { universe_id = prev.universe_id, session = session, mode = 'push' }
 	local result = sync.await_reconcile(guarded_api, sm.make_product(input, prev), opts)
 
 	expect.eq(result, prev)
@@ -68,7 +68,7 @@ function run.should_push_description_change_and_revert()
 	local patched_prev = table.clone(prev)
 	patched_prev.input = table.clone(prev.input)
 
-	local opts: sync.sync_ctx = { universe_id = prev.universe_id, session = session }
+	local opts: sync.sync_ctx = { universe_id = prev.universe_id, session = session, mode = 'push' }
 	sync.await_reconcile(product_res, sm.make_product(input, patched_prev), opts)
 
 	local ok, err = pcall(function()
@@ -92,7 +92,7 @@ function run.should_push_icon_change_and_revert()
 	patched_prev.input = table.clone(prev.input)
 	patched_prev.input.icon_file = { assetid = prev.input.icon_file and prev.input.icon_file.assetid, hash = 'stale' }
 
-	local opts: sync.sync_ctx = { universe_id = prev.universe_id, session = session }
+	local opts: sync.sync_ctx = { universe_id = prev.universe_id, session = session, mode = 'push' }
 	sync.await_reconcile(product_res, sm.make_product(input, patched_prev), opts)
 
 	local after_lock = sync.await_reconcile(product_res, sm.make_product(input, patched_prev), opts)

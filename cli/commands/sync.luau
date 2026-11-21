@@ -2,7 +2,6 @@ local args = require '@cli/args'
 local cli = require '@utils/cli'
 local cloud = require '@pkg/ro_cloud'
 local ctx_log = require '@utils/ctx_log'
-local env = require '@utils/env'
 local http = require '@utils/http'
 local process = require '@lune/process'
 local c = ctx_log.colors
@@ -19,26 +18,51 @@ local sync_logger = require '@lib/sync_logger'
 -- cli
 local INTERACTIVE = args.INTERACTIVE
 
-local API_KEY = cli.str('api-key', { value = 'KEY', help = 'Open Cloud API key (default: $API_KEY)' })
-	or env.is_set 'API_KEY' and env.secret.string 'API_KEY'
-	or nil
+local API_KEY = args.API_KEY
 
-local PUSHES = cli.list('push', { value = 'FILE', help = 'Values ro-sync ensures keep them (default: cloud.yml)' })
-local INPUT_PATH = if PUSHES and PUSHES[1] then PUSHES[1] else 'cloud.yml'
+-- `--flag` alone or `--flag FILE`: presence and its files
+local function optional_files(name: string, opts: any): (boolean, { string })
+	local files = cli.list(name, opts)
+	return files ~= nil or cli.bool(name), files or {}
+end
+
+-- args parse before this spec exists, so `--push a.yml` swallows the file as a value; fold it back in
+local MODE = 'Mode Options'
+local MANIFESTS = cli.list 'push' or {}
+local PUSH = cli.bool('push', { group = MODE, help = 'Update cloud with the manifests' }) or #MANIFESTS > 0
+local DRY = cli.bool('dry', { group = MODE, help = "Don't push or write any file" })
+for i = 2, math.huge do
+	local file = cli.str(i)
+	if not file then break end
+	table.insert(MANIFESTS, file)
+end
+local PULL, PULLS = optional_files('pull', {
+	value = 'FILE',
+	help = 'Fetch cloud before update and write its version to FILE (none: only the cache)',
+})
+local PULL_NEW, PULL_NEWS = optional_files('pull-new', {
+	value = 'FILE',
+	help = 'Fetch every cloud resource and write new ones into FILE (default: cloud.yml)',
+})
+local RESOLVE_TO = cli.str('resolve-to', { value = 'SIDE', help = 'Resolve conflicts with cloud or local values' })
+
+local INPUT_PATH = MANIFESTS[1] or 'cloud.yml'
+local PULL_PATH = PULLS[1]
+local PULL_NEW_PATH = PULL_NEWS[1] or INPUT_PATH
 local STATE_PATH = cli.str 'cache' or 'cloud-state.yml'
 
-local scanned_cloud = false
-local scan_cloud = cli.bool('scan-cloud', {
-	help = 'List and track every resource, managed or not by ro-sync',
-})
-local overwrite = cli.bool('overwrite-cloud', {
-	help = 'Ignore new and existing conflicts',
-})
-local ignore_cloud = cli.bool('ignore-cloud', {
-	help = 'Skip fetch before update, dont update cache, ignore new conflicts, keep existings',
-})
-
 cli.strict()
+if RESOLVE_TO and RESOLVE_TO ~= 'cloud' and RESOLVE_TO ~= 'local' then
+	cli.fail(`--resolve-to must be 'cloud' or 'local', got '{RESOLVE_TO}'`)
+end
+local resolve_to: sync.side? = RESOLVE_TO :: any
+
+if PUSH and DRY then cli.fail '--push and --dry exclude each other' end
+
+local mode: sync.sync_mode = if PUSH then 'push' elseif DRY then 'dry' else 'receive'
+
+local scanned_cloud = false
+local scan_cloud = PULL_NEW
 
 local state_ok, state_result = pcall(state_fs.load_lock, STATE_PATH)
 local input_ok, input_result = pcall(state_fs.load_input, INPUT_PATH)
@@ -57,14 +81,14 @@ local function merge_input(base: any, extra: any)
 		end
 	end
 end
-if input_ok and PUSHES then
-	for i = 2, #PUSHES do
-		local ok, extra = pcall(state_fs.load_input, PUSHES[i])
+if input_ok then
+	for i = 2, #MANIFESTS do
+		local ok, extra = pcall(state_fs.load_input, MANIFESTS[i])
 		if ok then
 			merge_input(input_result, extra)
-			ctx_log.str(`Merged {c.green}{PUSHES[i]}{c.reset} into {c.green}{INPUT_PATH}`)
+			ctx_log.str(`Merged {c.green}{MANIFESTS[i]}{c.reset} into {c.green}{INPUT_PATH}`)
 		else
-			ctx_log.warn(`Couldnt read {PUSHES[i]}, {reason(extra)}`)
+			ctx_log.warn(`Couldnt read {MANIFESTS[i]}, {reason(extra)}`)
 		end
 	end
 end
@@ -93,6 +117,10 @@ if not api_session or not key_info then return process.exit(1) end
 local session: cloud.session = api_session :: any
 session.cookie_state = user_session and user_session.cookie_state
 
+local function save(res: state.resources, manifest_path: string)
+	if mode ~= 'dry' then state_fs.save_resources(res, manifest_path, STATE_PATH) end
+end
+
 local universe = http.call(cloud.universe.get, session, { universe_id = universe_id }, nil)
 ctx_log.str(`Target universe {c.green}{universe.displayName}{c.reset} {c.dim}({universe_id})`)
 
@@ -117,8 +145,8 @@ local function state_from_cloud(input: state.manifest?)
 	import.await_import_all(session, fresh, universe_id, prompt.prompt_import_key)
 	fresh = state.build_resources(fresh.manifest, fresh.lock)
 
-	state_fs.save_resources(fresh, INPUT_PATH, STATE_PATH)
-	ctx_log.str(`Saved {c.green}{STATE_PATH}{c.reset} and {c.green}{INPUT_PATH}`)
+	save(fresh, PULL_NEW_PATH)
+	ctx_log.str(`Saved {c.green}{STATE_PATH}{c.reset} and {c.green}{PULL_NEW_PATH}`)
 
 	scanned_cloud = true
 	return fresh
@@ -131,7 +159,7 @@ local function input_from_state(lock, universe)
 	end
 
 	local rebuilt = state_fs.resources_from_lock(lock, owner)
-	state_fs.save_resources(rebuilt, INPUT_PATH, STATE_PATH)
+	save(rebuilt, INPUT_PATH)
 
 	ctx_log.str(`Regenerated {c.green}{INPUT_PATH}{c.reset} from {c.green}{STATE_PATH}`)
 	return rebuilt
@@ -151,8 +179,10 @@ end
 if not resources then ctx_log.throw 'No state loaded' end
 
 if scanned_cloud then
-	if not input_ok or not (overwrite or prompt.prompt_add_overwrite()) then return process.exit(0) end
-	overwrite = true -- push local changes over the freshly-scanned cloud state
+	if not input_ok or mode ~= 'push' or not (resolve_to == 'local' or prompt.prompt_add_overwrite()) then
+		return process.exit(0)
+	end
+	resolve_to = 'local' -- push local changes over the freshly-scanned cloud state
 end
 
 local lock = resources.lock
@@ -175,13 +205,18 @@ end
 
 ctx_log.gap()
 sync.await_reconcile_all(resources, {
-	ignore_cloud = ignore_cloud,
-	overwrite = overwrite,
+	ignore_cloud = not PULL,
+	resolve_to = resolve_to,
+	mode = mode,
 	session = session,
 	snapshot = snapshot,
 })
 
 sync_logger.print_summary()
-state_fs.save_resources(resources, INPUT_PATH, STATE_PATH)
+save(resources, if PULL_NEW then PULL_NEW_PATH else INPUT_PATH)
+if PULL_PATH and mode ~= 'dry' then
+	state_fs.save_manifest(state_fs.resources_from_lock(resources.lock, owner_of(universe)).manifest, PULL_PATH)
+	ctx_log.str(`Wrote cloud version to {c.green}{PULL_PATH}`)
+end
 
 return if sync_logger.summary.errors == 0 then process.exit(0) else process.exit(1)

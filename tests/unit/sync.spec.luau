@@ -75,6 +75,59 @@ function run.should_record_conflict_when_both_sides_change_same_field()
 	expect.truthy(new_input.conflicts.name, 'name conflict should be recorded')
 end
 
+function run.resolve_to_cloud_takes_cloud_value_without_conflict()
+	local prev = make_lock(make_input())
+	local new_input = make_input { name = 'Local Name', price = 300 }
+	local api = sm.make_product_api { name = 'Cloud Name' }
+
+	sync.await_reconcile(
+		api,
+		make_product(new_input, prev),
+		{ session = opts.session, universe_id = opts.universe_id, mode = 'push', resolve_to = 'cloud' }
+	)
+
+	expect.eq(new_input.name, 'Cloud Name')
+	expect.eq(next(new_input.conflicts), nil)
+	expect.eq(api.update.calls[1][3].price, 300, 'non-conflicting changes still push')
+end
+
+function run.receive_keeps_local_changes_pending()
+	local prev = make_lock(make_input())
+	local new_input = make_input { price = 300 }
+	local api = sm.make_product_api { name = 'Cloud Name' }
+
+	sync.await_reconcile(
+		api,
+		make_product(new_input, prev),
+		{ session = opts.session, universe_id = opts.universe_id, mode = 'receive' }
+	)
+
+	expect.eq(api.update.call_count, 0)
+	expect.eq(new_input.price, 300, 'unsent change survives')
+	expect.eq(new_input.name, 'Cloud Name', 'cloud change still received')
+	expect.eq(prev.input.name, 'Cloud Name', 'lock follows cloud')
+end
+
+function run.dry_changes_neither_input_nor_lock()
+	local prev = make_lock(make_input())
+	local new_input = make_input { name = 'Local Name', price = 300 }
+	local api = sm.make_product_api { name = 'Cloud Name' }
+
+	local before_lock = table.clone(prev.input)
+	local before_input = table.clone(new_input)
+
+	sync.await_reconcile(
+		api,
+		make_product(new_input, prev),
+		{ session = opts.session, universe_id = opts.universe_id, mode = 'dry' }
+	)
+
+	expect.eq(api.update.call_count, 0)
+	expect.eq(prev.input.name, before_lock.name, 'lock untouched')
+	expect.eq(new_input.name, before_input.name, 'input untouched')
+	expect.eq(next(new_input.conflicts), nil, 'no conflict recorded')
+end
+
 function run.should_not_push_fields_listed_in_conflicts()
 	local original_input = make_input()
 	local prev = make_lock(table.clone(original_input))

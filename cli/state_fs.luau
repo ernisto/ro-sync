@@ -95,6 +95,15 @@ local function load_resources(manifest_path: string, lock_path: string): state.r
 	return state.build_resources(manifest, lock)
 end
 
+local function save_manifest(manifest: state.manifest, manifest_path: string)
+	local new_yml = state.encode_manifest(manifest)
+	local current_yml = if fs.isFile(manifest_path)
+		then yaml.encode(serde.decode('yaml', fs.readFile(manifest_path)))
+		else nil
+
+	if new_yml ~= current_yml then fs.writeFile(manifest_path, MANIFEST_HEADER .. new_yml) end
+end
+
 local function save_resources(resources: state.resources, manifest_path: string, lock_path: string)
 	for _, product in resources.products do
 		if product.lock then resources.lock.products[product.key] = product.lock end
@@ -120,13 +129,7 @@ local function save_resources(resources: state.resources, manifest_path: string,
 	end
 
 	fs.writeFile(lock_path, state.encode_lock(resources.lock))
-
-	local new_yml = state.encode_manifest(resources.manifest)
-	local current_yml = if fs.isFile(manifest_path)
-		then yaml.encode(serde.decode('yaml', fs.readFile(manifest_path)))
-		else nil
-
-	if new_yml ~= current_yml then fs.writeFile(manifest_path, MANIFEST_HEADER .. new_yml) end
+	save_manifest(resources.manifest, manifest_path)
 end
 
 -- module
@@ -136,5 +139,6 @@ return table.freeze {
 	resources_from_lock = resources_from_lock,
 	load_resources = load_resources,
 	save_resources = save_resources,
+	save_manifest = save_manifest,
 	resolve_file = resolve_file,
 }

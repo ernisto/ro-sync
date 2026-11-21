@@ -126,7 +126,7 @@ local function prompt_add_overwrite(): boolean
 	if AUTO_ACCEPT then return true end
 	if not INTERACTIVE then return false end
 
-	local msg = `Enable {c.green}--overwrite-cloud{c.reset}? {c.dim}We already pulled all \
+	local msg = `Enable {c.green}--resolve-to local{c.reset}? {c.dim}We already pulled all \
 		changes made externally, push now means overwrite those external changes`
 
 	local ok = ctx_log.prompt('confirm', msg)

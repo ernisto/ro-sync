@@ -372,6 +372,12 @@ local function invocation(spec: ArgSpec): string
 	return short .. table.concat(longs, ', ') .. placeholder(spec)
 end
 
+-- command description printed below usage in `help`
+local about_text: string? = nil
+local function about(text: string): ()
+	about_text = text
+end
+
 function help(name: string, formatter: ((string) -> string)?): ()
 	local fmt = formatter or function(s: string): string
 		return s
@@ -380,6 +386,8 @@ function help(name: string, formatter: ((string) -> string)?): ()
 	local u = usage(name)
 	local painted = `{c.green}{name}{c.reset}{string.sub(u, #name + 1)}`
 	print(fmt(`{c.bold}{c.yellow}Usage:{c.reset} {painted}`))
+
+	if about_text then print(fmt(`\n{about_text}`)) end
 
 	-- group flags/options, keeping declaration order within a group
 	local groups: { string } = {}
@@ -488,6 +496,7 @@ return table.freeze {
 	list = list,
 	bool = bool,
 	cmd = cmd,
+	about = about,
 	some = some,
 	fail = fail,
 	strict = strict,

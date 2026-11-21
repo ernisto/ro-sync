@@ -8,7 +8,6 @@ local stdio = require '@lune/stdio'
 local task = require '@lune/task'
 
 -- cli
-cli.str('api-key', { value = 'KEY', help = 'Open Cloud API key (default: $API_KEY)' })
 cli.str('script-path', { value = 'FILE', help = 'path to a Luau file to run' })
 cli.str('script', { value = 'CODE', help = 'inline Luau source to run' })
 

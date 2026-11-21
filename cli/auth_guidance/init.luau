@@ -13,7 +13,10 @@ local apikey = cloud.auth.api_key
 local INTERACTIVE = args.INTERACTIVE
 local AUTO_ACCEPT = args.AUTO_ACCEPT
 
-local COOKIE = cli.str 'roblox-cookie' or env.is_set 'ROBLOX_COOKIE' and env.secret.string 'ROBLOX_COOKIE' or nil
+local COOKIE = cli.str('cookie', {
+	value = 'COOKIE',
+	help = '.ROBLOSECURITY cookie, logs in as user for develop APIs and universe import (default: $ROBLOX_COOKIE)',
+}) or env.is_set 'ROBLOX_COOKIE' and env.secret.string 'ROBLOX_COOKIE' or nil
 if COOKIE and not COOKIE:match '^%.ROBLOSECURITY=' then COOKIE = '.ROBLOSECURITY=' .. COOKIE end
 
 local CREDENTIALS_URL = require('@cli/auth_guidance/http').CREDENTIALS_URL

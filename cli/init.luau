@@ -14,7 +14,7 @@ local COMMANDS = table.freeze {
 		run = function()
 			return require '@cli/commands/sync'
 		end,
-		help = '3-way sync of developer products (default)',
+		help = '3-way merge of the manifests, the cache and Roblox cloud; only --push writes to cloud',
 	},
 	{
 		words = { 'place', 'load' },
@@ -48,7 +48,10 @@ local COMMANDS = table.freeze {
 
 -- dispatch
 for _, command in COMMANDS do
-	if cli.cmd(table.unpack(command.words)) then return command.run() end
+	if not cli.cmd(table.unpack(command.words)) then continue end
+
+	cli.about(command.help)
+	return command.run()
 end
 
 -- no command: help; unknown command: error + help

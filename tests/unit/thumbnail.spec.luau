@@ -42,7 +42,7 @@ function run.reuploads_only_on_hash_change()
 		thumbnail_id = 1,
 		input = { image_file = { hash = HASH_A, assetid = 1 } },
 	}
-	local opts = { universe_id = sm.UNIVERSE_ID, session = nil :: any }
+	local opts: sync.sync_ctx = { universe_id = sm.UNIVERSE_ID, session = nil :: any, mode = 'push' }
 
 	local same = { key = 'main', lock = lock, input = { file = 'main.png', image_file = file(HASH_A), conflicts = {} } }
 	sync.await_reconcile(api, same :: any, opts)

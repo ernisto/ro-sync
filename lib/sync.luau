@@ -20,14 +20,23 @@ export type sync_opts = {
 	session: base.session,
 	snapshot: state.lock?, -- lock before any cloud import; defaults to the current lock
 	ignore_cloud: boolean?,
-	overwrite: boolean?,
+	resolve_to: side?, -- side that wins conflicts; none records them
+	mode: sync_mode,
 }
+
+export type side = 'cloud' | 'local'
+
+-- push: send local changes
+-- receive: only take cloud changes, local ones stay pending
+-- dry: report only, change nothing
+export type sync_mode = 'push' | 'receive' | 'dry'
 
 export type sync_ctx = {
 	session: base.session,
 	universe_id: number,
 	ignore_cloud: boolean?,
-	overwrite: boolean?,
+	resolve_to: side?, -- side that wins conflicts; none records them
+	mode: sync_mode,
 }
 
 type resource<Lock = any> = {
@@ -58,6 +67,12 @@ local function await_reconcile<Lock>(res: any, resource: resource<Lock>, opts: s
 		prev = tbl.applied(path, { input = api.get and api.get(opts.session, path) }) :: any
 	end
 
+	local pushing = opts.mode == 'push'
+
+	if not prev and not pushing then
+		sync_logger.noop(`{key} (not created, needs push)`)
+		return nil :: any
+	end
 	if not prev then
 		sync_logger.creation(key)
 		local create = api.create or error 'resource has no create'
@@ -95,6 +110,12 @@ local function await_reconcile<Lock>(res: any, resource: resource<Lock>, opts: s
 	local sending_changes = tbl.intersection(api.diff(cloud_state, input), local_changes)
 
 	sync_logger.print_external_changes(synced, receiving_changes)
+
+	if opts.mode == 'dry' then
+		sync_logger.preview_result(sending_changes)
+		return prev :: any
+	end
+
 	tbl.apply(prev.input, cloud_state)
 
 	-- conflicts
@@ -104,15 +125,20 @@ local function await_reconcile<Lock>(res: any, resource: resource<Lock>, opts: s
 	local matched = tbl.subtraction(cloud_state, sending_changes)
 	tbl.subtract(conflicts, matched)
 
-	if opts.overwrite then
+	if opts.resolve_to == 'local' then
 		tbl.subtract(conflicts, sending_changes)
+	elseif opts.resolve_to == 'cloud' then
+		local cloud_wins = tbl.applied(receiving_changes, conflicts)
+		tbl.subtract(sending_changes, cloud_wins)
+		tbl.subtract(conflicts, cloud_wins)
 	else
 		conflicted_changes = tbl.intersection(sending_changes, receiving_changes)
 		tbl.apply(conflicts, conflicted_changes)
 	end
 
 	-- push
-	local free_sending = tbl.subtraction(sending_changes, conflicts)
+	local free_sending = if pushing then tbl.subtraction(sending_changes, conflicts) else {}
+	local held = tbl.subtraction(sending_changes, free_sending)
 	local expected = tbl.applied(cloud_state, free_sending)
 
 	local confirmed_state, push_err = cloud_state, nil
@@ -125,7 +151,7 @@ local function await_reconcile<Lock>(res: any, resource: resource<Lock>, opts: s
 	confirmed_state = tbl.applied(cloud_state, confirmed_state)
 	tbl.apply(prev.input, confirmed_state)
 
-	local confirmed_received = tbl.subtraction(confirmed_state, conflicted_changes)
+	local confirmed_received = tbl.subtract(tbl.subtraction(confirmed_state, conflicted_changes), held)
 	tbl.apply(input, tbl.intersection(confirmed_received, input))
 
 	local dropped = api.diff(expected, confirmed_state)
@@ -207,7 +233,9 @@ local function await_reconcile_all(resources: state.resources, opts: sync_opts)
 	end) end
 
 	spawn(function()
-		if resources.manifest.thumbnails then await_try_reconcile_thumbnails(ctx.session, resources) end
+		if resources.manifest.thumbnails and ctx.mode == 'push' then
+			await_try_reconcile_thumbnails(ctx.session, resources)
+		end
 		for _, resource in resources.thumbnails do
 			await_try_reconcile(thumbnail, resource, ctx)
 		end

@@ -105,6 +105,11 @@ local function log_update_result(success: boolean, sending: set, conflicts: set)
 	end
 end
 
+local function log_preview_result(sending: set)
+	ctx_log.pop_ctx(`{c.dim}Dry run, would push {tbl.count(sending)} field(s)`)
+	summary.noops += 1
+end
+
 -- module level
 local function print_header()
 	ctx_log.push_ctx(`{c.bold}Syncing cloud:`)
@@ -135,6 +140,7 @@ return table.freeze {
 	imported = log_imported,
 	rekeyed = log_rekeyed,
 	update_result = log_update_result,
+	preview_result = log_preview_result,
 	creation_result = log_creation_result,
 
 	-- diffs

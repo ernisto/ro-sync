@@ -28,14 +28,16 @@ pesde x ernisto/test --   # runs all *.spec.luau (unit + integration), no networ
 Dispatch is on positionals in `cli/init.luau`; bare invocation (or `--help`) prints help, an unknown command prints an error + help and exits 1. Do **not** use `--` before subcommand args — `utils/cli` treats `--` as "forward everything remaining".
 
 ```sh
-lune run cli sync --cache cloud-state.yml --push cloud.yml
+lune run cli sync cloud.yml --cache cloud-state.yml --push
 lune run cli place load lobby --cache dev-state.yml --output lobby.rbxl
 lune run cli place play lobby --cache dev-state.yml --data '{"match":10}'   # JSON only
 lune run cli place edit lobby --cache dev-state.yml
 lune run cli place run  lobby --cache dev-state.yml --script "require(tests)"
 ```
 
-Global flags (`cli/args.luau`): `--cache` (lock file, default `cloud-state.yml`), `--push` (manifest), `--remote-cache`, `--yes/-y` (auto-accept prompts), `--help/-h`. Set `API_KEY` in `.env` instead of `--api-key`.
+Global flags (`cli/args.luau`): `--cache` (lock file, default `cloud-state.yml`), `--api-key` (default `$API_KEY`; global since caches extending an Open Cloud data store need it), `--yes/-y` (auto-accept prompts), `--help/-h`. Prefer `API_KEY` in `.env` over `--api-key`.
+
+`sync [FILES...]`: manifests (default `cloud.yml`, extra files merge into the first). Flags: `--push` (cloud is only updated when present), `--pull [FILE]` (fetch cloud before reconciling; FILE gets the cloud version, without it only the cache updates), `--pull-new [FILE]` (import every cloud resource), `--resolve-to cloud|local` (conflict winner), `--dry` (report only: lock, manifest and files untouched). `--push`/`--dry` map to one `sync_mode` (`lib/sync.luau`; none = `receive`) and exclude each other.
 
 ## Architecture
 
