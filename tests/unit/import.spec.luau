@@ -7,25 +7,33 @@ local UNIVERSE_ID = 1000
 local PRODUCT_ID = 2000
 local PLACE_ID = 4000
 
--- raw cloud-shaped payloads (what the list/get endpoints return)
-local function raw_product(overrides: { [string]: any }?): any
+-- reads as the resources' `list` returns them
+local function read_product(overrides: { [string]: any }?): any
 	local base = {
-		universeId = UNIVERSE_ID,
-		productId = PRODUCT_ID,
+		universe_id = UNIVERSE_ID,
+		product_id = PRODUCT_ID,
 		name = 'Cloud Pack',
 		description = 'A pack',
-		isForSale = true,
-		storePageEnabled = false,
-		iconImageAssetId = 0,
-		priceInformation = { defaultPriceInRobux = 100, enabledFeatures = {} },
+		is_for_sale = true,
+		store_page_enabled = false,
+		icon_file = { assetid = 0 },
+		price = 100,
+		regional_pricing = false,
 	}
 	for k, v in (overrides or {}) :: { [string]: any } do
 		base[k] = v
 	end
 	return base
 end
-local function raw_place(overrides: { [string]: any }?): any
-	local base = { id = PLACE_ID, name = 'Start', description = 'A place', maxPlayerCount = 50 }
+local function read_place(overrides: { [string]: any }?): any
+	local base = {
+		universe_id = UNIVERSE_ID,
+		place_id = PLACE_ID,
+		display_name = 'Start',
+		description = 'A place',
+		server_size = 50,
+		asset_file = { assetid = PLACE_ID },
+	}
 	for k, v in (overrides or {}) :: { [string]: any } do
 		base[k] = v
 	end
@@ -43,7 +51,7 @@ function run.imports_new_product_into_lock_and_manifest()
 	local resources = empty_resources()
 	local api: any = {
 		list = function()
-			return { raw_product() }
+			return { read_product() }
 		end,
 		get = mock.never_called 'get',
 		create = mock.never_called 'create',
@@ -56,6 +64,8 @@ function run.imports_new_product_into_lock_and_manifest()
 	expect.truthy(lock, 'lock entry created under product_<id> key')
 	expect.eq(lock.product_id, PRODUCT_ID)
 	expect.eq(lock.input.price, 100)
+	expect.eq(lock.input.product_id, nil, 'identity lives on the lock, not in its input')
+	expect.eq(lock.input.universe_id, nil, 'identity lives on the lock, not in its input')
 	expect.eq(resources.manifest.products.product_2000.name, 'Cloud Pack')
 end
 
@@ -68,7 +78,7 @@ function run.keeps_existing_manifest_product_fields_by_matching_id()
 
 	local api: any = {
 		list = function()
-			return { raw_product() }
+			return { read_product() }
 		end,
 		get = mock.never_called 'get',
 		create = mock.never_called 'create',
@@ -94,7 +104,7 @@ function run.reuses_untracked_manifest_key_matching_cloud()
 
 	local api: any = {
 		list = function()
-			return { raw_product() }
+			return { read_product() }
 		end,
 	}
 
@@ -113,7 +123,7 @@ function run.picker_reuses_untracked_key_for_unmatched_import()
 
 	local api: any = {
 		list = function()
-			return { raw_product() }
+			return { read_product() }
 		end,
 	}
 	local function pick(fallback: string, name: string, free: { string }): string
@@ -149,7 +159,7 @@ function run.imports_new_place_into_lock_and_manifest()
 	local resources = empty_resources()
 	local api: any = {
 		list = function()
-			return { raw_place() }
+			return { read_place() }
 		end,
 		get = mock.never_called 'get',
 		create = mock.never_called 'create',

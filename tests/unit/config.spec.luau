@@ -29,12 +29,27 @@ local function with_cloud(responses: { [string]: any }, fn: () -> ()): { call }
 	return calls
 end
 
-function run.from_full_entry_infers_type()
-	expect.eq(config.from_full_entry({ value = {} }).type, 'json')
-	expect.eq(config.from_full_entry({ value = 'x' }).type, 'string')
-	expect.eq(config.from_full_entry({ value = 1.5 }).type, 'number')
-	expect.eq(config.from_full_entry({ value = true }).type, 'boolean')
-	expect.eq(config.from_full_entry({ value = 1, description = '' }).description, nil, 'empty description is unset')
+function run.list_infers_type_from_values()
+	local reads
+	with_cloud({
+		['GET /full'] = {
+			entries = {
+				j = { value = {} },
+				s = { value = 'x' },
+				n = { value = 1.5 },
+				b = { value = true },
+				empty = { value = 1, description = '' },
+			},
+		},
+	}, function()
+		reads = config.list({} :: any, { universe_id = sm.UNIVERSE_ID })
+	end)
+
+	expect.eq(reads.j.type, 'json')
+	expect.eq(reads.s.type, 'string')
+	expect.eq(reads.n.type, 'number')
+	expect.eq(reads.b.type, 'boolean')
+	expect.eq(reads.empty.description, nil, 'empty description is unset')
 end
 
 function run.rejects_unknown_type_and_values()

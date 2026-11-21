@@ -102,26 +102,11 @@ local function place_mirror(input: any): any
 		display_name = input.display_name,
 		description = input.description,
 		server_size = input.server_size,
-		social_slot_type = input.social_slot_type,
-		custom_social_slots_count = input.custom_social_slots_count,
-		allow_copying = input.allow_copying,
-		allowed_gear_types = input.allowed_gear_types,
-		is_all_genres_allowed = input.is_all_genres_allowed,
 	}
 end
 local function place_echo(_prev: any, patch: any): any
 	local out: any = {}
-	for _, field in
-		{
-			'display_name',
-			'description',
-			'server_size',
-			'social_slot_type',
-			'custom_social_slots_count',
-			'allow_copying',
-			'is_all_genres_allowed',
-		}
-	do
+	for _, field in { 'display_name', 'description', 'server_size' } do
 		if patch[field] ~= nil then out[field] = patch[field] end
 	end
 	if patch.asset_file then out.asset_file = { hash = patch.asset_file.hash, assetid = PLACE_ID } end
@@ -182,8 +167,19 @@ local function make_universe_api(cloud_input: { [string]: any }?, never: { strin
 	return make_api(universe_res, universe_mirror(make_universe_input(cloud_input)), universe_echo, never)
 end
 
+-- configuration sub-resources (place_configuration / universe_configuration): cloud mirrors the given fields
+local function make_configuration_api(res: any, cloud_input: { [string]: any }?, never: { string }?): any
+	return make_api(res, table.clone(cloud_input or {}), universe_echo, never)
+end
+local function make_configuration(input: { [string]: any }, lock: any?, path: any?): any
+	return { key = 'place.configuration', input = tbl.applied({ conflicts = {} }, input), lock = lock, path = path }
+end
+
 -- module
 return table.freeze {
+	make_configuration_api = make_configuration_api,
+	make_configuration = make_configuration,
+
 	UNIVERSE_ID = UNIVERSE_ID,
 	PRODUCT_ID = PRODUCT_ID,
 	ICON_ID = ICON_ID,

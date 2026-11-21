@@ -11,7 +11,6 @@ export type config_data = {
 	description: string?, -- read-only: open cloud drafts only take values, set it in creator hub
 }
 export type config_input = config_data & { conflicts: { [string]: any } }
--- `key` mirrors the lock map key: filled on parse, never written to the file
 export type config_lock = { universe_id: number, key: string, input: config_data }
 
 -- values never live in ro-sync: creation publishes the type's zero value, tuning happens in creator hub/game
@@ -103,7 +102,6 @@ local function from_full_entry(entry: full_entry): config_data
 	}
 end
 
--- 404 means the universe never published a config / has no draft
 local function try_read<R>(
 	endpoint: cloud.endpoint<universe_path, nil, nil, R, any>,
 	session: session,
@@ -112,6 +110,7 @@ local function try_read<R>(
 	local ok, result = pcall(http.call, endpoint, session, universe, nil)
 	if ok then return result end
 
+	-- 404 means the universe never published a config / has no draft
 	base.check(string.match(tostring(result), '^404') ~= nil, tostring(result))
 	return nil
 end
@@ -141,12 +140,10 @@ local function get(session: session, lock: config_lock): config_data
 	return from_full_entry(entry)
 end
 
--- raises so the reason is logged; returning an err would only show a bare push failure
 local function update(_session: session, lock: config_lock, _patch: config_input): (config_data, string?)
 	error(`config {lock.key}: type/description are read-only through open cloud, change them in creator hub`, 0)
 end
 
--- adopts an existing key, otherwise publishes it with the type's zero value
 local function create(session: session, ctx: { universe_id: number }, input: config_input, key: string): config_lock
 	local universe = { universe_id = ctx.universe_id }
 	local entry = entries_of(session, universe)[key]
@@ -180,8 +177,6 @@ return table.freeze {
 
 	diff = diff,
 	mask = base.mask,
-
-	from_full_entry = from_full_entry,
 
 	list = list,
 	get = get,

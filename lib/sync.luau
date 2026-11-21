@@ -6,9 +6,11 @@ local config = require './resources/config'
 local icon = require './resources/icon'
 local pass = require './resources/pass'
 local place = require './resources/place'
+local place_configuration = require './resources/place_configuration'
 local product = require './resources/product'
 local thumbnail = require './resources/thumbnail'
 local universe = require './resources/universe'
+local universe_configuration = require './resources/universe_configuration'
 
 local state = require './state'
 local sync_logger = require './sync_logger'
@@ -51,8 +53,9 @@ local function await_reconcile<Lock>(res: any, resource: resource<Lock>, opts: s
 	if api.validate then api.validate(input) end
 
 	if not prev and not api.create then
-		local path = { universe_id = opts.universe_id }
-		prev = { universe_id = opts.universe_id, input = api.get and api.get(opts.session, path) } :: any
+		-- `path`: identity to baseline from, set by sub-resources (see await_try_reconcile_configuration)
+		local path = (resource :: any).path or { universe_id = opts.universe_id }
+		prev = tbl.applied(path, { input = api.get and api.get(opts.session, path) }) :: any
 	end
 
 	if not prev then
@@ -141,6 +144,21 @@ local function await_try_reconcile<Lock>(res: any, resource: resource<Lock>, ctx
 	if ok then resource.lock = lock end
 end
 
+-- `configuration:` is its own resource (develop api) whose lock nests in the parent's; needs the parent synced first
+local function await_try_reconcile_configuration(res: any, parent: any, ctx: sync_ctx, parent_snapshot: any?)
+	local input, lock = parent.input.configuration, parent.lock
+	if not input or not lock then return end
+
+	local child = {
+		key = `{parent.key}.configuration`,
+		input = input,
+		lock = lock.configuration,
+		path = { universe_id = lock.universe_id, place_id = lock.place_id },
+	}
+	await_try_reconcile(res, child, ctx, parent_snapshot and parent_snapshot.configuration)
+	lock.configuration = child.lock
+end
+
 local function await_try_reconcile_thumbnails(session: base.session, resources: state.resources)
 	local kept = {}
 	for _, resource in resources.thumbnails do
@@ -173,7 +191,10 @@ local function await_reconcile_all(resources: state.resources, opts: sync_opts)
 	local ctx: sync_ctx = table.clone(opts :: any)
 	ctx.universe_id = resources.lock.universe_id
 
-	if resources.universe then await_try_reconcile(universe, resources.universe, ctx, snapshot.universe) end
+	if resources.universe then
+		await_try_reconcile(universe, resources.universe, ctx, snapshot.universe)
+		await_try_reconcile_configuration(universe_configuration, resources.universe, ctx, snapshot.universe)
+	end
 	if resources.icon then await_try_reconcile(icon, resources.icon, ctx, snapshot.icon) end
 	if resources.manifest.thumbnails then await_try_reconcile_thumbnails(ctx.session, resources) end
 
@@ -185,6 +206,7 @@ local function await_reconcile_all(resources: state.resources, opts: sync_opts)
 	end
 	for _, resource in resources.places do
 		await_try_reconcile(place, resource, ctx, snapshot.places[resource.key])
+		await_try_reconcile_configuration(place_configuration, resource, ctx, snapshot.places[resource.key])
 	end
 	for _, resource in resources.passes do
 		await_try_reconcile(pass, resource, ctx, snapshot.passes[resource.key])

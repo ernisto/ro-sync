@@ -7,6 +7,7 @@ local product = require '@lib/resources/product'
 local rekey = require '@lib/rekey'
 local state = require '@lib/state'
 local sync_logger = require '@lib/sync_logger'
+local tbl = require '@utils/tbl'
 local universe = require '@lib/resources/universe'
 
 type universe_api = typeof(universe)
@@ -59,30 +60,30 @@ local function await_import_products(
 	end
 
 	local function apply(key: string, read: any)
+		local data = tbl.subtraction(read, { universe_id = true, product_id = true })
 		resources.lock.products[key] = {
 			universe_id = read.universe_id,
 			product_id = read.product_id,
-			input = read,
+			input = data,
 		}
 
 		local input = resources.manifest.products[key]
 		resources.manifest.products[key] = if input
-			then state.mask_product(read, input)
+			then state.mask_product(data, input)
 			else { name = read.name, conflicts = {} }
 
 		sync_logger.imported(key, read.product_id)
 	end
 
 	local pendings: { pending } = {}
-	for _, raw in api.list(session, { universe_id = universe_id }) do
-		local read = product.from_api_result(raw)
-		local key = assetid_keys[raw.productId]
+	for _, read in api.list(session, { universe_id = universe_id }) do
+		local key = assetid_keys[read.product_id]
 			or rekey.matching_key(resources.manifest.products, resources.lock.products, read, product.diff)
 
 		if key then
 			apply(key, read)
 		else
-			table.insert(pendings, { read = read, fallback = `product_{raw.productId}`, name = raw.name })
+			table.insert(pendings, { read = read, fallback = `product_{read.product_id}`, name = read.name })
 		end
 	end
 	assign_pending(pendings, resources.manifest.products, resources.lock.products, pick, apply)
@@ -101,23 +102,23 @@ local function await_import_passes(
 	end
 
 	local function apply(key: string, read: any)
+		local data = tbl.subtraction(read, { universe_id = true, pass_id = true })
 		resources.lock.passes[key] = {
 			universe_id = universe_id,
 			pass_id = read.pass_id,
-			input = read,
+			input = data,
 		}
 
 		local input = resources.manifest.passes[key]
 		resources.manifest.passes[key] = if input
-			then state.mask_pass(read :: any, input)
+			then state.mask_pass(data :: any, input)
 			else { name = read.name, conflicts = {} }
 
 		sync_logger.imported(key, read.pass_id)
 	end
 
 	local pendings: { pending } = {}
-	for _, raw in api.list(session, { universe_id = universe_id }) do
-		local read = pass.from_api_result(raw, universe_id)
+	for _, read in api.list(session, { universe_id = universe_id }) do
 		local key = passid_keys[read.pass_id]
 			or rekey.matching_key(resources.manifest.passes, resources.lock.passes, read, pass.diff)
 
@@ -142,36 +143,31 @@ local function await_import_places(
 		placeid_keys[place_lock.place_id] = key
 	end
 
-	local function apply(key: string, raw: any)
-		local read = place.from_place_config(raw)
+	local function apply(key: string, read: any)
+		local data = tbl.subtraction(read, { universe_id = true, place_id = true })
 		resources.lock.places[key] = {
-			universe_id = universe_id,
-			place_id = raw.id,
-			input = read,
+			universe_id = read.universe_id,
+			place_id = read.place_id,
+			input = data,
 		}
 
 		local input = resources.manifest.places[key]
 		resources.manifest.places[key] = if input
-			then state.mask_place(read, input)
-			else { display_name = raw.name, conflicts = {} }
+			then state.mask_place(data, input)
+			else { display_name = read.display_name, conflicts = {} }
 
-		sync_logger.imported(key, raw.id)
+		sync_logger.imported(key, read.place_id)
 	end
 
 	local pendings: { pending } = {}
-	for _, raw in api.list(session, { universe_id = universe_id }) do
-		local key = placeid_keys[raw.id]
-			or rekey.matching_key(
-				resources.manifest.places,
-				resources.lock.places,
-				place.from_place_config(raw),
-				place.diff
-			)
+	for _, read in api.list(session, { universe_id = universe_id }) do
+		local key = placeid_keys[read.place_id]
+			or rekey.matching_key(resources.manifest.places, resources.lock.places, read, place.diff)
 
 		if key then
-			apply(key, raw)
+			apply(key, read)
 		else
-			table.insert(pendings, { read = raw, fallback = `place_{raw.id}`, name = raw.name })
+			table.insert(pendings, { read = read, fallback = `place_{read.place_id}`, name = read.display_name })
 		end
 	end
 	assign_pending(pendings, resources.manifest.places, resources.lock.places, pick, apply)

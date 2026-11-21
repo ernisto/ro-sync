@@ -1,5 +1,6 @@
 local expect = require '@test/expect'
 local fs = require '@lune/fs'
+local mock = require '@test/mock'
 local product = require '@lib/resources/product'
 local serde = require '@lune/serde'
 local sm = require '@test/sync_mock'
@@ -120,11 +121,14 @@ function run.create_with_icon_writes_assetid_and_hash_to_lock()
 	fs.writeFile(TMP_LOCK, `version: 1\nuniverse_id: {sm.UNIVERSE_ID}\nproducts: \{\{}}\n`)
 
 	local api = sm.make_product_api(nil, { 'get', 'update' })
-	api.create = function(_, _, data)
-		return product.to_product_lock(
-			sm.make_product_read { icon_file = { assetid = sm.ICON_ID }, name = 'Pack' },
-			data
-		)
+	api.create = function(session, ctx, data)
+		local raw =
+			{ universeId = sm.UNIVERSE_ID, productId = sm.PRODUCT_ID, iconImageAssetId = sm.ICON_ID, name = 'Pack' }
+		return mock.with_http(function()
+			return raw
+		end, function()
+			return product.create(session, ctx, data)
+		end)
 	end
 	run_sync(api, OPTS)
 
@@ -208,6 +212,35 @@ function run.universe_socials_devices_round_trip()
 	)
 	expect.eq(reparsed.desktop, true) -- survived flat → nested → flat
 	expect.eq(assert(reparsed.discord, 'reparsed universe should have discord').uri, 'https://discord.gg/x')
+end
+
+function run.configuration_sub_tables_round_trip()
+	local source = table.concat({
+		'version: 1',
+		'owner:',
+		'  group: 1',
+		'universe:',
+		'  configuration:',
+		'    avatar_type: 1',
+		'    avatar_min_scales:',
+		'      height: 0.9',
+		'places:',
+		'  start:',
+		'    display_name: Start',
+		'    configuration:',
+		'      allow_copying: true',
+	}, '\n')
+
+	local function check(manifest: any)
+		local universe_config = assert(manifest.universe.configuration, 'universe configuration')
+		expect.eq(universe_config.avatar_type, 1)
+		expect.eq(universe_config.avatar_min_scales.height, 0.9)
+		expect.eq(assert(manifest.places.start.configuration, 'place configuration').allow_copying, true)
+	end
+
+	local manifest = state.parse_manifest(buffer.fromstring(source))
+	check(manifest)
+	check(state.parse_manifest(buffer.fromstring(state.encode_manifest(manifest))))
 end
 
 return run

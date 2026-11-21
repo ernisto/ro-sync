@@ -169,15 +169,23 @@ local function create(session: session, game: universe_path, data: product_input
 	return to_product_lock(result, data)
 end
 
-local function get(session: session, product: product_path): product_read
-	return from_api_result(http.call(cloud.product.get, session, product, nil))
+-- cloud state for the lock input: identity lives on the lock itself
+local function get(session: session, product: product_path): product_data
+	local read = from_api_result(http.call(cloud.product.get, session, product, nil))
+	return tbl.subtraction(read, { universe_id = true, product_id = true }) :: any
 end
 
-local function list(session: session, universe: universe_path): { cloud.product_data }
-	return pages.collect_async(function(token)
+local function list(session: session, universe: universe_path): { product_read }
+	local raws = pages.collect_async(function(token)
 		local page = http.call(cloud.product.list, session, universe, nil, { pageToken = token })
 		return page.developerProducts, page.nextPageToken
 	end)
+
+	local reads = {}
+	for _, raw in raws do
+		table.insert(reads, from_api_result(raw))
+	end
+	return reads
 end
 
 -- module
@@ -191,10 +199,6 @@ return table.freeze {
 
 	diff = diff,
 	mask = base.mask,
-
-	from_api_result = from_api_result,
-	to_api_params = to_api_params,
-	to_product_lock = to_product_lock,
 
 	create = create,
 	get = get,

@@ -24,5 +24,20 @@ local function never_called(msg: string?): () -> never
 	end)
 end
 
+-- runs `body` with `http.call` answered by `respond`, restoring it after (also on error)
+local function with_http<T>(respond: (endpoint: any, path: any, body: any) -> any, body: () -> T): T
+	local http = require '@utils/http'
+	local real_call = http.call
+
+	http.call = function(endpoint: any, _session, path, payload): any
+		return respond(endpoint, path, payload)
+	end :: any
+
+	local ok, result = pcall(body)
+	http.call = real_call
+	if not ok then error(result, 0) end
+	return result
+end
+
 -- module
-return table.freeze { fn = fn, never_called = never_called }
+return table.freeze { fn = fn, never_called = never_called, with_http = with_http }

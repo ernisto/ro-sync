@@ -1,22 +1,28 @@
 local expect = require '@test/expect'
+local mock = require '@test/mock'
 local pass = require '@lib/resources/pass'
 local sm = require '@test/sync_mock'
 local state = require '@lib/state'
 
 local run = {}
 
-function run.from_api_result_maps_fields()
-	local read = pass.from_api_result({
+function run.get_maps_fields()
+	local raw = {
 		name = 'VIP',
 		gamePassId = 7,
 		iconAssetId = 9,
 		isForSale = true,
 		description = 'd',
 		priceInformation = { defaultPriceInRobux = 50, enabledFeatures = { 'RegionalPricing' } },
-	}, sm.UNIVERSE_ID)
+	}
+	local read: any = mock.with_http(function()
+		return raw
+	end, function()
+		return pass.get(nil :: any, { universe_id = sm.UNIVERSE_ID, pass_id = 7 })
+	end)
 
-	expect.eq(read.pass_id, 7)
-	expect.eq(read.universe_id, sm.UNIVERSE_ID)
+	expect.eq(read.pass_id, nil, 'identity lives on the lock, not in its input')
+	expect.eq(read.universe_id, nil, 'identity lives on the lock, not in its input')
 	expect.eq(read.icon_file.assetid, 9)
 	expect.eq(read.price, 50)
 	expect.eq(read.regional_pricing, true)

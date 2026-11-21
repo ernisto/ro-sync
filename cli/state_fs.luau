@@ -1,6 +1,7 @@
 local fs = require '@lune/fs'
 local serde = require '@lune/serde'
 local state = require '@lib/state'
+local tbl = require '@utils/tbl'
 local yaml = require '@utils/yaml'
 
 local MANIFEST_HEADER =
@@ -45,6 +46,10 @@ local function load_lock(lock_path: string): state.lock
 	return state.parse_lock(raw_lock)
 end
 
+local function configuration_of(sub_lock: any): any
+	return sub_lock and tbl.applied(sub_lock.input, { conflicts = {} })
+end
+
 local function resources_from_lock(lock: state.lock, owner: state.owner): state.resources
 	local manifest: state.manifest = state.create_input(owner)
 
@@ -61,6 +66,7 @@ local function resources_from_lock(lock: state.lock, owner: state.owner): state.
 	for key, place in lock.places do
 		local input: any = table.clone(place.input)
 		input.asset_file, input.conflicts = nil, {}
+		input.configuration = configuration_of(place.configuration)
 		manifest.places[key] = input
 	end
 	for key, config in lock.configs do
@@ -71,6 +77,7 @@ local function resources_from_lock(lock: state.lock, owner: state.owner): state.
 	if lock.universe then
 		local input: any = table.clone(lock.universe.input)
 		input.conflicts = {}
+		input.configuration = configuration_of(lock.universe.configuration)
 		manifest.universe = input
 	end
 

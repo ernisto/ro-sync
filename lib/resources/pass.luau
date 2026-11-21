@@ -111,15 +111,23 @@ local function create(session: session, game: universe_path, data: pass_input): 
 	return to_pass_lock(result, data)
 end
 
-local function get(session: session, pass: pass_path): pass_read
-	return from_api_result(http.call(cloud.pass.get, session, pass, nil), pass.universe_id)
+-- cloud state for the lock input: identity lives on the lock itself
+local function get(session: session, pass: pass_path): pass_data
+	local read = from_api_result(http.call(cloud.pass.get, session, pass, nil), pass.universe_id)
+	return tbl.subtraction(read, { universe_id = true, pass_id = true }) :: any
 end
 
-local function list(session: session, universe: universe_path): { any }
-	return pages.collect_async(function(token)
+local function list(session: session, universe: universe_path): { pass_read }
+	local raws = pages.collect_async(function(token)
 		local page = http.call(cloud.pass.list, session, universe, nil, { pageToken = token })
 		return page.gamePasses, page.nextPageToken
 	end)
+
+	local reads = {}
+	for _, raw in raws do
+		table.insert(reads, from_api_result(raw, universe.universe_id))
+	end
+	return reads
 end
 
 -- module
@@ -133,10 +141,6 @@ return table.freeze {
 
 	diff = product.diff,
 	mask = product.mask,
-
-	from_api_result = from_api_result,
-	to_api_params = to_api_params,
-	to_pass_lock = to_pass_lock,
 
 	create = create,
 	get = get,

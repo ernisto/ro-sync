@@ -1,5 +1,6 @@
 local cloud = require '@pkg/ro_cloud'
 local serde = require '@lune/serde'
+local tbl = require '@utils/tbl'
 
 -- types
 export type session = cloud.session
@@ -8,6 +9,9 @@ export type input_file = { hash: string, content: buffer, assetid: nil }
 export type lock_file = { hash: string?, content: nil, assetid: number? }
 export type api_file = { hash: nil, content: nil, assetid: number }
 export type file = input_file | lock_file | api_file
+
+export type field_spec = { any }
+export type field_map = { [string]: field_spec }
 
 -- validation
 local function check(cond: boolean, msg: string)
@@ -54,33 +58,65 @@ local function validate_owner(owner: any, label: string)
 	if has_group then req(owner.group, 'number', `{label}.group`) end
 end
 
-local function flatten_group(
-	input: any,
-	group: string,
-	fields: { [string]: true },
-	validate: (any, string) -> (),
-	label: string
-)
+local function flatten_group(input: any, group: string, fields: { [string]: true }, label: string)
 	local nested = input[group]
 	if nested == nil then return end
 
 	req(nested, 'table', `{label}.{group}`)
-
 	for field in fields do
-		if nested[field] == nil then continue end
-
-		validate(nested[field], `{label}.{group}.{field}`)
-		input[field] = nested[field]
+		if nested[field] ~= nil then input[field] = nested[field] end
 	end
 	input[group] = nil
 end
 
+local function validate_map(input: { [string]: any }, map: field_map, label: string)
+	for field, spec in map do
+		local value, nested = input[field], spec[3]
+		opt(value, spec[2], `{label}.{field}`)
+		if value == nil or not nested then continue end
+
+		if value[1] == nil then
+			validate_map(value, nested, `{label}.{field}`)
+			continue
+		end
+		for i, entry in value do
+			req(entry, 'table', `{label}.{field}[{i}]`)
+			validate_map(entry, nested, `{label}.{field}[{i}]`)
+		end
+	end
+end
+
+local function parse_mapped(input: any, map: field_map, label: string)
+	req(input, 'table', label)
+	validate_map(input, map, label)
+
+	opt(input.conflicts, 'table', `{label}.conflicts`)
+	input.conflicts = input.conflicts or {}
+end
+
 -- diff
+local function json_of(v: any): string?
+	return if type(v) == 'table' and next(v) == nil then nil else serde.encode('json', v)
+end
+
+local function same(a: any, b: any): boolean
+	if type(a) == 'table' or type(b) == 'table' then return json_of(a) == json_of(b) end
+	return a == b
+end
+
 local function diff_fields(from: { [string]: any }, to: { [string]: any }, fields: { string }): { [string]: any }
+	-- a field missing on the receiving side (e.g. no hash to compare) counts as no change
 	local out = {}
 	for _, field in fields do
-		-- a field missing on the receiving side (e.g. no hash to compare) counts as no change
-		if to[field] ~= nil and from[field] ~= to[field] then out[field] = to[field] end
+		if to[field] ~= nil and not same(from[field], to[field]) then out[field] = to[field] end
+	end
+	return out
+end
+
+local function diff_map(from: { [string]: any }, to: { [string]: any }, map: field_map): { [string]: any }
+	local out = {}
+	for field in map do
+		if to[field] ~= nil and not same(from[field], to[field]) then out[field] = to[field] end
 	end
 	return out
 end
@@ -91,18 +127,46 @@ local function diff_file(from: file, to: file): file?
 	return if to_hash ~= nil and from_hash ~= to_hash then to else nil
 end
 
--- import keeps every user-written field (like sync); the cloud read only lands in the lock
 local function mask<T>(_read: { [string]: any }, input: T & { conflicts: { [string]: any }? }): T
 	local out: any = table.clone(input :: any)
 	out.conflicts = (input :: any).conflicts or {}
 	return out
 end
 
-local function json_of(v: any): string?
-	return if type(v) == 'table' and next(v) == nil then nil else serde.encode('json', v)
+-- api mapping
+local function remap(value: any, map: field_map, to_api: boolean): any
+	if type(value) ~= 'table' then return value end
+
+	local out = {}
+	if value[1] ~= nil then
+		for i, entry in value do
+			out[i] = remap(entry, map, to_api)
+		end
+		return out
+	end
+
+	for field, spec in map do
+		local api, nested = spec[1], spec[3]
+		local v = value[if to_api then field else api]
+		out[if to_api then api else field] = if nested then remap(v, nested, to_api) else v
+	end
+	return out
+end
+
+local function from_api(map: field_map, data: any): { [string]: any }
+	return remap(data, map, false)
+end
+
+local function to_api(map: field_map, patch: { [string]: any }): any
+	return remap(patch, map, true)
 end
 
 -- encoding
+local function encode_mapped<T>(input: T & { conflicts: { [string]: any } }): T?
+	local out = tbl.subtraction(input :: any, { conflicts = next(input.conflicts) == nil or nil })
+	return if next(out) == nil then nil else out
+end
+
 local function lock_file_of(f: file?): lock_file?
 	return if f then { hash = f.hash, assetid = f.assetid } else nil
 end
@@ -124,12 +188,20 @@ return table.freeze {
 	list = list,
 	validate_owner = validate_owner,
 	flatten_group = flatten_group,
+	validate_map = validate_map,
+	parse_mapped = parse_mapped,
 
+	same = same,
 	diff_fields = diff_fields,
+	diff_map = diff_map,
 	diff_file = diff_file,
 	mask = mask,
 	json_of = json_of,
 
+	from_api = from_api,
+	to_api = to_api,
+
 	lock_file_of = lock_file_of,
 	encode_map = encode_map,
+	encode_mapped = encode_mapped,
 }

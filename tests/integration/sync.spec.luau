@@ -25,9 +25,10 @@ end
 local run = {}
 
 function run.should_authenticate_and_fetch_product()
-	local product = get_product()
-	expect.eq(product.product_id, resources.lock.products.money_pack1.product_id)
-	expect.eq(product.universe_id, resources.lock.products.money_pack1.universe_id)
+	local product: any = get_product()
+	expect.truthy(product.name, 'fetched the product data')
+	expect.eq(product.product_id, nil, 'identity lives on the lock, not in its input')
+	expect.eq(product.universe_id, nil, 'identity lives on the lock, not in its input')
 end
 
 function run.should_fetch_name_matching_manifest()
