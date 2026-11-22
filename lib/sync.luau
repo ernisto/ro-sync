@@ -217,15 +217,10 @@ end
 
 local function await_sync_assets(resources: state.resources, opts: sync_opts)
 	local input = resources.manifest.assets
-	if not input or opts.mode == 'dry' then return end
+	if not input or opts.mode ~= 'push' then return end
 
-	local prev = resources.lock.assets or {}
-
-	if opts.mode == 'push' then
-		resources.lock.assets = asset.create(opts.session, resources.manifest.owner, input, prev)
-	else
-		resources.lock.assets = asset.receive(input, prev)
-	end
+	local origin = { universe = resources.lock.universe_id, owner = resources.manifest.owner }
+	resources.lock.assets = asset.create(opts.session, origin, input, resources.lock.assets or {})
 end
 
 local function await_reconcile_all(resources: state.resources, opts: sync_opts)

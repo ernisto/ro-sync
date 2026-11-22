@@ -4,16 +4,17 @@ local glob = require '@utils/glob'
 local roblox = require '@lune/roblox'
 local serde = require '@lune/serde'
 
+local base = require './resources/base'
+
 -- defs
--- paths relative to the glob root, empty once every file is gone; while only staged (no id yet) a stand-in:
--- `uri` (copy in Studio's content dir) or `keyframe_root` (animations: instance names the glob root mirrors in game)
-export type asset_entry = { id: number?, uri: string?, keyframe_root: { string }?, paths: { string } }
+-- `universe`/`owner`: what the asset was uploaded for/as
+export type asset_entry = { asset_id: number, universe: number?, owner: base.owner? }
 export type assets_lock = { [string]: asset_entry } -- keyed by blake3 of the source file (same keys as asphalt.lock.toml)
+-- stand-in of a file without an uploaded asset, never written to the lock:
+-- `uri` (copy in Studio's content dir) or `keyframe_root` (animations: instance names the glob root mirrors in game)
+export type stand_in = { uri: string?, keyframe_root: { string }? }
 export type entry = { path: string, rel: string, hash: string }
 export type kind = { asset_type: string, mime: string }
-
--- `added` holds new uploads ({ id }) or stand-ins ({ uri } / { keyframe_root }); a stand-in never replaces an id
-export type added = { [string]: { id: number?, uri: string?, keyframe_root: { string }? } }
 
 local function kind(asset_type: string, mime: string): kind
 	return table.freeze { asset_type = asset_type, mime = mime }
@@ -85,53 +86,9 @@ local function collect(files: string): { entry }
 	return entries
 end
 
--- index
-local function owner_of_path(lock: assets_lock, rel: string): string?
-	for hash, entry in lock do
-		if table.find(entry.paths, rel) then return hash end
-	end
-	return nil
-end
-
-local function is_uploaded(lock: assets_lock, hash: string): boolean
-	return lock[hash] ~= nil and lock[hash].id ~= nil
-end
-
--- keeps ids of removed files (restoring them reuses the id); a file whose new content has no id yet keeps its old one
-local function build(entries: { entry }, lock: assets_lock, added: added): assets_lock
-	local out: assets_lock = {}
-	for hash, entry in lock do
-		local staged = entry.id == nil
-		out[hash] = {
-			id = entry.id,
-			uri = if staged then entry.uri else nil,
-			keyframe_root = if staged then entry.keyframe_root else nil,
-			paths = {},
-		}
-	end
-
-	for hash, new in added do
-		local keeps_id = out[hash] and out[hash].id and not new.id
-		if not keeps_id then
-			out[hash] = { id = new.id, uri = new.uri, keyframe_root = new.keyframe_root, paths = {} }
-		end
-	end
-
-	for _, entry in entries do
-		local hash = if out[entry.hash] then entry.hash else owner_of_path(lock, entry.rel)
-		if hash then table.insert(out[hash].paths, entry.rel) end
-	end
-	for _, entry in out do
-		table.sort(entry.paths)
-	end
-	return out
-end
-
 -- module
 return table.freeze {
 	extension = extension,
 	kind_of = kind_of,
 	collect = collect,
-	is_uploaded = is_uploaded,
-	build = build,
 }

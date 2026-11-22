@@ -43,7 +43,7 @@
       "additionalProperties": { "$ref": "#/definitions/config" }
     },
     "assets": {
-      "description": "Files uploaded as Roblox assets (images, audio, models, animations, videos), stored in the lock as a tree by path (relative to the glob root, extensions stripped) of `{ asset_id, hash }`: files with an already uploaded hash (unchanged, renamed, duplicated) are never re-uploaded. Owned by `owner`. Transparent png pixels are alpha-bled before upload.",
+      "description": "Files uploaded as Roblox assets (images, audio, models, animations, videos), stored in the lock by content hash (blake3) as `{ asset_id, universe, owner }` (no paths: codegen maps files to assets by hashing them): files with an already uploaded hash (unchanged, renamed, duplicated) are never re-uploaded. Owned by `owner`. Transparent png pixels are alpha-bled before upload.",
       "type": "object",
       "required": ["files"],
       "additionalProperties": false,

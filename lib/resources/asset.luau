@@ -10,7 +10,7 @@ local asset_files = require '../asset_files'
 local base = require './base'
 local sync_logger = require '../sync_logger'
 type entry = asset_files.entry
-type added = asset_files.added
+type stand_in = asset_files.stand_in
 
 -- defs
 -- `animations`: dot path of the game folder mirroring the glob root, e.g. `ReplicatedStorage.Animations`;
@@ -18,6 +18,8 @@ type added = asset_files.added
 export type assets_input = { files: string, animations: string? }
 export type asset_entry = asset_files.asset_entry
 export type assets_lock = asset_files.assets_lock
+export type stand_ins = { [string]: stand_in }
+export type origin = { universe: number, owner: base.owner }
 
 local DESCRIPTION = 'Uploaded by ro-sync'
 local MAX_DISPLAY_NAME = 50
@@ -37,21 +39,9 @@ local function parse_lock(t: any, label: string): assets_lock
 	for hash, entry in t do
 		base.req(hash, 'string', `{label} key`)
 		base.req(entry, 'table', `{label}.{hash}`)
-		base.opt(entry.id, 'number', `{label}.{hash}.id`)
-		base.opt(entry.uri, 'string', `{label}.{hash}.uri`)
-		base.opt(entry.keyframe_root, 'table', `{label}.{hash}.keyframe_root`)
-		for i, name in entry.keyframe_root or {} do
-			base.req(name, 'string', `{label}.{hash}.keyframe_root[{i}]`)
-		end
-
-		local has_stand_in = entry.uri ~= nil or entry.keyframe_root ~= nil
-		base.check(entry.id ~= nil or has_stand_in, `{label}.{hash} needs id, uri or keyframe_root`)
-
-		entry.paths = entry.paths or {}
-		base.req(entry.paths, 'table', `{label}.{hash}.paths`)
-		for i, path in entry.paths do
-			base.req(path, 'string', `{label}.{hash}.paths[{i}]`)
-		end
+		base.req(entry.asset_id, 'number', `{label}.{hash}.asset_id`)
+		base.opt(entry.universe, 'number', `{label}.{hash}.universe`)
+		if entry.owner ~= nil then base.validate_owner(entry.owner, `{label}.{hash}.owner`) end
 	end
 	return t
 end
@@ -121,27 +111,27 @@ local function await_upload(session: session, owner: base.owner, entry: entry): 
 	return await_operation(session, http.call(CREATE, session, nil, upload :: any))
 end
 
--- uploads files without an id yet; assets are a collection, so create takes and returns the whole lock
-local function create(session: session, owner: base.owner, input: assets_input, lock: assets_lock): assets_lock
+-- uploads files without an asset yet; assets are a collection, so create takes and returns the whole lock
+-- entries of removed files stay, restoring a file reuses its asset
+local function create(session: session, origin: origin, input: assets_input, lock: assets_lock): assets_lock
 	local entries = asset_files.collect(input.files)
-	local added: added = {}
+	local out = table.clone(lock)
+	local uploaded = 0
 
 	for _, entry in entries do
-		if asset_files.is_uploaded(lock, entry.hash) or added[entry.hash] then continue end
+		if out[entry.hash] then continue end
 
 		sync_logger.creation(entry.path)
-		local ok, id = ctx_log.try(await_upload, session, owner, entry)
-		if ok then added[entry.hash] = { id = id } end
+		local ok, id = ctx_log.try(await_upload, session, origin.owner, entry)
+		if ok then
+			out[entry.hash] = { asset_id = id, universe = origin.universe, owner = origin.owner }
+			uploaded += 1
+		end
 		sync_logger.creation_result(ok)
 	end
 
-	if next(added) == nil then sync_logger.noop(`{#entries} assets`) end
-	return asset_files.build(entries, lock, added)
-end
-
--- reindexes moved/removed files, uploads nothing
-local function receive(input: assets_input, lock: assets_lock): assets_lock
-	return asset_files.build(asset_files.collect(input.files), lock, {})
+	if uploaded == 0 then sync_logger.noop(`{#entries} assets`) end
+	return out
 end
 
 -- stage
@@ -154,9 +144,9 @@ end
 
 -- stand-ins for files without an uploaded id, they only resolve inside Studio:
 -- animations point at their copy under `input.animations`, other files are copied into Studio's content dir
-local function stage(input: assets_input, lock: assets_lock, content_dir: string): assets_lock
+local function stage(input: assets_input, lock: assets_lock, content_dir: string): stand_ins
 	local entries = asset_files.collect(input.files)
-	local added: added = {}
+	local staged: stand_ins = {}
 
 	local dir = `{content_dir}/ro-sync`
 	if not fs.isDir(dir) then fs.writeDir(dir) end
@@ -164,11 +154,11 @@ local function stage(input: assets_input, lock: assets_lock, content_dir: string
 	local keyframe_root = if input.animations then string.split(input.animations, '.') else nil
 
 	for _, entry in entries do
-		if asset_files.is_uploaded(lock, entry.hash) then continue end
+		if lock[entry.hash] or staged[entry.hash] then continue end
 
 		if is_animation(entry) then
 			if keyframe_root then
-				added[entry.hash] = { keyframe_root = keyframe_root }
+				staged[entry.hash] = { keyframe_root = keyframe_root }
 			else
 				ctx_log.warn(`{entry.path} is an animation, set assets.animations to stage it`)
 			end
@@ -177,11 +167,11 @@ local function stage(input: assets_input, lock: assets_lock, content_dir: string
 
 		local name = `{entry.hash}.{asset_files.extension(entry.path)}`
 		fs.copy(entry.path, `{dir}/{name}`, true)
-		added[entry.hash] = { uri = `rbxasset://ro-sync/{name}` }
+		staged[entry.hash] = { uri = `rbxasset://ro-sync/{name}` }
 	end
 
 	sync_logger.noop(`staged {#entries} assets`)
-	return asset_files.build(entries, lock, added)
+	return staged
 end
 
 -- module
@@ -190,7 +180,6 @@ return table.freeze {
 	parse_lock = parse_lock,
 
 	stage = stage,
-	receive = receive,
 
 	create = create,
 	get = base.unsupported 'assets cant be read back from open cloud, the lock is their source',

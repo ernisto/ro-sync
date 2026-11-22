@@ -74,20 +74,27 @@ if manifest then
 	stage_each(pass, manifest.passes, lock.passes)
 end
 
--- assets not uploaded yet point at local copies in Studio's content dir
-local assets_input = manifest and manifest.assets
+-- files without an uploaded asset point at local copies in Studio's content dir
+local function resolve_assets(input: asset.assets_input): codegen.asset_files
+	local uploaded = lock.assets or {}
+	local entries = asset_files.collect(input.files)
+	local staged = {}
+	for _, entry in entries do
+		if uploaded[entry.hash] then continue end
 
-if assets_input then
-	local assets = lock.assets or {}
-	local needs_stage = false
-	for _, entry in asset_files.collect(assets_input.files) do
-		needs_stage = needs_stage or not asset_files.is_uploaded(assets, entry.hash)
+		staged = asset.stage(input, uploaded, studio.content_dir())
+		break
 	end
 
-	if needs_stage then lock.assets = asset.stage(assets_input, assets, studio.content_dir()) end
+	local out: codegen.asset_files = {}
+	for _, entry in entries do
+		out[entry.rel] = uploaded[entry.hash] or staged[entry.hash]
+	end
+	return out
 end
 
-local code = codegen.generate(lock)
+local assets_input = manifest and manifest.assets
+local code = codegen.generate(lock, assets_input and resolve_assets(assets_input))
 if fs.isFile(OUTPUT) and fs.readFile(OUTPUT) == code then return process.exit(0) end
 
 local dir = string.match(OUTPUT, '^(.*)/[^/]*$')

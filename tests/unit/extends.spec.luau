@@ -6,7 +6,7 @@ local state = require '@lib/state'
 local state_fs = require '@cli/state_fs'
 
 local TMP = 'tests/unit/tmp_extends'
-local ASSETS: any = { abc = { id = 12, paths = { 'ui/btn.png' } } }
+local ASSETS: any = { abc = { asset_id = 12, universe = 7, owner = { group = 5 } } }
 
 local function lock_with(extends: string): state.lock
 	return state.parse_lock(buffer.fromstring(`version: 1\nuniverse_id: 7\nextends: {extends}\n`))
@@ -33,8 +33,8 @@ function run.file_extends_owns_assets()
 	state_fs.await_load_extends(reloaded)
 	fs.removeDir(TMP)
 
-	expect.eq(string.find(own, 'ui/btn'), nil, 'assets are not duplicated into the extending state')
-	expect.eq((reloaded.assets :: any).abc.id, 12)
+	expect.eq(string.find(own, 'asset_id'), nil, 'assets are not duplicated into the extending state')
+	expect.eq((reloaded.assets :: any).abc.asset_id, 12)
 end
 
 function run.rbxstore_extends_reads_and_writes_entry()
@@ -62,7 +62,7 @@ function run.rbxstore_extends_reads_and_writes_entry()
 	expect.eq(calls[1].path.entry_id, 'assets')
 	expect.eq(calls[2].method, 'PATCH')
 	expect.eq(calls[2].query.allowMissing, true)
-	expect.eq(calls[2].body.value.assets.abc.id, 12)
+	expect.eq(calls[2].body.value.assets.abc.asset_id, 12)
 end
 
 function run.extends_any_field_and_keeps_fields_owned_by_others()
