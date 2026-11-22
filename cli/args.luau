@@ -14,7 +14,14 @@ local api_key = cli.str('api-key', {
 	help = 'Open Cloud API key (default: $API_KEY)',
 }) or env.is_set 'API_KEY' and env.secret.string 'API_KEY' or nil
 
+-- `--flag` alone or `--flag FILE`: presence and its files
+local function optional_files(name: string, opts: any): (boolean, { string })
+	local files = cli.list(name, opts)
+	return files ~= nil or cli.bool(name), files or {}
+end
+
 return table.freeze {
+	optional_files = optional_files,
 	API_KEY = api_key,
 	AUTO_ACCEPT = auto_accept,
 	INTERACTIVE = not env.is_set 'CI',

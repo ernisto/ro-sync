@@ -39,7 +39,9 @@ Global flags (`cli/args.luau`): `--cache` (lock file, default `cloud-state.yml`)
 
 `sync [FILES...]`: manifests (default `cloud.yml`, extra files merge into the first). Flags: `--push` (cloud is only updated when present), `--pull [FILE]` (fetch cloud before reconciling; FILE gets the cloud version, without it only the cache updates), `--pull-new [FILE]` (import every cloud resource), `--resolve-to cloud|local` (conflict winner), `--dry` (report only: lock, manifest and files untouched). `--push`/`--dry` map to one `sync_mode` (`lib/sync.luau`; none = `receive`) and exclude each other.
 
-`codegen [FILE]` (default `cloud.yml`, skipped if missing): assets without an uploaded id are copied into Studio's `content/ro-sync` and emitted as `rbxasset://` uris; places/products/passes are emitted as `{ place_id|product_id|pass_id, data }` (identity never inside `data`, staged ones get ids -1, -2, ...); the lock file is not written.
+`codegen [FILE]` (default `cloud.yml`, skipped if missing): assets are resolved by hashing the manifest's files against the lock (`{ asset_id, universe, owner }` per hash, no paths); files without an uploaded asset are copied into Studio's `content/ro-sync` and emitted as `rbxasset://` uris; places/products/passes are emitted as `{ place_id|product_id|pass_id, data }` (identity never inside `data`, staged ones get ids -1, -2, ...); the lock file is not written.
+
+`state upload` / `state download`: move a `--cache` state to/from an Open Cloud data store entry. `upload --store NAME --key KEY [--scope S] [--universe ID] [--ref [FILE]]` writes the state file's content to the entry (refuses states that already `extends`); `--ref FILE` writes a state `{ version, universe_id, extends: { rbxstore } }` referencing it, bare `--ref` replaces the uploaded state with it. `download [--content [FILE]]` reads the entry the state's `extends.rbxstore` names, overlays the state's own fields (minus `extends`) and prints it; `--content FILE` writes it there, bare `--content` replaces the referencing state.
 
 ## Architecture
 

@@ -45,6 +45,20 @@ local COMMANDS = table.freeze {
 		help = 'Run a Luau script against the place',
 	},
 	{
+		words = { 'state', 'upload' },
+		run = function()
+			return require '@cli/commands/upload_state'
+		end,
+		help = 'Upload the state file to a data store entry, --ref writes a state referencing it',
+	},
+	{
+		words = { 'state', 'download' },
+		run = function()
+			return require '@cli/commands/download_state'
+		end,
+		help = 'Download the data store entry a state file references, --content writes it',
+	},
+	{
 		words = { 'codegen' },
 		run = function()
 			return require '@cli/commands/codegen'

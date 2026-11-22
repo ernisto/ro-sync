@@ -79,6 +79,22 @@ local function rbxstore_of(extends: state.extends): state.rbxstore
 	return extends.rbxstore or error 'extends needs file or rbxstore'
 end
 
+-- nil when the entry doesnt exist yet
+local function await_read_store(lock: state.lock, store: state.rbxstore, session: cloud.session?): any
+	local path = store_path(lock, store)
+	local ok, entry =
+		pcall(http.call, cloud.data_store.get_entry, session or error 'rbxstore needs a session', path, nil)
+	if ok then return entry.value end
+	if string.match(tostring(entry), '^404') then return nil end
+	error(entry, 0)
+end
+
+local function await_write_store(lock: state.lock, store: state.rbxstore, value: any, session: cloud.session?)
+	local path = store_path(lock, store)
+	local session_ = session or error 'rbxstore needs a session'
+	http.call(cloud.data_store.update_entry, session_, path, { value = value }, { allowMissing = true })
+end
+
 local function await_read_extension(
 	lock: state.lock,
 	extends: state.extends,
@@ -89,12 +105,7 @@ local function await_read_extension(
 		return if content then serde.decode('yaml', content) else {}
 	end
 
-	local path = store_path(lock, rbxstore_of(extends))
-	local ok, entry =
-		pcall(http.call, cloud.data_store.get_entry, session or error 'rbxstore needs a session', path, nil)
-	if ok then return entry.value end
-	if string.match(tostring(entry), '^404') then return {} end
-	error(entry, 0)
+	return await_read_store(lock, rbxstore_of(extends), session) or {}
 end
 
 local function await_load_extends(lock: state.lock, session: cloud.session?)
@@ -126,9 +137,7 @@ local function await_save_lock(lock: state.lock, lock_path: string, session: clo
 	if extends.file then
 		fs.writeFile(extends.file, yaml.encode(merged))
 	else
-		local path = store_path(lock, rbxstore_of(extends))
-		local session_ = session or error 'rbxstore needs a session'
-		http.call(cloud.data_store.update_entry, session_, path, { value = merged }, { allowMissing = true })
+		await_write_store(lock, rbxstore_of(extends), merged, session)
 	end
 	fs.writeFile(lock_path, yaml.encode(own))
 end
@@ -230,5 +239,7 @@ return table.freeze {
 	save_resources = save_resources,
 	save_manifest = save_manifest,
 	await_load_extends = await_load_extends,
+	await_read_store = await_read_store,
+	await_write_store = await_write_store,
 	resolve_file = resolve_file,
 }

@@ -20,11 +20,7 @@ local INTERACTIVE = args.INTERACTIVE
 
 local API_KEY = args.API_KEY
 
--- `--flag` alone or `--flag FILE`: presence and its files
-local function optional_files(name: string, opts: any): (boolean, { string })
-	local files = cli.list(name, opts)
-	return files ~= nil or cli.bool(name), files or {}
-end
+local optional_files = args.optional_files
 
 -- args parse before this spec exists, so `--push a.yml` swallows the file as a value; fold it back in
 local MODE = 'Mode Options'
