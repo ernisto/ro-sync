@@ -3,6 +3,15 @@ on:
   workflow_dispatch:
   release:
     types: [published]
+  # dev-release.yml: creates `tag` as a pre-release once checks pass
+  workflow_call:
+    inputs:
+      tag:
+        type: string
+        required: true
+
+env:
+  TAG: ${{ inputs.tag || github.event.release.tag_name }}
 
 permissions:
   id-token: write # Required for OIDC
@@ -26,6 +35,8 @@ jobs:
 
       - name: Sync version
         run: lute run scripts/bump_version
+        env:
+          RELEASE_TAG: ${{ env.TAG }}
 
       - uses: axiom-co/setup-pesde@b690699ace34169731b6b2a1c93b2008472038a7
         with:
@@ -38,7 +49,7 @@ jobs:
       - run: pesde publish -y
 
   publish_binaries:
-    if: github.event_name == 'release'
+    if: inputs.tag || github.event_name == 'release'
     runs-on: ubuntu-latest
     needs: [check]
     permissions:
@@ -61,10 +72,16 @@ jobs:
             ext=""; [[ $target == windows-* ]] && ext=".exe"
             mkdir -p "dist/$target"
             lune build dist/ro-sync.luau -t "$target" -o "dist/$target/ro-sync$ext"
-            (cd "dist/$target" && zip "../ro-sync-${{ github.event.release.tag_name }}-$target.zip" "ro-sync$ext")
+            (cd "dist/$target" && zip "../ro-sync-$TAG-$target.zip" "ro-sync$ext")
           done
 
+      - name: Create pre-release
+        if: inputs.tag
+        run: gh release create "$TAG" --target "$GITHUB_SHA" --prerelease --title "$TAG" --notes ""
+        env:
+          GH_TOKEN: ${{ github.token }}
+
       - name: Upload
-        run: gh release upload "${{ github.event.release.tag_name }}" dist/*.zip --clobber
+        run: gh release upload "$TAG" dist/*.zip --clobber
         env:
           GH_TOKEN: ${{ github.token }}

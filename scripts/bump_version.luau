@@ -35,5 +35,6 @@ local function update_toml_version(path, version)
 end
 
 -- run
-local version = await_query_latest_version_tag()
+local tag = process.env.RELEASE_TAG
+local version = if tag and tag ~= '' then tag:match '^v?(.+)$' or tag else await_query_latest_version_tag()
 update_toml_version('pesde.toml', version)

@@ -1,0 +1,37 @@
+name: Dev release
+on:
+  push:
+    branches: [dev]
+
+# one at a time, so each run sees the tag the previous one created
+concurrency:
+  group: dev-release
+  cancel-in-progress: false
+
+permissions:
+  id-token: write # Required for OIDC (pesde publish)
+  contents: write
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.next.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      # <latest release>-dev.<n>, n counting the dev releases of that release
+      - id: next
+        run: |
+          base=$(git tag --list 'v*' --sort=-v:refname | grep -v -- '-dev\.' | head -1)
+          n=$(( $(git tag --list "$base-dev.*" | wc -l) + 1 ))
+          echo "tag=$base-dev.$n" >> "$GITHUB_OUTPUT"
+
+  release:
+    needs: [version]
+    uses: ./.github/workflows/release.yml
+    secrets: inherit
+    with:
+      tag: ${{ needs.version.outputs.tag }}
