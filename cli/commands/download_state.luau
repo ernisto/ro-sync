@@ -21,12 +21,13 @@ cli.strict()
 -- run
 local raw = serde.decode('yaml', fs.readFile(STATE_PATH))
 local lock = state.parse_lock(buffer.fromstring(fs.readFile(STATE_PATH)))
-local store = lock.extends and lock.extends.rbxstore or cli.fail(`{STATE_PATH} doesnt reference a data store`)
-local universe_id = store.universe or lock.universe_id or cli.fail(`{STATE_PATH} has no universe_id`)
+local store = lock.extends and lock.extends.rbxstore
+	or ctx_log.throw(`{STATE_PATH} doesnt reference a data store, see \`ro-sync state upload --ref\``)
+local universe_id = store.universe or lock.universe_id or ctx_log.throw(`{STATE_PATH} has no universe_id`)
 
 local session = auth_guidance.authenticate_key(args.API_KEY, args.API_KEY ~= nil, universe_id) or process.exit(1)
 local value = state_fs.await_read_store(lock, store, session)
-	or cli.fail(`data store entry {store.store}/{store.key} doesnt exist`)
+	or ctx_log.throw(`data store entry {store.store}/{store.key} doesnt exist`)
 
 -- fields the referencing state owns win, like when extending
 local downloaded = table.clone(value)

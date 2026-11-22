@@ -45,6 +45,13 @@ local COMMANDS = table.freeze {
 		help = 'Run a Luau script against the place',
 	},
 	{
+		words = { 'auth' },
+		run = function()
+			return require '@cli/commands/auth'
+		end,
+		help = 'Show the API key status and scopes for the universe, and who the cookies log in as',
+	},
+	{
 		words = { 'state', 'upload' },
 		run = function()
 			return require '@cli/commands/upload_state'

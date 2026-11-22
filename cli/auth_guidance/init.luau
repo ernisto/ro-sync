@@ -35,6 +35,9 @@ local USED_SCOPES = {
 	'universe-datastores.objects:update',
 }
 
+-- granted on the owner (user/group), not on universes
+local OWNER_SCOPED: { [string]: true } = { asset = true }
+
 type key_status = 'missing' | 'disabled' | 'expired' | 'active'
 type auth_choice = 'local' | 'env' | 'paste' | 'why' | 'ignore'
 
@@ -76,13 +79,24 @@ local function ensure_group(
 	return group
 end
 
+-- data store scopes list their universes as `universeDatastores`
+local function universes_of_stores(scope: any): { string }?
+	if not scope.universeDatastores then return nil end
+
+	local ids = {}
+	for _, store in scope.universeDatastores do
+		if not table.find(ids, store.universeId) then table.insert(ids, store.universeId) end
+	end
+	return ids
+end
+
 -- operations of scopes sharing the same name+targets, merged in grant order
 local function group_granted_scopes(key_info: cloud.api_key_introspection): { scope_group }
 	local groups: { scope_group } = {}
 	local by_key: { [string]: scope_group } = {}
 
 	for _, scope in key_info.scopes do
-		local targets = scope.universeIds or scope.groupIds or scope.userIds
+		local targets = scope.universeIds or scope.groupIds or scope.userIds or universes_of_stores(scope)
 		local key = `{scope.name}|{if targets then table.concat(targets, ',') else ''}`
 		local group = ensure_group(groups, by_key, key, scope.name, targets)
 
@@ -100,9 +114,10 @@ local function group_missing_scopes(key_info: cloud.api_key_introspection, targe
 	local by_name: { [string]: scope_group } = {}
 
 	for _, scope in USED_SCOPES do
-		if apikey.has_scope(key_info, scope, target) then continue end
-
 		local name, op = string.match(scope, '^(.*):([^:]+)$')
+		local scope_target = if OWNER_SCOPED[name :: string] then nil else target
+		if apikey.has_scope(key_info, scope, scope_target) then continue end
+
 		local group = ensure_group(groups, by_name, name :: string, name :: string)
 		table.insert(group.ops, op :: string)
 	end
@@ -110,7 +125,10 @@ local function group_missing_scopes(key_info: cloud.api_key_introspection, targe
 	return groups
 end
 
-local function is_targeting(targets: { string }?, target: string?): boolean
+local function is_targeting(group: scope_group, target: string?): boolean
+	local targets = group.targets
+	if OWNER_SCOPED[group.name] then return true end
+
 	local is_global = not targets or #targets == 0 or targets[1] == '*'
 	return is_global or (target ~= nil and table.find(targets :: { string }, target) ~= nil)
 end
@@ -129,7 +147,7 @@ local function format_scope_labels(key_info: cloud.api_key_introspection, target
 	for _, group in group_granted_scopes(key_info) do
 		local ops = table.concat(group.ops, '/')
 		local used = is_used(group)
-		local targeting = is_targeting(group.targets, target)
+		local targeting = is_targeting(group, target)
 
 		if used and targeting then
 			table.insert(greens, `{c.green}{group.name}:{ops}{c.reset}`)
@@ -311,8 +329,39 @@ local function authenticate_key(
 	return api_session, key_info
 end
 
+local function print_cookie(name: string, cookie: string?)
+	if not cookie then return ctx_log.str(`{c.dim}No {name} cookie{c.reset}`) end
+
+	local who = describe(cookie)
+	if who then
+		ctx_log.str(`{name} cookie logs in as {c.green}{who}`)
+	else
+		ctx_log.warn(`{name} cookie is invalid or expired`)
+	end
+end
+
+-- prints who ro-sync acts as, without prompting
+local function print_auth(api_key: string?, universe_id: number?)
+	if universe_id then ctx_log.str(`Universe {c.green}{universe_id}`) end
+
+	if api_key then
+		local ok, res = pcall(http.call, apikey.introspect, cloud.auth.new:api_key(api_key), nil, nil)
+		if not ok then ctx_log.warn(`Couldnt introspect API Key, {res}`) end
+		if print_status(if ok then res else nil, api_key, universe_id) ~= 'active' then
+			ctx_log.str(`Manage it at {c.green}{CREDENTIALS_URL}`)
+		end
+	else
+		ctx_log.warn 'API Key not provided (--api-key or $API_KEY)'
+	end
+
+	local ok, local_cookie = pcall(roblox.getAuthCookie)
+	print_cookie('ROBLOX_COOKIE', COOKIE)
+	print_cookie('Studio', if ok then local_cookie else nil)
+end
+
 -- module
 return table.freeze {
+	print_auth = print_auth,
 	authenticate_user = authenticate_user,
 	authenticate_key = authenticate_key,
 }

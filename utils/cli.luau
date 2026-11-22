@@ -240,10 +240,11 @@ local function help_gate(): ()
 	end
 end
 
--- user error surfaced from arg parsing: clean exit, no stack trace
+-- user error surfaced from arg parsing: clean exit, no stack trace, then the command's help
 local function fail(msg: string): never
 	help_gate()
-	print(`{c.red}{c.bold}error:{c.reset} {msg}\n\nFor more information, try '{c.green}--help{c.reset}'.`)
+	print(`{c.red}{c.bold}error:{c.reset} {msg}\n`)
+	help(program(nil))
 	return process.exit(1)
 end
 
@@ -437,12 +438,8 @@ end
 -- bad args are user error, not a bug: print clean and exit, no stack trace
 local function abort(body: string, name: string?): never
 	help_gate()
-	local out = `{c.red}{c.bold}error:{c.reset} {body}`
-	if name then
-		out ..= `\n\n{c.bold}{c.yellow}Usage:{c.reset} {usage(name)}`
-	end
-	out ..= `\n\nFor more information, try '{c.green}--help{c.reset}'.`
-	print(out)
+	print(`{c.red}{c.bold}error:{c.reset} {body}\n`)
+	help(program(name))
 	return process.exit(1)
 end
 

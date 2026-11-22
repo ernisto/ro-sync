@@ -12,8 +12,8 @@ local state_fs = require '@cli/state_fs'
 
 -- cli
 local STATE_PATH = cli.str 'cache' or 'cloud-state.yml'
-local STORE = cli.str('store', { value = 'NAME', help = 'Data store name' })
-local KEY = cli.str('key', { value = 'KEY', help = 'Data store entry key' })
+local DATASTORE = cli.str('datastore', { value = 'NAME', default = 'ro-sync', help = 'Data store name' }) or 'ro-sync'
+local KEY = cli.str('key', { value = 'KEY', required = true, help = 'Data store entry key' })
 local SCOPE = cli.str('scope', { value = 'SCOPE', help = 'Data store scope (default: global)' })
 local UNIVERSE = cli.num('universe', { value = 'ID', help = "Universe of the data store (default: the state's)" })
 local REF, REFS = args.optional_files('ref', {
@@ -21,15 +21,16 @@ local REF, REFS = args.optional_files('ref', {
 	help = 'Write a state referencing the entry to FILE (none: replace the uploaded state)',
 })
 cli.strict()
+local key = KEY or cli.fail '--key is required'
 
 -- run
 local content = fs.readFile(STATE_PATH)
 local lock = state.parse_lock(buffer.fromstring(content))
-if lock.extends then cli.fail(`{STATE_PATH} already extends another state, upload that one instead`) end
+if lock.extends then ctx_log.throw(`{STATE_PATH} already extends another state, upload that one instead`) end
 
 local store: state.rbxstore = {
-	store = STORE or cli.fail '--store is required',
-	key = KEY or cli.fail '--key is required',
+	store = DATASTORE,
+	key = key,
 	scope = SCOPE,
 	universe = UNIVERSE,
 }
