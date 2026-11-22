@@ -12,8 +12,16 @@ export type config_data = {
 	description: string?, -- read-only: open cloud drafts only take values, set it in creator hub
 	value: any?, -- only synced when set, otherwise tuned in creator hub/game
 }
-export type config_input = config_data & { value_file: string?, conflicts: { [string]: any } }
-export type config_lock = { universe_id: number, key: string, input: config_data }
+-- `as_array`: `value` is a name -> item map pushed as an array (see `arrange`); `items` keeps the map
+export type config_input = config_data & {
+	value_file: string?,
+	as_array: boolean?,
+	items: { [string]: any }?,
+	order: { string }?,
+	conflicts: { [string]: any },
+}
+-- `order`: item names of an `as_array` config, by array index
+export type config_lock = { universe_id: number, key: string, input: config_data, order: { string }? }
 
 -- configs without `value` are created with the type's zero value
 local ZERO: { [config_type]: any } = { json = {}, string = '', number = 0, boolean = false }
@@ -48,6 +56,8 @@ local function parse_input(c: any, label: string)
 	base.opt(c.description, 'string', `{label}.description`)
 	base.opt(c.value_file, 'string', `{label}.value_file`)
 	base.check(c.value == nil or c.value_file == nil, `{label} sets both value and value_file`)
+	base.opt(c.as_array, 'boolean', `{label}.as_array`)
+	base.check(not c.as_array or c.type == 'json', `{label}.as_array needs type json`)
 	check_value(c, label)
 
 	base.opt(c.conflicts, 'table', `{label}.conflicts`)
@@ -57,9 +67,49 @@ end
 local function parse_lock(entry: any, label: string, key: string)
 	base.req(entry.universe_id, 'number', `{label}.universe_id`)
 	entry.key = key
+	base.opt(entry.order, 'table', `{label}.order`)
+	for i, name in entry.order or {} do
+		base.req(name, 'string', `{label}.order[{i}]`)
+	end
 
 	parse_input(entry.input, `{label}.input`)
 	entry.input.conflicts = nil
+end
+
+-- index of `item` in the last synced array, matched by content when the lock has no order yet
+local function synced_index(lock: config_lock?, name: string, item: any): number?
+	if not lock then return nil end
+	if lock.order then return table.find(lock.order, name) end
+
+	for i, synced in if type(lock.input.value) == 'table' then lock.input.value else {} do
+		if base.same(synced, item) then return i end
+	end
+	return nil
+end
+
+-- turns an `as_array` map into the array to push: names keep their synced slot, new ones follow by name
+local function arrange(input: config_input, lock: config_lock?)
+	if not input.as_array then return end
+	local items = input.items or input.value
+	if items == nil then return end
+	base.check(type(items) == 'table', 'as_array needs a name -> item table')
+
+	local index: { [string]: number } = {}
+	local order = {}
+	for name, item in items do
+		index[name] = synced_index(lock, name, item) or math.huge
+		table.insert(order, name)
+	end
+	table.sort(order, function(a, b)
+		return if index[a] ~= index[b] then index[a] < index[b] else a < b
+	end)
+
+	local array = {}
+	for i, name in order do
+		array[i] = items[name]
+	end
+	input.items, input.value, input.order = items, array, order
+	if lock then lock.order = order end
 end
 
 -- `value_file` content: json/yaml/toml decoded by extension, anything else is a string
@@ -73,13 +123,15 @@ end
 
 -- encoding
 local function encode_lock_entry(lock: config_lock): any
-	return { universe_id = lock.universe_id, input = lock.input }
+	return { universe_id = lock.universe_id, input = lock.input, order = lock.order }
 end
 
 -- a value_file's value stays in the file
 -- ponytail: cloud edits to a value_file config get overwritten by the file on the next push; write it back if that bites
 local function encode_input(c: config_input): config_input
-	return tbl.subtraction(c, { conflicts = next(c.conflicts) == nil or nil, value = c.value_file ~= nil or nil })
+	local out: any = tbl.subtraction(c, { conflicts = next(c.conflicts) == nil or nil, items = true, order = true })
+	out.value = if c.value_file then nil else c.items or c.value
+	return out
 end
 
 -- diff
@@ -171,7 +223,8 @@ local function create(session: session, ctx: { universe_id: number }, input: con
 		entry = { value = value, description = entry and entry.description }
 	end
 
-	return { universe_id = ctx.universe_id, key = key, input = from_full_entry(entry :: full_entry, tracks_value) }
+	local input_data = from_full_entry(entry :: full_entry, tracks_value)
+	return { universe_id = ctx.universe_id, key = key, input = input_data, order = input.order }
 end
 
 -- module
@@ -179,6 +232,7 @@ return table.freeze {
 	parse_input = parse_input,
 	parse_lock = parse_lock,
 	load_value_file = load_value_file,
+	arrange = arrange,
 
 	encode_input = encode_input,
 	encode_lock_entry = encode_lock_entry,

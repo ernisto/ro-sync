@@ -261,4 +261,62 @@ function run.user_data_templates_live_in_data_stores_config()
 	expect.eq(calls[3].body.entries.user_data_templates[1].key_template.data_store_name, 'players')
 end
 
+local function names_of(input: any): string
+	local out = {}
+	for _, item in input.value do
+		table.insert(out, item.n)
+	end
+	return table.concat(out, ',')
+end
+
+function run.as_array_orders_new_configs_by_name()
+	local input: any = { type = 'json', as_array = true, value = { b = { n = 'b' }, a = { n = 'a' } }, conflicts = {} }
+	config.arrange(input, nil)
+	expect.eq(names_of(input), 'a,b')
+	expect.eq(table.concat(input.order, ','), 'a,b')
+
+	config.arrange(input, nil)
+	expect.eq(names_of(input), 'a,b', 'arranging twice keeps the map')
+end
+
+function run.as_array_keeps_synced_slots_and_appends_new_names()
+	local lock: any =
+		{ universe_id = 1, key = 'k', input = { type = 'json', value = {} }, order = { 'z', 'gone', 'm' } }
+	local value = { m = { n = 'm' }, z = { n = 'z' }, c = { n = 'c' }, b = { n = 'b' } }
+	local input: any = { type = 'json', as_array = true, value = value, conflicts = {} }
+	config.arrange(input, lock)
+
+	expect.eq(names_of(input), 'z,m,b,c', 'synced order kept, removed dropped, new appended by name')
+	expect.eq(table.concat(lock.order, ','), 'z,m,b,c')
+end
+
+function run.as_array_matches_slots_by_content_without_order()
+	local lock: any = { universe_id = 1, key = 'k', input = { type = 'json', value = { { n = 'y' }, { n = 'x' } } } }
+	local value = { x = { n = 'x' }, y = { n = 'y' }, a = { n = 'a' } }
+	local input: any = { type = 'json', as_array = true, value = value, conflicts = {} }
+	config.arrange(input, lock)
+
+	expect.eq(names_of(input), 'y,x,a')
+end
+
+function run.as_array_encodes_the_map_and_locks_the_order()
+	local input: any = { type = 'json', as_array = true, value = { a = { n = 'a' } }, conflicts = {} }
+	config.arrange(input, nil)
+	expect.eq((config.encode_input(input) :: any).value.a.n, 'a', 'manifest keeps the map')
+	expect.eq(config.encode_input(input).order, nil)
+
+	local lock: any
+	with_cloud({
+		['GET /full'] = { entries = {} },
+		['GET /draft'] = '404 Not Found',
+		['PATCH /draft'] = { draftHash = 'h' },
+		['POST /publish'] = { configVersion = 1 },
+	}, function()
+		lock = config.create({} :: any, { universe_id = sm.UNIVERSE_ID }, input, 'k')
+	end)
+	expect.eq(lock.input.value[1].n, 'a', 'pushed as an array')
+	expect.eq(table.concat(lock.order, ','), 'a')
+	expect.eq(config.encode_lock_entry(lock).order[1], 'a')
+end
+
 return run

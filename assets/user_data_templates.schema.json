@@ -1,0 +1,71 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/ernisto/ro-sync/refs/heads/main/assets/user_data_templates.schema.json",
+  "title": "user_data_templates",
+  "description": "Value of the `user_data_templates` config: the templates Roblox follows to delete a user's data on right-to-be-forgotten requests. Either the array Roblox stores, or a name -> template map pushed as an array with `as_array: true` (names only label entries locally). See https://create.roblox.com/docs/cloud-services/data-stores/right-to-be-forgotten#configure-automated-rtbf-via-configs-api",
+  "anyOf": [{ "$ref": "#/definitions/array" }, { "$ref": "#/definitions/map" }],
+  "definitions": {
+    "array": {
+      "description": "Up to 100 templates.",
+      "type": "array",
+      "maxItems": 100,
+      "items": { "$ref": "#/definitions/template" }
+    },
+    "map": {
+      "description": "Name -> template, pushed as an array with `as_array: true`: names keep their synced slot, new ones follow by name. Up to 100 templates.",
+      "type": "object",
+      "maxProperties": 100,
+      "additionalProperties": { "$ref": "#/definitions/template" }
+    },
+    "template": {
+      "description": "Matches a data store key (`key_template`) or a whole data store (`data_store_template`) by a static pattern with `{UserId}` (case-sensitive), replaced with the user id of the request.",
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["key_template"],
+          "additionalProperties": false,
+          "properties": {
+            "key_template": {
+              "description": "Deletes the matching key of a data store.",
+              "type": "object",
+              "required": ["data_store_type", "data_store_name", "key_pattern"],
+              "additionalProperties": false,
+              "properties": {
+                "data_store_type": { "enum": ["STANDARD", "ORDERED"] },
+                "data_store_name": { "type": "string", "description": "Data store holding the user's keys." },
+                "key_pattern": { "type": "string", "description": "Key pattern, e.g. `User_{UserId}`." },
+                "scope_pattern": {
+                  "type": "string",
+                  "description": "Scope pattern, e.g. `Scope_{UserId}`. Defaults to `global` when omitted or empty."
+                }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["data_store_template"],
+          "additionalProperties": false,
+          "properties": {
+            "data_store_template": {
+              "description": "Deletes the whole matching data store.",
+              "type": "object",
+              "required": ["data_store_type", "data_store_pattern"],
+              "additionalProperties": false,
+              "properties": {
+                "data_store_type": {
+                  "description": "Only standard data stores can be deleted whole.",
+                  "enum": ["STANDARD"]
+                },
+                "data_store_pattern": {
+                  "type": "string",
+                  "description": "Data store name pattern, e.g. `Player_{UserId}_Save`."
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

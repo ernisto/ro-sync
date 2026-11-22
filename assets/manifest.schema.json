@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://github.com/ro-sync/manifest.schema.json",
+  "$id": "https://raw.githubusercontent.com/ernisto/ro-sync/refs/heads/main/assets/manifest.schema.json",
   "title": "ro-sync manifest",
   "description": "User-edited list of products/places/universe synced to Roblox via Open Cloud.",
   "type": "object",
@@ -85,6 +85,10 @@
           "description": "File holding the value: `.json`, `.yaml`/`.yml` and `.toml` are decoded, anything else is read as a string. Excludes `value`.",
           "type": "string"
         },
+        "as_array": {
+          "description": "The value (inline or from `value_file`) is a name -> item map pushed as an array: names keep their synced slot, new ones follow by name. Lets TOML files, which cant hold a root array, write arrays. Needs type json.",
+          "type": "boolean"
+        },
         "conflicts": { "type": "object" }
       }
     },
@@ -97,67 +101,17 @@
       "properties": {
         "type": { "const": "json" },
         "description": { "$ref": "#/definitions/config/properties/description" },
-        "value": { "$ref": "#/definitions/user_data_templates" },
+        "value": { "$ref": "user_data_templates.schema.json" },
+        "as_array": { "type": "boolean", "description": "`value` is a name -> template map, see `config.as_array`." },
         "value_file": {
           "description": "`.json`, `.yaml`/`.yml` or `.toml` file holding the templates. Excludes `value`.",
           "type": "string"
         },
         "conflicts": { "type": "object" }
-      }
-    },
-    "user_data_templates": {
-      "description": "Up to 100 templates. Each matches a data store key (`key_template`) or a whole data store (`data_store_template`) by a static pattern with `{UserId}` (case-sensitive), replaced with the user id of the request.",
-      "type": "array",
-      "maxItems": 100,
-      "items": {
-        "oneOf": [
-          {
-            "type": "object",
-            "required": ["key_template"],
-            "additionalProperties": false,
-            "properties": {
-              "key_template": {
-                "description": "Deletes the matching key of a data store.",
-                "type": "object",
-                "required": ["data_store_type", "data_store_name", "key_pattern"],
-                "additionalProperties": false,
-                "properties": {
-                  "data_store_type": { "enum": ["STANDARD", "ORDERED"] },
-                  "data_store_name": { "type": "string", "description": "Data store holding the user's keys." },
-                  "key_pattern": { "type": "string", "description": "Key pattern, e.g. `User_{UserId}`." },
-                  "scope_pattern": {
-                    "type": "string",
-                    "description": "Scope pattern, e.g. `Scope_{UserId}`. Defaults to `global` when omitted or empty."
-                  }
-                }
-              }
-            }
-          },
-          {
-            "type": "object",
-            "required": ["data_store_template"],
-            "additionalProperties": false,
-            "properties": {
-              "data_store_template": {
-                "description": "Deletes the whole matching data store.",
-                "type": "object",
-                "required": ["data_store_type", "data_store_pattern"],
-                "additionalProperties": false,
-                "properties": {
-                  "data_store_type": {
-                    "description": "Only standard data stores can be deleted whole.",
-                    "enum": ["STANDARD"]
-                  },
-                  "data_store_pattern": {
-                    "type": "string",
-                    "description": "Data store name pattern, e.g. `Player_{UserId}_Save`."
-                  }
-                }
-              }
-            }
-          }
-        ]
-      }
+      },
+      "if": { "required": ["as_array"], "properties": { "as_array": { "const": true } } },
+      "then": { "properties": { "value": { "$ref": "user_data_templates.schema.json#/definitions/map" } } },
+      "else": { "properties": { "value": { "$ref": "user_data_templates.schema.json#/definitions/array" } } }
     },
     "owner": {
       "description": "Resource owner. Set exactly one of user/group.",

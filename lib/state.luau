@@ -282,6 +282,7 @@ local function build_resources(inputs: manifest, locks: lock): resources
 
 	local configs = {}
 	for key, input in inputs.configs do
+		config.arrange(input, locks.configs[key])
 		table.insert(configs, { key = key, input = input, lock = locks.configs[key] })
 	end
 
