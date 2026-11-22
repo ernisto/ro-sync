@@ -22,10 +22,9 @@ local API_KEY = args.API_KEY
 
 local optional_files = args.optional_files
 
--- args parse before this spec exists, so `--push a.yml` swallows the file as a value; fold it back in
 local MODE = 'Mode Options'
-local MANIFESTS = cli.list 'push' or {}
-local PUSH = cli.bool('push', { group = MODE, help = 'Update cloud with the manifests' }) or #MANIFESTS > 0
+local MANIFESTS = {}
+local PUSH = cli.bool('push', { group = MODE, help = 'Update cloud with the manifests' })
 local DRY = cli.bool('dry', { group = MODE, help = "Don't push or write any file" })
 for i = 2, math.huge do
 	local file = cli.str(i)
@@ -62,6 +61,7 @@ local scan_cloud = PULL_NEW
 
 local state_ok, state_result = pcall(state_fs.load_lock, STATE_PATH)
 local input_ok, input_result = pcall(state_fs.load_input, INPUT_PATH)
+local OVERRIDES: { state_fs.override } = {}
 
 local function reason(err: unknown): string
 	local first_line = tostring(err):match '^[^\n]*' :: string
@@ -72,7 +72,7 @@ if input_ok then
 	for i = 2, #MANIFESTS do
 		local ok, extra = pcall(state_fs.load_input, MANIFESTS[i])
 		if ok then
-			state_fs.merge_input(input_result, extra)
+			state_fs.merge_input(input_result, extra, OVERRIDES)
 			ctx_log.str(`Merged {c.green}{MANIFESTS[i]}{c.reset} into {c.green}{INPUT_PATH}`)
 		else
 			ctx_log.warn(`Couldnt read {MANIFESTS[i]}, {reason(extra)}`)
@@ -105,8 +105,12 @@ local session: cloud.session = api_session :: any
 session.cookie_state = user_session and user_session.cookie_state
 if state_ok then state_fs.await_load_extends(state_result, session) end
 
+-- extra manifests only apply to this run, the first one is saved without them
 local function save(res: state.resources, manifest_path: string)
-	if mode ~= 'dry' then state_fs.save_resources(res, manifest_path, STATE_PATH, session) end
+	if mode == 'dry' then return end
+
+	state_fs.restore_overrides(res.manifest, OVERRIDES)
+	state_fs.save_resources(res, manifest_path, STATE_PATH, session)
 end
 
 local universe = http.call(cloud.universe.get, session, { universe_id = universe_id }, nil)

@@ -51,14 +51,34 @@ local function load_input(manifest_path: string): state.manifest
 	return manifest
 end
 
--- extra manifests (`sync a.yml b.yml`) merge over the first, maps deeply, lists replaced
-local function merge_input(base: any, extra: any)
+-- what an extra manifest replaced in the first one, `value` is the first manifest's (nil when it had none)
+export type override = { path: { string }, value: any }
+
+-- extra manifests (`sync a.yml b.yml`) merge over the first, maps deeply, lists replaced;
+-- `overrides` collects what they replaced, so `restore_overrides` keeps them out of the first manifest on save
+local function merge_input(base: any, extra: any, overrides: { override }?, path: { string }?)
 	for k, v in extra do
+		local at = table.clone(path or {})
+		table.insert(at, k)
+
 		if type(v) == 'table' and type(base[k]) == 'table' and v[1] == nil then
-			merge_input(base[k], v)
-		else
-			base[k] = v
+			merge_input(base[k], v, overrides, at)
+			continue
 		end
+		if overrides then table.insert(overrides, { path = at, value = base[k] }) end
+		base[k] = v
+	end
+end
+
+-- latest overrides first, so a key replaced twice ends with the first manifest's value
+local function restore_overrides(manifest: any, overrides: { override })
+	for i = #overrides, 1, -1 do
+		local override = overrides[i]
+		local node = manifest
+		for j = 1, #override.path - 1 do
+			node = if type(node) == 'table' then node[override.path[j]] else nil
+		end
+		if type(node) == 'table' then node[override.path[#override.path]] = override.value end
 	end
 end
 
@@ -242,6 +262,7 @@ return table.freeze {
 	load_input = load_input,
 	load_lock = load_lock,
 	merge_input = merge_input,
+	restore_overrides = restore_overrides,
 	resources_from_lock = resources_from_lock,
 	load_resources = load_resources,
 	save_resources = save_resources,

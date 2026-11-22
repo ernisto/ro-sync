@@ -22,6 +22,9 @@ local options: { [string]: string } = {}
 local multi: { [string]: { string } } = {}
 local flags: { [string]: boolean } = {}
 local positional: { string } = {}
+-- `--name value` bound before `name` was declared: a flag declared later gives `value` back to `positional`
+-- (`at` its index there, `token` its index in the raw args, keeping the order of several)
+local swallowed: { [string]: { value: string, at: number, token: number } } = {}
 local forwarded: { string } = {}
 
 local specs: { ArgSpec } = {}
@@ -95,6 +98,9 @@ local function ensure(): ()
 					flags[rest] = true
 				elseif next and string.sub(next, 1, 1) ~= '-' then
 					set_opt(rest, unquote(next))
+					if not spec then
+						swallowed[rest] = { value = unquote(next), at = #positional + 1, token = i + 1 }
+					end
 					i += 1
 				else
 					flags[rest] = true
@@ -294,6 +300,22 @@ local function list(key: string, opts: ArgOptions?): { string }?
 	local v = values(name)
 	return if #v > 0 then v else nil
 end
+-- a flag read after parsing may have swallowed the next positional as its value, give it back
+local function unswallow(name: string)
+	local taken = swallowed[name]
+	if not taken or options[name] ~= taken.value then return end
+
+	swallowed[name] = nil
+	options[name] = nil
+	flags[name] = true
+	table.insert(positional, taken.at, taken.value)
+	for _, other in swallowed do
+		if other.token > taken.token then
+			other.at += 1
+		end
+	end
+end
+
 local function bool(key: string, opts: ArgOptions?): boolean
 	ensure()
 	used[key] = true
@@ -302,6 +324,8 @@ local function bool(key: string, opts: ArgOptions?): boolean
 	else
 		infer(canon(key), 'flag')
 	end
+	unswallow(key)
+	unswallow(canon(key))
 	return raised(canon(key))
 end
 
