@@ -5,9 +5,10 @@ local tbl = require '@utils/tbl'
 -- types
 export type session = cloud.session
 export type owner = { user: nil, group: number } | { user: number, group: nil }
-export type input_file = { hash: string, content: buffer, assetid: nil }
-export type lock_file = { hash: string?, content: nil, assetid: number? }
-export type api_file = { hash: nil, content: nil, assetid: number }
+-- `version`: the asset version cloud holds, for files that have versions (places)
+export type input_file = { hash: string, content: buffer, assetid: nil, version: nil }
+export type lock_file = { hash: string?, content: nil, assetid: number?, version: number? }
+export type api_file = { hash: nil, content: nil, assetid: number, version: number? }
 export type file = input_file | lock_file | api_file
 
 export type field_spec = { any }
@@ -121,10 +122,29 @@ local function diff_map(from: { [string]: any }, to: { [string]: any }, map: fie
 	return out
 end
 
+-- a new hash is a local change, a new version a cloud one (only when both sides know their version)
 local function diff_file(from: file, to: file): file?
+	if not to then return nil end
+
 	local from_hash = if from then from.hash else nil
-	local to_hash = if to then to.hash else nil
-	return if to_hash ~= nil and from_hash ~= to_hash then to else nil
+	if to.hash ~= nil and from_hash ~= to.hash then return to end
+
+	local from_version = if from then from.version else nil
+	if to.version ~= nil and from_version ~= nil and from_version ~= to.version then return to end
+	return nil
+end
+
+-- cloud never knows file hashes: a read keeps the lock's, so an unchanged local file stays unchanged
+local function with_lock_hashes(lock_input: { [string]: any }, read: { [string]: any }): { [string]: any }
+	local out = table.clone(read)
+	for key, file in read do
+		local locked = lock_input[key]
+		local is_file = type(file) == 'table' and file.assetid ~= nil and file.hash == nil
+		if is_file and type(locked) == 'table' and locked.hash then
+			out[key] = tbl.applied(file, { hash = locked.hash })
+		end
+	end
+	return out
 end
 
 local function mask<T>(_read: { [string]: any }, input: T & { conflicts: { [string]: any }? }): T
@@ -168,7 +188,7 @@ local function encode_mapped<T>(input: T & { conflicts: { [string]: any } }): T?
 end
 
 local function lock_file_of(f: file?): lock_file?
-	return if f then { hash = f.hash, assetid = f.assetid } else nil
+	return if f then { hash = f.hash, assetid = f.assetid, version = f.version } else nil
 end
 
 local function encode_map(map: { [any]: any }, encode: (any) -> any)
@@ -229,6 +249,7 @@ return table.freeze {
 	diff_fields = diff_fields,
 	diff_map = diff_map,
 	diff_file = diff_file,
+	with_lock_hashes = with_lock_hashes,
 	mask = mask,
 	json_of = json_of,
 

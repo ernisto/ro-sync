@@ -132,8 +132,10 @@ local function update(session: session, place: place_path, patch: place_input): 
 	local _, err2 = pcall(function()
 		if not patch.asset_file then return end
 
-		http.call(cloud.place.upload, session, path, patch.asset_file.content, { versionType = 'Published' })
-		confirmed.asset_file = { hash = patch.asset_file.hash, assetid = place.place_id }
+		local content = patch.asset_file.content
+		local uploaded = http.call(cloud.place.upload, session, path, content, { versionType = 'Published' })
+		confirmed.asset_file =
+			{ hash = patch.asset_file.hash, assetid = place.place_id, version = uploaded.versionNumber }
 	end :: any)
 
 	return confirmed :: any, err1 or err2
@@ -156,10 +158,17 @@ local function create(session: session, game: universe_path, place: place_input)
 	}
 end
 
+-- versions list newest first, as `assets/<id>/versions/<n>`
+local function latest_version(session: session, place_id: number): number?
+	local page = http.call(cloud.asset.list_versions, session, { asset_id = place_id }, nil, { maxPageSize = 1 })
+	local latest = page.assetVersions[1]
+	return latest and tonumber(string.match(latest.path or '', '/versions/(%d+)$'))
+end
+
 local function get(session: session, place: place_path): place_data
 	local path = { universe_id = place.universe_id, place_id = place.place_id }
 	local data: any = base.from_api(FIELDS, http.call(cloud.place.get_info, session, path, nil))
-	data.asset_file = { assetid = place.place_id }
+	data.asset_file = { assetid = place.place_id, version = latest_version(session, place.place_id) }
 	return data
 end
 

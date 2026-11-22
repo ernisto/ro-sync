@@ -130,6 +130,8 @@ function run.place_asset_upload_failure_does_not_hold_settings()
 				-- settings PATCH succeeds; cloud echoes the applied place
 				response = { ok = true, body = { displayName = 'New Name', description = 'A place', serverSize = 50 } }
 			end
+		elseif string.find(path, 'assets/v1/assets/4000/versions', 1, true) then
+			response = { ok = true, body = { assetVersions = { { path = 'assets/4000/versions/7' } } } }
 		else
 			error(`unexpected request: {method} {path}`, 0)
 		end

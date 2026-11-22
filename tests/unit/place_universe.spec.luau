@@ -298,4 +298,63 @@ function run.universe_configuration_reads_studio_access_from_get()
 	expect.eq(read.studio_access_to_apis_allowed, true)
 end
 
+-- cloud reads a place file as `{ assetid, version }`
+local function with_cloud_file(api: any, version: number): any
+	local get = api.get
+	api.get = mock.fn(function(...)
+		local read = get(...)
+		read.asset_file = { assetid = 1, version = version }
+		return read
+	end)
+	return api
+end
+
+local function versioned_file(hash: string, version: number): any
+	return { hash = hash, assetid = 1, version = version }
+end
+
+function run.place_file_conflicts_when_cloud_has_a_new_version()
+	local input = sm.make_place_input { file = 'game.rbxl', asset_file = sm.make_asset_file(HASH_B) }
+	local prev = sm.make_place_lock(sm.make_place_input { asset_file = versioned_file(HASH_A, 5) })
+	local api = with_cloud_file(sm.make_place_api(), 6)
+
+	sync.await_reconcile(api, sm.make_place(input, prev), opts)
+
+	expect.truthy(input.conflicts.asset_file, 'local and cloud file changes conflict')
+	expect.eq(api.update.call_count, 0, 'conflicting file is not pushed')
+end
+
+function run.place_file_from_cloud_alone_keeps_the_lock_hash()
+	local input =
+		sm.make_place_input { file = 'game.rbxl', asset_file = sm.make_asset_file(HASH_A), display_name = 'New' }
+	local prev = sm.make_place_lock(sm.make_place_input { asset_file = versioned_file(HASH_A, 5) })
+	local api = with_cloud_file(sm.make_place_api(), 6)
+
+	local lock: any = sync.await_reconcile(api, sm.make_place(input, prev), opts)
+
+	expect.falsy(next(input.conflicts))
+	expect.eq(api.update.calls[1][3].asset_file, nil, 'unchanged local file is not pushed')
+	expect.eq(lock.input.asset_file.version, 6, 'cloud version recorded')
+	expect.eq(lock.input.asset_file.hash, HASH_A, 'lock hash kept')
+end
+
+function run.place_file_pushes_when_cloud_version_matches()
+	local new_file = sm.make_asset_file(HASH_B)
+	local input = sm.make_place_input { file = 'game.rbxl', asset_file = new_file }
+	local prev = sm.make_place_lock(sm.make_place_input { asset_file = versioned_file(HASH_A, 5) })
+	local api = with_cloud_file(sm.make_place_api(), 5)
+
+	sync.await_reconcile(api, sm.make_place(input, prev), opts)
+
+	expect.falsy(next(input.conflicts))
+	expect.eq(api.update.calls[1][3].asset_file, new_file)
+end
+
+function run.file_versions_only_count_when_both_sides_know_them()
+	expect.eq(base.diff_file({ hash = HASH_A } :: any, { assetid = 1, version = 6 } :: any), nil, 'legacy lock')
+	expect.truthy(base.diff_file(versioned_file(HASH_A, 5), { assetid = 1, version = 6 } :: any))
+	expect.eq(base.diff_file(versioned_file(HASH_A, 5), { assetid = 1, version = 5 } :: any), nil)
+	expect.eq((base.lock_file_of(versioned_file(HASH_A, 5)) :: any).version, 5)
+end
+
 return run

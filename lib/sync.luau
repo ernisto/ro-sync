@@ -107,6 +107,7 @@ local function await_reconcile<Lock>(res: any, resource: resource<Lock>, opts: s
 			sync_logger.update_result(false, local_changes, {})
 			return prev :: any
 		end
+		cloud_state = base.with_lock_hashes(prev.input, cloud_state)
 	end
 
 	local receiving_changes = api.diff(synced, cloud_state)
