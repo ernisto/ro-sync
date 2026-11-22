@@ -38,8 +38,11 @@
       "$ref": "#/definitions/thumbnail"
     },
     "configs": {
-      "description": "Map of in-experience config key -> config. Values are never synced: missing keys are created with the type's zero value, tune values in Creator Hub or in game.",
+      "description": "Map of config key -> config. Missing keys are created; `value`/`value_file` are pushed and published on change, configs without them keep the value tuned in Creator Hub or in game (created with the type's zero value).",
       "type": "object",
+      "properties": {
+        "user_data_templates": { "$ref": "#/definitions/user_data_templates_config" }
+      },
       "additionalProperties": { "$ref": "#/definitions/config" }
     },
     "assets": {
@@ -65,16 +68,95 @@
       "type": "object",
       "required": ["type"],
       "additionalProperties": false,
+      "not": { "required": ["value", "value_file"] },
       "properties": {
         "type": {
-          "description": "Value type, used to pick the zero value on creation.",
+          "description": "Value type, checks `value` and picks the zero value on creation.",
           "enum": ["json", "string", "number", "boolean"]
         },
         "description": {
           "description": "Read-only: Open Cloud can't write descriptions, set it in Creator Hub. Filled on import.",
           "type": "string"
         },
+        "value": {
+          "description": "Pushed and published (Immediate) on change, must match `type`. Omit to tune it in Creator Hub or in game."
+        },
+        "value_file": {
+          "description": "File holding the value: `.json`, `.yaml`/`.yml` and `.toml` are decoded, anything else is read as a string. Excludes `value`.",
+          "type": "string"
+        },
         "conflicts": { "type": "object" }
+      }
+    },
+    "user_data_templates_config": {
+      "description": "Templates Roblox follows to delete a user's data on right-to-be-forgotten requests, synced to the DataStoresConfig repository. See https://create.roblox.com/docs/cloud-services/data-stores/right-to-be-forgotten#configure-automated-rtbf-via-configs-api",
+      "type": "object",
+      "required": ["type"],
+      "additionalProperties": false,
+      "not": { "required": ["value", "value_file"] },
+      "properties": {
+        "type": { "const": "json" },
+        "description": { "$ref": "#/definitions/config/properties/description" },
+        "value": { "$ref": "#/definitions/user_data_templates" },
+        "value_file": {
+          "description": "`.json`, `.yaml`/`.yml` or `.toml` file holding the templates. Excludes `value`.",
+          "type": "string"
+        },
+        "conflicts": { "type": "object" }
+      }
+    },
+    "user_data_templates": {
+      "description": "Up to 100 templates. Each matches a data store key (`key_template`) or a whole data store (`data_store_template`) by a static pattern with `{UserId}` (case-sensitive), replaced with the user id of the request.",
+      "type": "array",
+      "maxItems": 100,
+      "items": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": ["key_template"],
+            "additionalProperties": false,
+            "properties": {
+              "key_template": {
+                "description": "Deletes the matching key of a data store.",
+                "type": "object",
+                "required": ["data_store_type", "data_store_name", "key_pattern"],
+                "additionalProperties": false,
+                "properties": {
+                  "data_store_type": { "enum": ["STANDARD", "ORDERED"] },
+                  "data_store_name": { "type": "string", "description": "Data store holding the user's keys." },
+                  "key_pattern": { "type": "string", "description": "Key pattern, e.g. `User_{UserId}`." },
+                  "scope_pattern": {
+                    "type": "string",
+                    "description": "Scope pattern, e.g. `Scope_{UserId}`. Defaults to `global` when omitted or empty."
+                  }
+                }
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": ["data_store_template"],
+            "additionalProperties": false,
+            "properties": {
+              "data_store_template": {
+                "description": "Deletes the whole matching data store.",
+                "type": "object",
+                "required": ["data_store_type", "data_store_pattern"],
+                "additionalProperties": false,
+                "properties": {
+                  "data_store_type": {
+                    "description": "Only standard data stores can be deleted whole.",
+                    "enum": ["STANDARD"]
+                  },
+                  "data_store_pattern": {
+                    "type": "string",
+                    "description": "Data store name pattern, e.g. `Player_{UserId}_Save`."
+                  }
+                }
+              }
+            }
+          }
+        ]
       }
     },
     "owner": {

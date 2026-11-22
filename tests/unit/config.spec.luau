@@ -4,7 +4,7 @@ local http = require '@utils/http'
 local sm = require '@test/sync_mock'
 local state = require '@lib/state'
 
-type call = { method: string, base: string, body: any }
+type call = { method: string, base: string, repository: string?, body: any }
 
 local run = {}
 
@@ -13,10 +13,10 @@ local function with_cloud(responses: { [string]: any }, fn: () -> ()): { call }
 	local calls: { call } = {}
 	local real_call = http.call
 
-	http.call = function(endpoint: any, _session, _path, body): any
-		table.insert(calls, { method = endpoint.method, base = endpoint.base, body = body })
-		local suffix = string.match(endpoint.base, '/InExperienceConfig(.*)$') or ''
-		local response = responses[`{endpoint.method} {suffix}`]
+	http.call = function(endpoint: any, _session, path: any, body): any
+		local repository, suffix = path.repository, string.match(endpoint.base, '{repository}(.*)$')
+		table.insert(calls, { method = endpoint.method, base = endpoint.base, repository = repository, body = body })
+		local response = responses[`{endpoint.method} {suffix or ''}`]
 
 		if response == nil then error(`unexpected request: {endpoint.method} {suffix}`, 0) end
 		if type(response) == 'string' then error(response, 0) end
@@ -52,9 +52,8 @@ function run.list_infers_type_from_values()
 	expect.eq(reads.empty.description, nil, 'empty description is unset')
 end
 
-function run.rejects_unknown_type_and_values()
+function run.rejects_unknown_type()
 	expect.falsy(pcall(config.parse_input, { type = 'table' }, 'c'), 'unknown type')
-	expect.falsy(pcall(config.parse_input, { type = 'json', value = {} }, 'c'), 'values are not synced')
 	expect.truthy(pcall(config.parse_input, { type = 'json', description = 'd' }, 'c'))
 end
 
@@ -136,6 +135,7 @@ function run.create_handles_universe_without_any_config()
 		config.create({} :: any, { universe_id = sm.UNIVERSE_ID }, { type = 'json', conflicts = {} } :: any, 'k')
 	end)
 	expect.eq(#calls, 4, 'reads treat 404 as empty, then publishes')
+	expect.eq(calls[1].repository, 'InExperienceConfig')
 end
 
 function run.create_refuses_to_publish_someone_elses_draft()
@@ -166,6 +166,99 @@ function run.update_reports_read_only_fields()
 	)
 	expect.falsy(ok, 'nothing is pushed')
 	expect.truthy(string.find(tostring(err), 'read-only', 1, true), 'explains why')
+end
+
+function run.validates_values_against_type()
+	expect.falsy(pcall(config.parse_input, { type = 'number', value = 'x' }, 'c'), 'value of the wrong type')
+	expect.falsy(pcall(config.parse_input, { type = 'json', value = {}, value_file = 'a.json' }, 'c'), 'both sources')
+	expect.truthy(pcall(config.parse_input, { type = 'json', value = { a = 1 } }, 'c'))
+	expect.truthy(pcall(config.parse_input, { type = 'string', value_file = 'motd.txt' }, 'c'))
+end
+
+function run.value_file_decodes_by_extension()
+	local json: any = { type = 'json', value_file = 'a.JSON', conflicts = {} }
+	config.load_value_file(json, '{"a":1}', 'c')
+	expect.eq(json.value.a, 1)
+
+	local text: any = { type = 'string', value_file = 'motd.txt', conflicts = {} }
+	config.load_value_file(text, 'hi', 'c')
+	expect.eq(text.value, 'hi')
+
+	local wrong: any = { type = 'number', value_file = 'n.json', conflicts = {} }
+	expect.falsy(pcall(config.load_value_file, wrong, '"x"', 'c'), 'decoded value is type checked')
+	expect.falsy(
+		state
+			.encode_manifest(state.parse_manifest(buffer.fromstring [[
+version: 1
+owner: { user: 1 }
+configs:
+  motd: { type: string, value_file: motd.txt }
+]]))
+			:find("'value':", 1, true),
+		'value_file values stay in the file'
+	)
+end
+
+function run.update_publishes_value()
+	local confirmed
+	local calls = with_cloud({
+		['GET /draft'] = '404 Not Found',
+		['PATCH /draft'] = { draftHash = 'h' },
+		['POST /publish'] = { configVersion = 3 },
+	}, function()
+		confirmed = config.update(
+			{} :: any,
+			{ universe_id = sm.UNIVERSE_ID, key = 'speed', input = { type = 'number', value = 1 } } :: any,
+			{ value = 2 } :: any
+		)
+	end)
+
+	expect.eq(calls[2].body.entries.speed, 2)
+	expect.eq(calls[3].body.draftHash, 'h')
+	expect.eq(confirmed.value, 2)
+end
+
+function run.create_publishes_value_over_existing_key()
+	local lock
+	local calls = with_cloud({
+		['GET /full'] = { entries = { speed = { value = 1 } } },
+		['GET /draft'] = '404 Not Found',
+		['PATCH /draft'] = { draftHash = 'h' },
+		['POST /publish'] = { configVersion = 2 },
+	}, function()
+		lock = config.create(
+			{} :: any,
+			{ universe_id = sm.UNIVERSE_ID },
+			{ type = 'number', value = 5, conflicts = {} } :: any,
+			'speed'
+		)
+	end)
+
+	expect.eq(calls[3].body.entries.speed, 5)
+	expect.eq(lock.input.value, 5, 'tracked value kept in the lock')
+end
+
+function run.user_data_templates_live_in_data_stores_config()
+	local templates =
+		{ { key_template = { data_store_type = 'STANDARD', data_store_name = 'players', key_pattern = '{UserId}' } } }
+	local calls = with_cloud({
+		['GET /full'] = { entries = {} },
+		['GET /draft'] = '404 Not Found',
+		['PATCH /draft'] = { draftHash = 'h' },
+		['POST /publish'] = { configVersion = 1 },
+	}, function()
+		config.create(
+			{} :: any,
+			{ universe_id = sm.UNIVERSE_ID },
+			{ type = 'json', value = templates, conflicts = {} } :: any,
+			'user_data_templates'
+		)
+	end)
+
+	for _, call in calls do
+		expect.eq(call.repository, 'DataStoresConfig')
+	end
+	expect.eq(calls[3].body.entries.user_data_templates[1].key_template.data_store_name, 'players')
 end
 
 return run

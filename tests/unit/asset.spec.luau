@@ -96,8 +96,8 @@ function run.sync_uploads_only_new_hashes()
 	expect.truthy(ok, out)
 
 	expect.eq(#bodies, 1, 'duplicate content and known hash are not uploaded')
-	expect.eq(bodies[1].mime, 'image/png')
-	expect.truthy(bodies[1].request:find '"groupId":"5"' ~= nil)
+	expect.eq(bodies[1].content_type, 'image/png')
+	expect.eq(bodies[1].asset.creationContext.creator.groupId, '5')
 
 	expect.eq(out[known].asset_id, 7, 'renamed file reuses asset by hash')
 	expect.eq(out.gone.asset_id, 4, 'removed files keep their asset')

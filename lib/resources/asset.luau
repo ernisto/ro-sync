@@ -58,25 +58,6 @@ local function display_name(path: string): string
 	return if #name > MAX_DISPLAY_NAME then string.sub(name, -MAX_DISPLAY_NAME) else name
 end
 
-local function multipart(request: string, file_name: string, mime: string, content: string): (string, string)
-	local boundary = `----ro-sync{os.time()}`
-	local body = table.concat {
-		`--{boundary}\r\nContent-Disposition: form-data; name="request"\r\n\r\n{request}\r\n`,
-		`--{boundary}\r\nContent-Disposition: form-data; name="fileContent"; filename="{file_name}"\r\n`,
-		`Content-Type: {mime}\r\n\r\n{content}\r\n--{boundary}--\r\n`,
-	}
-	return body, `multipart/form-data; boundary={boundary}`
-end
-
--- ro_cloud's form labels every file icon.png/image/png, so the body is rebuilt with the real name + mime
-type upload = { request: string, file_name: string, mime: string, content: string }
-local CREATE: any = table.clone(cloud.asset.create)
-function CREATE.request(self, auth, _, upload: upload)
-	local req: any = cloud.asset.create:request(auth, nil, { asset = {} :: any })
-	req.body, req.headers['Content-Type'] = multipart(upload.request, upload.file_name, upload.mime, upload.content)
-	return req
-end
-
 local function await_operation(session: session, operation: any): number
 	local delay = 1
 	for attempt = 1, MAX_POLLS do
@@ -100,15 +81,18 @@ local function await_upload(session: session, owner: base.owner, entry: entry): 
 	local k = asset_files.kind_of(entry.path, content)
 	if k.mime == 'image/png' then content = png.bleed(content) end
 
-	local request = serde.encode('json', {
-		assetType = k.asset_type,
-		displayName = display_name(entry.path),
-		description = DESCRIPTION,
-		creationContext = { creator = creator_of(owner) },
-	})
-	local upload: upload = { request = request, file_name = display_name(entry.path), mime = k.mime, content = content }
-
-	return await_operation(session, http.call(CREATE, session, nil, upload :: any))
+	local upload: cloud.asset_upload = {
+		asset = {
+			assetType = k.asset_type,
+			displayName = display_name(entry.path),
+			description = DESCRIPTION,
+			creationContext = { creator = creator_of(owner) } :: any,
+		},
+		content = buffer.fromstring(content),
+		file_name = display_name(entry.path),
+		content_type = k.mime,
+	}
+	return await_operation(session, http.call(cloud.asset.create, session, nil, upload))
 end
 
 -- uploads files without an asset yet; assets are a collection, so create takes and returns the whole lock

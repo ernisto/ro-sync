@@ -1,4 +1,5 @@
 local cloud = require '@pkg/ro_cloud'
+local config = require '@lib/resources/config'
 local fs = require '@lune/fs'
 local http = require '@utils/http'
 local serde = require '@lune/serde'
@@ -32,6 +33,13 @@ local function resolve_manifest_files(manifest: state.manifest)
 	if manifest.icon and manifest.icon.file then manifest.icon.image_file = resolve_file(manifest.icon.file) end
 	for _, place in manifest.places do
 		if place.file then place.asset_file = resolve_file(place.file) end
+	end
+	for key, entry in manifest.configs do
+		local path = entry.value_file
+		if not path then continue end
+
+		local content = fs.isFile(path) and fs.readFile(path) or error(`configs.{key}.value_file: no file at {path}`)
+		config.load_value_file(entry, content, `configs.{key}`)
 	end
 end
 
